@@ -18,11 +18,16 @@ open Hss.Rules;
 exception Error : (string, pos);
 
 type context {
-	mutable vars : (string,(value,pos)) Map.t;
+	mutable vars : (string,value) Map.t;
+	mutable blocks : (string,expr list) Map.t;
 }
 
 function error(msg,p) {
 	throw Error(msg,p)
+}
+
+function warning(msg,p) {
+	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
 }
 
 function print_sep(str,f,ch,l) {
@@ -94,6 +99,10 @@ function rec print_css(ch,tabs,e) {
 		IO.printf ch "%svar %s = " (tabs,name);
 		print_value ch val;
 		IO.write ch ";\n";
+	| EVarBlock (name,el) ->
+		IO.printf ch "%svar %s = {\n" (tabs,name);
+		List.iter (print_css ch (tabs+"\t")) el;
+		IO.printf ch "%s}\n" tabs;
 	| EAttribute(name,val) ->
 		IO.printf ch "%s%s : " (tabs,name);
 		print_value ch val;
@@ -104,6 +113,10 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch " {\n";
 		List.iter (print_css ch (tabs+"\t")) el;
 		IO.printf ch "%s}\n" tabs;
+	| EUseBlock name ->
+		IO.printf ch "%s$%s;\n" (tabs,name);
+	| ESub el ->
+		List.iter (print_css ch tabs) el
 	}
 }
 
@@ -120,15 +133,25 @@ function rec make_sub(p,c) {
 	}
 }
 
+function rec flatten_subs(acc,e) {
+	match fst e {
+	| EAttribute _ -> e :: acc
+	| ESub el -> List.fold flatten_subs acc el
+	| _ -> acc
+	}
+}
+
 function rec flatten(parents,e) {
 	match fst e {
-	| EVar _ | EAttribute _ -> []
+	| EVar _ | EAttribute _ | EUseBlock _ | EVarBlock _ -> []
+	| ESub el -> 
+		List.concat (List.map (flatten parents) el)
 	| EBlock (classes,el) ->
 		var classes = match parents {
 			| [] -> classes
 			| l -> List.concat (List.map (function(p) List.map (make_sub p) classes) parents)
 		}
-		var attribs = List.filter (function(e) match fst e { EAttribute _ -> true | _ -> false}) el;
+		var attribs = List.rev (List.fold flatten_subs [] el);
 		var el = List.concat (List.map (flatten classes) el);
 		match attribs {
 		| [] -> el
@@ -211,8 +234,7 @@ function rec replace_vars(ctx,v) {
 	| VGroup vl ->
 		(VGroup (List.map (replace_vars ctx) vl),snd v)
 	| VVar name ->
-		var v, pos = try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) };
-		v
+		try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) }
 	| VCall(v1,vl) ->
 		(VCall (replace_vars ctx v1) (List.map (replace_vars ctx) vl),snd v)
 	| VLabel (l,v1) ->
@@ -225,20 +247,27 @@ function rec replace_vars(ctx,v) {
 function rec check(ctx,e) {
 	match fst e {
 	| EVar (name,value) ->
-		ctx.vars := Map.add ctx.vars name (value,snd e);
+		ctx.vars := Map.add ctx.vars name value;
+		e
+	| EVarBlock (name,el) ->
+		var el = List.map (check ctx) el;
+		ctx.blocks := Map.add ctx.blocks name el;
 		e
 	| EBlock (classes,el) ->
-		var old = ctx.vars;
+		var old = (ctx.vars,ctx.blocks);
 		var el = List.map (check ctx) el;
+		// check duplicate variables
 		ignore(List.fold (function(acc,e) {
 			match fst e {
 			| EAttribute(name,_) ->
-				if Map.exists acc name then error ("Duplicate attribute '"+name+"'") snd(e);
+				if Map.exists acc name then warning ("Warning, duplicate attribute '"+name+"'") snd(e);
 				Map.add acc name true
+			| ESub _ -> acc // don't take into account sub-blocks
 			| _ -> acc
 			}
 		}) Map.empty() el);
-		ctx.vars := old;
+		ctx.vars := fst old;
+		ctx.blocks := snd old;
 		(EBlock classes el,snd e)
 	| EAttribute (name,value) ->
 		var rules = try Hashtbl.find hrules name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };
@@ -249,6 +278,11 @@ function rec check(ctx,e) {
 			error ("Invalid '"+name+"' value '"+str()+"'") snd(e);
 		}
 		(EAttribute name value,snd e)
+	| EUseBlock name ->
+		var b = (try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(e) });
+		(ESub b, snd e)
+	| ESub el ->
+		(ESub (List.map (check ctx) el),snd e)
 	}
 }
 
@@ -277,7 +311,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { vars = Map.empty() };
+		var ctx = { vars = Map.empty(); blocks = Map.empty() };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);

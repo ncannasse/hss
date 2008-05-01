@@ -81,8 +81,11 @@ type class {
 
 type expr_decl {
 	EVar : (string, value);
+	EVarBlock : (string, expr list);
 	EAttribute : (string, value);
+	EUseBlock : string;
 	EBlock : (class list, expr list);
+	ESub : expr list;
 }
 
 type expr = (expr_decl , pos)
