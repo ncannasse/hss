@@ -37,15 +37,13 @@ function ids(l) { List.map RId l }
 
 var runits = [RUnit "px";RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
 var units = ROr runits
-var col = RIntRange 0 255
+var col = ROr [RIntRange 0 255;RUnit "%"]
 var alpha = RFloatRange 0. 1.
-var color = [
+var color = List.append [
 	RHex 3; RHex 6;
-	RId "black"; RId "white"; RId "red";
 	RCall (RId "rgb") [col;col;col];
-	RCall (RId "rgba") [col;col;col;alpha];
-	RId "yellow"; RId "gray"; RId "grey"; RId "green"; RId "blue"; RId "silver";
-]
+] (ids ["aqua";"black";"blue";"fuchsia";"gray";"grey";"green";"lime";"maroon";"navy";"olive";"orange";"purple";"red";"silver";"teal";"white";"yellow"])
+
 var trans_color = RId "transparent" :: color
 
 var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"]

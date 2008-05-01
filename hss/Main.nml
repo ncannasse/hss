@@ -252,27 +252,6 @@ function rec check(ctx,e) {
 	}
 }
 
-function build(file) {
-	// parse
-	var ch = IO.read_file file true;
-	var lex = Lexer.create Buffer.create();
-	Lexer.input lex file ch 1 0;
-	var el = Hss.Parser.parse lex;
-	IO.close_in ch;
-	// check + replace vars
-	var ctx = { vars = Map.empty() };
-	var el = List.map (check ctx) el;
-	// flatten
-	var el = List.concat (List.map flatten([]) el);
-	// write
-	var file2 = Sys.without_extension file + ".css";
-	if file != file2 then {
-		var ch = IO.write_file file2 true;
-		List.iter (print_css ch "") el;
-		IO.close_out ch;
-	}
-}
-
 function report(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
@@ -284,9 +263,33 @@ function report(msg,p) {
 
 try {
 	var head = "HSS v1.0 - (c)2008 Motion-Twin\nUsage : hss [options] <file>";
+	var files = &[];
+	var output = &None;
 	var decl = [
+		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 	];
-	Args.parse head decl build;
+	Args.parse head decl (function(file) files := file :: *files);
+	List.iter (function(file) {
+		// parse
+		var ch = IO.read_file file true;
+		var lex = Lexer.create Buffer.create();
+		Lexer.input lex file ch 1 0;
+		var el = Hss.Parser.parse lex;
+		IO.close_in ch;
+		// check + replace vars
+		var ctx = { vars = Map.empty() };
+		var el = List.map (check ctx) el;
+		// flatten
+		var el = List.concat (List.map flatten([]) el);
+		// write
+		var file2 = Sys.without_extension file + ".css";
+		var file2 = match *output { None -> file2 | Some dir -> dir + Sys.without_dir file2 };		
+		if file != file2 then {
+			var ch = IO.write_file file2 true;
+			List.iter (print_css ch "") el;
+			IO.close_out ch;
+		}
+	}) (*files);
 } catch {
 	// todo : fix a small bug in nekoml to have ctx.current not to lowercase
 	// in order to get correct constructor hashing

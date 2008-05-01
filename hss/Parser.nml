@@ -202,10 +202,21 @@ function rec class(s,first) {
 		else match fst t {
 			| Const (Ident id) ->
 				match *last {
-				| None when i == 0 && c.node == None -> c.node := Some id; loop (i+1)
-				| Some Sharp -> last := None; c.id := Some id; loop (i+1)
-				| Some Dot -> last := None; c.class := Some id; loop (i+1)
-				| Some DoubleDot -> last := None; c.selector := Some id; loop (i+1)
+				| None when i == 0 ->
+					c.node := Some id;
+					loop (i+1)
+				| Some Sharp ->
+					last := None;
+					c.id := Some id;
+					loop (i+1)
+				| Some Dot ->
+					last := None;
+					c.class := Some id;
+					loop (i+1)
+				| Some DoubleDot ->
+					last := None;
+					c.selector := Some id;
+					loop (i+1)
 				| _ ->
 					i
 				}
@@ -218,6 +229,27 @@ function rec class(s,first) {
 			| DoubleDot when *last == None && c.selector == None ->
 				last := Some DoubleDot;
 				loop (i+1)
+			| Selector (id,s) ->
+				match *last {
+				| None when i == 0 ->
+					c.node := Some id;
+					c.selector := Some s;
+					loop (i+1)
+				| Some Sharp ->
+					last := None; 
+					c.id := Some id;
+					c.selector := Some s;
+					loop (i+1)
+				| Some Dot -> 
+					last := None;
+					c.class := Some id;
+					c.selector := Some s;
+					loop (i+1)
+				| Some DoubleDot ->
+					i - 1
+				| _ ->
+					i
+				}
 			| _ ->
 				i
 		}

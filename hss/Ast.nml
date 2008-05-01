@@ -47,6 +47,7 @@ type token {
 	Keyword : keyword;
 	Comment : string;
 	CommentLine : string;
+	Selector : (string,string);
 }
 
 type expr;
@@ -125,5 +126,6 @@ function s_token(x) {
 	| Keyword k -> s_keyword k
 	| Comment s -> "/*" + s + "*/"
 	| CommentLine s -> "//" + s
+	| Selector (id,s) -> id+":"+s
 	}
 }
