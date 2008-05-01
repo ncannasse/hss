@@ -1,0 +1,129 @@
+/*
+ *  Hss Format
+ *  Copyright (c)2008 Motion-Twin
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+
+type pos = Lexer.pos
+
+type constant {
+	Int : int;
+	Float : float;
+	String : string;
+	Ident : string;
+	Val : string;
+}
+
+type keyword {
+	Var;
+}
+
+type token {
+	Eof;
+	Semicolon;
+	Dot;
+	Comma;
+	Sharp;
+	Eq;
+	DoubleDot;
+	Percent;
+	Exclamation;
+	BraceOpen;
+	BraceClose;
+	ParentOpen;
+	ParentClose;
+	BracketOpen;
+	BracketClose;
+	Const : constant;
+	Keyword : keyword;
+	Comment : string;
+	CommentLine : string;
+}
+
+type expr;
+type value;
+
+type value_decl {
+	VIdent : string;
+	VString : string;
+	VUnit : (float, string);
+	VFloat : float;
+	VInt : int;
+	VHex : string;
+	VList : value list;
+	VGroup : value list;
+	VUrl : string;
+	VVar : string;
+	VCall : (value, value list);
+	VLabel : (string, value);
+	VBind : (string, value);
+}
+
+type value = (value_decl , pos)
+
+type class {
+	mutable node : string option;
+	mutable class : string option;
+	mutable id : string option;
+	mutable selector : string option;
+	mutable sub : class option;
+}
+
+type expr_decl {
+	EVar : (string, value);
+	EAttribute : (string, value);
+	EBlock : (class list, expr list);
+}
+
+type expr = (expr_decl , pos)
+
+function pos((_,x)) { x }
+
+function s_constant(x) {
+	match x {
+	| Int i -> string i
+	| Float s -> string s
+	| String s -> "\"" + String.escape s + "\""
+	| Val s -> "$" + s
+	| Ident s -> s
+	}
+}
+
+function s_keyword(x) {
+	match x {
+	| Var -> "var"
+	}
+}
+
+function s_token(x) {
+	match x {
+	| Eof -> "<eof>"
+	| Semicolon -> ";"
+	| Dot -> "."
+	| DoubleDot -> ":"
+	| Percent -> "%"
+	| Comma -> ","
+	| Sharp -> "#"
+	| Eq -> "="
+	| Exclamation -> "!"
+	| BraceOpen -> "{"
+	| BraceClose -> "}"
+	| ParentOpen -> "("
+	| ParentClose -> ")"
+	| BracketOpen -> "["
+	| BracketClose -> "]"
+	| Const c -> s_constant c
+	| Keyword k -> s_keyword k
+	| Comment s -> "/*" + s + "*/"
+	| CommentLine s -> "//" + s
+	}
+}

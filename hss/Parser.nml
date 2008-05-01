@@ -1,0 +1,257 @@
+/*
+ *  Hss Format
+ *  Copyright (c)2008 Motion-Twin
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+open Lexer;
+open Hss.Ast;
+
+type error_msg {
+	Unexpected : token;
+	Message : string;
+	Class_expected;
+	Expected_semicolon : token;
+}
+
+exception Error : (error_msg , pos)
+
+function error_msg(m) {
+	match m {
+	| Unexpected t -> "Unexpected " + s_token t
+	| Class_expected -> "A node class is expected here"
+	| Expected_semicolon t -> "Unexpected " + s_token t + ", maybe missing ;"
+	| Message s -> s
+	}
+}
+
+function error(m,p) {
+	throw Error(m,p)
+}
+
+function mk(t,p) {
+	(t,p)
+}
+
+function semicolon(s) {
+	match s {
+	| [< (Semicolon,p) >] -> p
+	| [< (tk,p) >] -> error (Expected_semicolon tk) p
+	}
+}
+
+function rec program(s) {
+	match s {
+	| [< (Eof,_) >] -> []
+	| [< e = expr s; p = program s >] -> e :: p
+	}
+}
+
+function rec expr(s) {
+	match s {
+	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_); v = value s; p2 = semicolon s >] -> (EVar i v, punion p1 p2)
+	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
+	}
+}
+
+function rec expr_list(s) {
+	match s {
+	| [< (BraceClose,_) >] ->
+		[]
+	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon s >] ->
+		(EAttribute att v,p) :: expr_list s
+	| [< e = expr s >] ->
+		e :: expr_list s
+	}
+}
+
+function rec value(s) {
+	match s {
+	| [< (Sharp,p) >] -> value_next (value_hex p s) s
+	| [< (Const (Ident i),p1) >] ->
+		match s {
+		| [< (Eq,_); v = value s >] ->
+			function bind(v) {
+				(VBind i v,punion p1 (pos v))
+			}
+			match v {
+			| (VList (v :: l),p2) -> (VList (bind v :: l), punion p1 p2)
+			| (VGroup (v :: l),p2) -> (VGroup (bind v :: l), punion p1 p2)
+			| _ -> bind v
+			}
+		| [< >] ->
+			value_next (VIdent i,p1) s
+		}
+	| [< (Const (String str),p) >] -> value_next (VString str,p) s
+	| [< (Const (Int i),p) >] -> value_unit (i * 1.0) Some(i) p s
+	| [< (Const (Float f),p) >] -> value_unit f None p s
+	| [< (Const (Val v),p) >] -> value_next (VVar v,p) s
+	}
+}
+
+function rec value_unit(f,i,p,s) {
+	var v = match s {
+	| [< (Const (Ident i),_) >] ->
+		(VUnit f i, p)
+	| [< (Percent,_) >] ->
+		(VUnit f "%", p)
+	| [< >] ->
+		match i {
+		| None -> (VFloat f, p)
+		| Some i -> (VInt i, p)
+		}
+	}
+	value_next v s
+}
+
+function rec value_next(v,s) {
+	match s {
+	| [< (ParentOpen,_); p = value s; (ParentClose,p2) >] ->
+		var args = match p {
+		| (VList l,_) -> l
+		| _ -> [p]
+		}
+		value_next (VCall v args, punion (pos v) p2) s
+	| [< (Exclamation,p1); (Const (Ident i),p2) >] ->
+		(VLabel i v,punion p1 p2)
+	| [< v2 = value s >] ->
+		function rec loop(v2) {
+			var p = punion (pos v) (pos v2);
+			match fst v2 {
+			| VGroup l -> (VGroup (v :: l), p)
+			| VList (v2 :: l) -> (VList (loop v2 :: l), p)
+			| VLabel (l,v2) -> (VLabel l (loop v2), p)
+			| _ -> (VGroup [v;v2], p)
+			}
+		}
+		loop v2
+	| [< (Comma,_); v2 = value s >] ->
+		function rec loop(v2) {
+			var p = punion (pos v) (pos v2);
+			match fst v2 {
+			| VList l -> (VList (v :: l), p)
+			| VLabel (l,v2) -> (VLabel l (loop v2), p)
+			| _ -> (VList [v;v2], p)
+			}
+		}
+		loop v2
+	| [< >] ->
+		v
+	}
+}
+
+function rec class_list(s,first) {
+	match s {
+	| [< c = class s first >] ->
+		match s {
+		| [< (Comma,_) >] -> c :: class_list s false
+		| [< >] -> [c]
+		}
+	}
+}
+
+function rec value_hex(p,s) {
+	var str = &"";
+	var pos = &p;
+	var hex = Regexp.build "^[A-Za-z0-9]+$";
+	function rec loop(i) {
+		var t = stream_token s i;
+		var p = *pos;
+		var p2 = snd t;
+		pos := p2;
+		// contiguous
+		if p.pline != p2.pline || p.pmax != p2.pmin then
+			i
+		else match fst t {
+		| Const (Ident id) when Regexp.find hex id 0 String.length(id) ->
+			str := *str + id;
+			loop (i+1)
+		| Const (Int k) when k >= 0 ->
+			str := *str + string k;
+			loop (i+1)
+		| _ ->
+			i
+		}
+	}
+	var n = loop 0;
+	if n == 0 then error (Message "Expected hexadecimal value here") p;
+	stream_junk s n;
+	(VHex (*str), punion p (*pos))
+}
+
+function rec class(s,first) {
+	var c = { node = None; id = None; class = None; sub = None; selector = None };
+	var pos = &null_pos;
+	var last = &None;
+	function rec loop(i) {
+		var t = stream_token s i;
+		var p = *pos;
+		var p2 = snd t;
+		pos := p2;
+		// contiguous
+		if i > 0 && (p.pline != p2.pline || p.pmax != p2.pmin) then
+			i
+		else match fst t {
+			| Const (Ident id) ->
+				match *last {
+				| None when i == 0 && c.node == None -> c.node := Some id; loop (i+1)
+				| Some Sharp -> last := None; c.id := Some id; loop (i+1)
+				| Some Dot -> last := None; c.class := Some id; loop (i+1)
+				| Some DoubleDot -> last := None; c.selector := Some id; loop (i+1)
+				| _ ->
+					i
+				}
+			| Sharp when *last == None && c.id == None ->
+				last := Some Sharp;
+				loop (i+1)
+			| Dot when *last == None && c.class == None ->
+				last := Some Dot;
+				loop (i+1)
+			| DoubleDot when *last == None && c.selector == None ->
+				last := Some DoubleDot;
+				loop (i+1)
+			| _ ->
+				i
+		}
+	}
+	var n = loop 0;
+	if n == 0 then error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos);
+	stream_junk s n;
+	match *last {
+	| None -> ()
+	| Some t -> error (Unexpected t) (*pos);
+	}
+	try
+		c.sub := Some (class s false)
+	catch {
+		Error (Class_expected,_) -> ()
+	}
+	c
+}
+
+function parse(lexer) {
+	var last = &(Eof,null_pos);
+	function rec next_token() {
+		var t = Lexer.token lexer (*Hss.Lexer.expr);
+		match fst t {
+		| Comment s | CommentLine s ->
+			next_token()
+		| _ ->
+			last := t;
+			t
+		}
+	}
+	try {
+		program (stream next_token)
+	} catch {
+		Stream_error -> error Unexpected(fst(*last)) snd(*last)
+	}
+}

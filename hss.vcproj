@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioProject
+	ProjectType="Visual C++"
+	Version="7.10"
+	Name="hss"
+	ProjectGUID="{198B5A06-8037-4ADB-BD2F-7B8E55BBC64B}"
+	Keyword="MakeFileProj">
+	<Platforms>
+		<Platform
+			Name="Win32"/>
+	</Platforms>
+	<Configurations>
+		<Configuration
+			Name="Debug|Win32"
+			OutputDirectory="Debug"
+			IntermediateDirectory="Debug"
+			ConfigurationType="0">
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="make"
+				Output="hss.exe"/>
+		</Configuration>
+		<Configuration
+			Name="Release|Win32"
+			OutputDirectory="Release"
+			IntermediateDirectory="Release"
+			ConfigurationType="0">
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="nmake"/>
+		</Configuration>
+	</Configurations>
+	<References>
+	</References>
+	<Files>
+		<File
+			RelativePath=".\hss\Ast.nml">
+		</File>
+		<File
+			RelativePath=".\hss\Lexer.nml">
+		</File>
+		<File
+			RelativePath=".\hss\Main.nml">
+		</File>
+		<File
+			RelativePath=".\hss\Parser.nml">
+		</File>
+		<File
+			RelativePath=".\hss\Rules.nml">
+		</File>
+	</Files>
+	<Globals>
+	</Globals>
+</VisualStudioProject>

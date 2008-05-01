@@ -1,0 +1,300 @@
+/*
+ *  Hss Format
+ *  Copyright (c)2008 Motion-Twin
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+open Hss.Ast;
+open Hss.Rules;
+
+exception Error : (string, pos);
+
+type context {
+	mutable vars : (string,(value,pos)) Map.t;
+}
+
+function error(msg,p) {
+	throw Error(msg,p)
+}
+
+function print_sep(str,f,ch,l) {
+	var first = &true;
+	List.iter (function(e) {
+		if *first then first := false else IO.write ch str;
+		f ch e;
+	}) l;
+}
+
+function rec print_value(ch,v) {
+	match fst v {
+	| VIdent i -> IO.write ch i
+	| VString s -> IO.printf ch "\"%s\"" (String.unescape s)
+	| VUnit (v,u) -> IO.printf ch "%f%s" (v,u);
+	| VFloat f -> IO.printf ch "%f" f;
+	| VInt i -> IO.printf ch "%d" i;
+	| VHex s -> IO.printf ch "#%s" s;
+	| VBind (n,v) ->
+		IO.printf ch "%s=" n;
+		print_value ch v
+	| VList l ->
+		print_sep ", " print_value ch l
+	| VGroup l ->
+		print_sep " " print_value ch l
+	| VUrl url ->
+		IO.printf ch "url(\"%s\")" (String.unescape url)
+	| VVar s ->
+		IO.printf ch "$%s" s
+	| VCall (v,vl) ->
+		print_value ch v;
+		IO.write ch "(";
+		print_sep "," print_value ch vl;
+		IO.write ch ")";
+	| VLabel (l,v) ->
+		print_value ch v;
+		IO.printf ch " !%s" l;
+	}
+}
+
+function rec print_class(ch,c) {
+	match c.node {
+	| None -> ()
+	| Some id -> IO.write ch id;
+	}
+	match c.id {
+	| None -> ()
+	| Some id -> IO.printf ch "#%s" id;
+	}
+	match c.class {
+	| None -> ()
+	| Some id -> IO.printf ch ".%s" id;
+	}
+	match c.selector {
+	| None -> ()
+	| Some id -> IO.printf ch ":%s" id;
+	}
+	match c.sub {
+	| None -> ()
+	| Some c ->
+		IO.write ch " ";
+		print_class ch c
+	}
+}
+
+function rec print_css(ch,tabs,e) {
+	match fst e {
+	| EVar(name,val) ->
+		IO.printf ch "%svar %s = " (tabs,name);
+		print_value ch val;
+		IO.write ch ";\n";
+	| EAttribute(name,val) ->
+		IO.printf ch "%s%s : " (tabs,name);
+		print_value ch val;
+		IO.write ch ";\n";
+	| EBlock(classes,el) ->
+		IO.write ch tabs;
+		print_sep ", " print_class ch classes;
+		IO.write ch " {\n";
+		List.iter (print_css ch (tabs+"\t")) el;
+		IO.printf ch "%s}\n" tabs;
+	}
+}
+
+function rec make_sub(p,c) {
+	{
+		node = p.node;
+		id = p.id;
+		class = p.class;
+		selector = p.selector;
+		sub = match p.sub {
+			| None -> Some c
+			| Some p -> Some (make_sub p c)
+		}
+	}
+}
+
+function rec flatten(parents,e) {
+	match fst e {
+	| EVar _ | EAttribute _ -> []
+	| EBlock (classes,el) ->
+		var classes = match parents {
+			| [] -> classes
+			| l -> List.concat (List.map (function(p) List.map (make_sub p) classes) parents)
+		}
+		var attribs = List.filter (function(e) match fst e { EAttribute _ -> true | _ -> false}) el;
+		var el = List.concat (List.map (flatten classes) el);
+		match attribs {
+		| [] -> el
+		| _ -> (EBlock classes attribs,snd e) :: el
+		}
+	}
+}
+
+function rec check_rule(r,v) {
+	match (r, fst v) {
+	| (RId s, VIdent n) -> s == n
+	| (RHex n, VHex s) -> String.length s == n
+	| (RUnit s, VUnit(_,n)) -> s == n
+	| (RCall(r,rl), VCall (v,vl)) when List.length rl == List.length vl ->
+		try  {
+			List.iter2 (function(r,v) if !(check_rule r v) then throw Exit) rl vl;
+			check_rule r v
+		} catch  {
+			Exit -> false
+		}
+	| (RFloat, VInt _) | (RFloat, VFloat _) -> true
+	| (RInt, VInt _) -> true
+	| (RFloatRange(min,max), VInt n) -> n * 1.0 >= min && n * 1.0 <= max
+	| (RFloatRange(min,max), VFloat n) -> n >= min && n <= max
+	| (RIntRange(min,max), VInt n) -> n >= min && n <= max
+	| (ROr rl,_) ->
+		List.exists (function(r) check_rule r v) rl
+	| (RIdent, VIdent _) -> true
+	| (RString, VString _) -> true
+	| (RList r, VList vl) -> List.all (check_rule r) vl
+	| (RList r, _) -> check_rule r v
+	| (RGroup rl, VGroup vl) when List.length rl == List.length vl ->
+		try {
+			List.iter2 (function(r,v) if !(check_rule r v) then throw Exit) rl vl;
+			true
+		} catch {
+			Exit -> false
+		}
+	| (RGroupOpt rl, VGroup vl) ->
+		function rec loop(rl,vl) {
+			match (rl,vl) {
+			| (r :: rl, v :: vl) ->
+				if check_rule r v then
+					loop rl vl
+				else
+					loop rl (v :: vl)
+			| (_,[]) ->
+				true
+			| _ ->
+				false
+			}
+		}
+		loop rl vl
+	| (RGroupOpt rl, _) ->
+		List.exists (function(r) check_rule r v) rl
+	| (RBind (s,r), VBind (n,v)) when s == n ->
+		check_rule r v
+	| (_,VLabel (_,v)) -> check_rule r v
+	| _ -> false
+	}
+}
+
+var hrules = {
+	var h = Hashtbl.create();
+	List.iter (function((a,b)) Hashtbl.add h a b) Hss.Rules.rules;
+	h
+}
+
+function rec replace_vars(ctx,v) {
+	match fst v {
+	| VIdent _
+	| VString _
+	| VUnit _
+	| VUrl _
+	| VInt _
+	| VFloat _
+	| VHex _ -> v
+	| VList vl ->
+		(VList (List.map (replace_vars ctx) vl),snd v)
+	| VGroup vl ->
+		(VGroup (List.map (replace_vars ctx) vl),snd v)
+	| VVar name ->
+		var v, pos = try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) };
+		v
+	| VCall(v1,vl) ->
+		(VCall (replace_vars ctx v1) (List.map (replace_vars ctx) vl),snd v)
+	| VLabel (l,v1) ->
+		(VLabel l (replace_vars ctx v1), snd v)
+	| VBind(name,v1) ->
+		(VBind name (replace_vars ctx v1), snd v)
+	}
+}
+
+function rec check(ctx,e) {
+	match fst e {
+	| EVar (name,value) ->
+		ctx.vars := Map.add ctx.vars name (value,snd e);
+		e
+	| EBlock (classes,el) ->
+		var old = ctx.vars;
+		var el = List.map (check ctx) el;
+		ignore(List.fold (function(acc,e) {
+			match fst e {
+			| EAttribute(name,_) ->
+				if Map.exists acc name then error ("Duplicate attribute '"+name+"'") snd(e);
+				Map.add acc name true
+			| _ -> acc
+			}
+		}) Map.empty() el);
+		ctx.vars := old;
+		(EBlock classes el,snd e)
+	| EAttribute (name,value) ->
+		var rules = try Hashtbl.find hrules name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };
+		var value = replace_vars ctx value;
+		if !(List.exists (function(r) check_rule r value) rules) then {
+			var buf, str = IO.write_string();
+			print_value buf value;
+			error ("Invalid '"+name+"' value '"+str()+"'") snd(e);
+		}
+		(EAttribute name value,snd e)
+	}
+}
+
+function build(file) {
+	// parse
+	var ch = IO.read_file file true;
+	var lex = Lexer.create Buffer.create();
+	Lexer.input lex file ch 1 0;
+	var el = Hss.Parser.parse lex;
+	IO.close_in ch;
+	// check + replace vars
+	var ctx = { vars = Map.empty() };
+	var el = List.map (check ctx) el;
+	// flatten
+	var el = List.concat (List.map flatten([]) el);
+	// write
+	var file2 = Sys.without_extension file + ".css";
+	if file != file2 then {
+		var ch = IO.write_file file2 true;
+		List.iter (print_css ch "") el;
+		IO.close_out ch;
+	}
+}
+
+function report(msg,p) {
+	if p == Lexer.null_pos then	{
+		Stack.dump IO.stderr Stack.exc();
+		IO.printf IO.stderr "Exception : %s\n" msg
+	} else
+	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
+	Sys.exit(-1);
+}
+
+try {
+	var head = "HSS v1.0 - (c)2008 Motion-Twin\nUsage : hss [options] <file>";
+	var decl = [
+	];
+	Args.parse head decl build;
+} catch {
+	// todo : fix a small bug in nekoml to have ctx.current not to lowercase
+	// in order to get correct constructor hashing
+	| Hss.Lexer.Error(msg,pos) -> report Hss.Lexer.error_msg(msg) pos
+	| Hss.Parser.Error(msg,pos) -> report Hss.Parser.error_msg(msg) pos
+	| Error (msg,pos) -> report msg pos
+	| e ->
+		Stack.dump IO.stderr Stack.exc();
+		IO.printf IO.stderr "Exception : %s\n" string(e);
+		Sys.exit (-1);
+}
