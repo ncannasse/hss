@@ -112,6 +112,7 @@ expr := Lexer.build [
 		mk l Const(Val (String.sub i 1 (String.length i - 1)))
 	});
 	("#", function(l) { mk l Sharp });
+	(">", function(l) { mk l Gt });
 	("\"", function(l) {
 		var p1 = Lexer.curpos l;
 		var buf = Lexer.data l;
@@ -180,7 +181,7 @@ estring := Lexer.build [
 	});
 	("\\\\" , function(l) { error l Invalid_escape });
 	("\"" , function(l) { });
-	("[^\"\\]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
+	("[^\\\\\"]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
 ] (function(l) { assert() });
 
 eqstring := Lexer.build [
@@ -206,5 +207,5 @@ eqstring := Lexer.build [
 	});
 	("\\\\" , function(l) { error l Invalid_escape });
 	("'" , function(l) { });
-	("[^'\\]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
+	("[^\\\\']+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
 ] (function(l) { assert() });

@@ -34,6 +34,7 @@ type token {
 	Comma;
 	Sharp;
 	Eq;
+	Gt;
 	DoubleDot;
 	Percent;
 	Exclamation;
@@ -71,12 +72,19 @@ type value_decl {
 
 type value = (value_decl , pos)
 
+type operator {
+	OpDefault;
+	OpChild;
+}
+
 type class {
 	mutable node : string option;
 	mutable class : string option;
 	mutable id : string option;
 	mutable selector : string option;
 	mutable sub : class option;
+	mutable attribute : (string,string) option;
+	mutable operator : operator;
 }
 
 type expr_decl {
@@ -118,6 +126,7 @@ function s_token(x) {
 	| Comma -> ","
 	| Sharp -> "#"
 	| Eq -> "="
+	| Gt -> ">"
 	| Exclamation -> "!"
 	| BraceOpen -> "{"
 	| BraceClose -> "}"

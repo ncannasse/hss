@@ -57,6 +57,8 @@ function rec print_value(ch,v) {
 		IO.printf ch "url(\"%s\")" (String.unescape url)
 	| VVar s ->
 		IO.printf ch "$%s" s
+	| VCall ((VIdent "CSS",_),[(VString str,_)]) ->
+		IO.printf ch "%s" str
 	| VCall (v,vl) ->
 		print_value ch v;
 		IO.write ch "(";
@@ -73,6 +75,10 @@ function rec print_class(ch,c) {
 	| None -> ()
 	| Some id -> IO.write ch id;
 	}
+	match c.attribute {
+	| None -> ()
+	| Some (att,val) -> IO.printf ch "[%s=\"%s\"]" (att,val)
+	}
 	match c.id {
 	| None -> ()
 	| Some id -> IO.printf ch "#%s" id;
@@ -87,9 +93,9 @@ function rec print_class(ch,c) {
 	}
 	match c.sub {
 	| None -> ()
-	| Some c ->
-		IO.write ch " ";
-		print_class ch c
+	| Some cs ->
+		IO.write ch (match c.operator { OpDefault -> " " | OpChild -> ">" });
+		print_class ch cs
 	}
 }
 
@@ -126,10 +132,12 @@ function rec make_sub(p,c) {
 		id = p.id;
 		class = p.class;
 		selector = p.selector;
+		attribute = p.attribute;
+		operator = p.operator;
 		sub = match p.sub {
 			| None -> Some c
 			| Some p -> Some (make_sub p c)
-		}
+		};
 	}
 }
 
@@ -270,12 +278,16 @@ function rec check(ctx,e) {
 		ctx.blocks := snd old;
 		(EBlock classes el,snd e)
 	| EAttribute (name,value) ->
-		var rules = try Hashtbl.find hrules name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };
 		var value = replace_vars ctx value;
-		if !(List.exists (function(r) check_rule r value) rules) then {
-			var buf, str = IO.write_string();
-			print_value buf value;
-			error ("Invalid '"+name+"' value '"+str()+"'") snd(e);
+		match value {
+		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> ()
+		| _ ->
+			var rules = try Hashtbl.find hrules name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };
+			if !(List.exists (function(r) check_rule r value) rules) then {
+				var buf, str = IO.write_string();
+				print_value buf value;
+				error ("Invalid '"+name+"' value '"+str()+"'") snd(e);
+			}
 		}
 		(EAttribute name value,snd e)
 	| EUseBlock name ->

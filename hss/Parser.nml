@@ -194,7 +194,7 @@ function rec value_hex(p,s) {
 }
 
 function rec class(s,first) {
-	var c = { node = None; id = None; class = None; sub = None; selector = None };
+	var c = { node = None; id = None; class = None; sub = None; selector = None; attribute = None; operator = OpDefault; };
 	var pos = &null_pos;
 	var last = &None;
 	function rec loop(i) {
@@ -223,6 +223,9 @@ function rec class(s,first) {
 					last := None;
 					c.selector := Some id;
 					loop (i+1)
+				| Some BracketOpen ->
+					last := Some (Const (Ident id));
+					loop (i+1);				
 				| _ ->
 					i
 				}
@@ -235,6 +238,26 @@ function rec class(s,first) {
 			| DoubleDot when *last == None && c.selector == None ->
 				last := Some DoubleDot;
 				loop (i+1)
+			| BracketOpen when *last == None && c.attribute == None ->
+				last := Some BracketOpen;
+				loop (i+1)
+			| BracketClose when *last == Some BracketClose ->
+				last := None;
+				loop (i+1)
+			| Eq ->
+				match *last { 
+				| Some (Const (Ident _)) -> loop (i+1)
+				| _ -> i
+				}
+			| Const (String s) ->
+				match *last {
+				| Some (Const (Ident att)) ->
+					c.attribute := Some (att,s);
+					last := Some BracketClose;
+					loop (i+1)
+				| _ ->
+					i
+				}
 			| Selector (id,s) ->
 				match *last {
 				| None when i == 0 ->
@@ -266,6 +289,10 @@ function rec class(s,first) {
 	match *last {
 	| None -> ()
 	| Some t -> error (Unexpected t) (*pos);
+	}
+	match s {
+	| [< (Gt,p) >] -> c.operator := OpChild
+	| [< >] -> ()
 	}
 	try
 		c.sub := Some (class s false)
