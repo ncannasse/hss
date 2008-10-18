@@ -252,6 +252,17 @@ function rec replace_vars(ctx,v) {
 	}
 }
 
+function rec check_class(ctx,p,c) {
+	match c.selector {
+	| None ->
+	| Some s -> if !(List.mem s selectors) then error ("Invalid selector '"+s+"'") p
+	}
+	match c.sub {
+	| None -> ()
+	| Some c -> check_class ctx p c
+	}
+}
+
 function rec check(ctx,e) {
 	match fst e {
 	| EVar (name,value) ->
@@ -264,6 +275,7 @@ function rec check(ctx,e) {
 	| EBlock (classes,el) ->
 		var old = (ctx.vars,ctx.blocks);
 		var el = List.map (check ctx) el;
+		List.iter (check_class ctx snd(e)) classes;
 		// check duplicate variables
 		ignore(List.fold (function(acc,e) {
 			match fst e {
