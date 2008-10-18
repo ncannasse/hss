@@ -28,7 +28,7 @@ function error_msg(m) {
 	match m {
 	| Unexpected t -> "Unexpected " + s_token t
 	| Class_expected -> "A node class is expected here"
-	| Expected_semicolon t -> "Unexpected " + s_token t + ", maybe missing ;"
+	| Expected_semicolon t -> "Unexpected '" + s_token t + "' maybe missing ;"
 	| Message s -> s
 	}
 }
@@ -225,7 +225,7 @@ function rec class(s,first) {
 					loop (i+1)
 				| Some BracketOpen ->
 					last := Some (Const (Ident id));
-					loop (i+1);				
+					loop (i+1);
 				| _ ->
 					i
 				}
@@ -245,7 +245,7 @@ function rec class(s,first) {
 				last := None;
 				loop (i+1)
 			| Eq ->
-				match *last { 
+				match *last {
 				| Some (Const (Ident _)) -> loop (i+1)
 				| _ -> i
 				}
@@ -265,11 +265,11 @@ function rec class(s,first) {
 					c.selector := Some s;
 					loop (i+1)
 				| Some Sharp ->
-					last := None; 
+					last := None;
 					c.id := Some id;
 					c.selector := Some s;
 					loop (i+1)
-				| Some Dot -> 
+				| Some Dot ->
 					last := None;
 					c.class := Some id;
 					c.selector := Some s;
