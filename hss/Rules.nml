@@ -35,7 +35,7 @@ type rule {
 
 function ids(l) { List.map RId l }
 
-var selectors = ["first-child";"link";"visited";"active";"hover";"focus"]
+var selectors = ["first-child";"link";"visited";"active";"hover";"focus";"first-letter";"first-line";"before";"after"]
 
 var runits = [RUnit "px";RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
 var units = ROr runits
