@@ -77,6 +77,7 @@ var bgrepeat = ids ["repeat";"repeat-x";"repeat-y";"no-repeat"]
 var bgattach = ids ["scroll";"fixed"]
 
 var outline_width = List.append runits (ids ["thin";"medium";"thick"])
+var border_width = outline_width;
 
 var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
 var font_family = RList ROr([RIdent;RString;RGroup [RIdent;RIdent]]) // can be composed of up to 2 words
@@ -158,10 +159,11 @@ var rules = List.concat [[
 	("border-left",border);
 	("border-right",border);
 	("border-bottom",border);
-	("border-top-width",runits);
-	("border-left-width",runits);
-	("border-right-width",runits);
-	("border-bottom-width",runits);
+	("border-width",RGroup [ROr border_width;ROr border_width;ROr border_width;ROr border_width] :: border_width);
+	("border-top-width",border_width);
+	("border-left-width",border_width);
+	("border-right-width",border_width);
+	("border-bottom-width",border_width);
 	("border-top-color",color);
 	("border-left-color",color);
 	("border-right-color",color);
