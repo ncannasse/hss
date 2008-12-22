@@ -79,7 +79,7 @@ function qstr(l) {
 	Lexer.token l (*eqstring)
 }
 
-expr := Lexer.build [
+expr := Lexer.build (List.concat [[
 	(";", function(l) { mk l Semicolon });
 	(".", function(l) { mk l Dot });
 	(",", function(l) { mk l Comma });
@@ -99,13 +99,6 @@ expr := Lexer.build [
 	("-?[0-9]+.[0-9]*", mk_float);
 	("-?.[0-9]+", mk_float);
 	(ident, function(l) { mk_ident l });
-	(ident+":"+ident, function(l) {
-		var s = Lexer.current l;
-		match String.split s ":" {
-		| [a;b] -> mk l Selector(a,b)
-		| _ -> assert()
-		}
-	});
 	("-[-a-zA-Z_][-a-zA-Z0-9_]*", function(l) { mk_ident l });
 	("$"+ident, function(l) {
 		var i = Lexer.current(l);
@@ -143,7 +136,15 @@ expr := Lexer.build [
 		var n = (if String.get s (len - 1) == '\r' then 3 else 2);
 		mk l CommentLine(String.sub s 0 (len - n))
 	});
-]
+];List.map (function(sel) {
+	(ident+":"+sel, function(l) {
+		var s = Lexer.current l;
+		match String.split s ":" {
+		| [a;b] -> mk l Selector(a,b)
+		| _ -> assert()
+		}
+	})
+}) Hss.Rules.selectors])
 	(function(l) {
 		match Lexer.char l {
 		| None -> mk l Eof
