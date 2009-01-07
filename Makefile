@@ -1,7 +1,7 @@
 all:
 	nekoml hss/*.nml
-	nekoc -link hss.n hss/Main
-	nekotools boot hss.n
+	nekoc -link bin/hss.n hss/Main
+	nekotools boot bin/hss.n
 	rm -rf *.n hss/*.n
 
 release:
