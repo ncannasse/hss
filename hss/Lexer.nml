@@ -106,6 +106,10 @@ expr := Lexer.build (List.concat [[
 	});
 	("#", function(l) { mk l Sharp });
 	(">", function(l) { mk l Gt });
+	("\\+", function(l) { mk l Op(Add) } );
+	("-", function(l) { mk l Op(Sub) } );
+	("\\*", function(l) { mk l Op(Mul) } );
+	("/", function(l) { mk l Op(Div) } );
 	("\"", function(l) {
 		var p1 = Lexer.curpos l;
 		var buf = Lexer.data l;

@@ -149,6 +149,8 @@ function rec value_next(v,s) {
 			}
 		}
 		loop v2
+	| [< (Op o,_); v2 = value s >] ->
+		(VOp o v v2, punion (pos v) (pos v2))
 	| [< >] ->
 		v
 	}
