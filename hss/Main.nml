@@ -362,7 +362,7 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.0 - (c)2008 Motion-Twin\nUsage : hss [options] <file>";
+	var head = "HSS v1.1 - (c)2008-2010 Motion-Twin\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [
