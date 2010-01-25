@@ -308,7 +308,7 @@ function rec check_class(ctx,p,c) {
 function rec check(ctx,e) {
 	match fst e {
 	| EVar (name,value) ->
-		ctx.vars := Map.add ctx.vars name value;
+		ctx.vars := Map.add ctx.vars name (replace_vars ctx value);
 		e
 	| EVarBlock (name,el) ->
 		var el = List.map (check ctx) el;
