@@ -15,7 +15,7 @@
 open Hss.Ast;
 open Hss.Rules;
 
-exception Error : (string, pos);
+exception Error : (string, pos) list;
 
 type context {
 	mutable vars : (string,value) Map.t;
@@ -23,7 +23,7 @@ type context {
 }
 
 function error(msg,p) {
-	throw Error(msg,p)
+	throw Error([(msg,p)])
 }
 
 function warning(msg,p) {
@@ -230,7 +230,7 @@ var hrules = {
 	h
 }
 
-function rec replace_vars(ctx,v) {
+function rec eval(ctx,v) {
 	match fst v {
 	| VIdent _
 	| VString _
@@ -240,20 +240,20 @@ function rec replace_vars(ctx,v) {
 	| VFloat _
 	| VHex _ -> v
 	| VList vl ->
-		(VList (List.map (replace_vars ctx) vl),snd v)
+		(VList (List.map (eval ctx) vl),snd v)
 	| VGroup vl ->
-		(VGroup (List.map (replace_vars ctx) vl),snd v)
+		(VGroup (List.map (eval ctx) vl),snd v)
 	| VVar name ->
-		try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) }
+		eval ctx (try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) })
 	| VCall(v1,vl) ->
-		(VCall (replace_vars ctx v1) (List.map (replace_vars ctx) vl),snd v)
+		(VCall (eval ctx v1) (List.map (eval ctx) vl),snd v)
 	| VLabel (l,v1) ->
-		(VLabel l (replace_vars ctx v1), snd v)
+		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->
-		(VBind name (replace_vars ctx v1), snd v)
+		(VBind name (eval ctx v1), snd v)
 	| VOp (op,v1,v2) ->
-		var v1 = replace_vars ctx v1;
-		var v2 = replace_vars ctx v2;
+		var v1 = eval ctx v1;
+		var v2 = eval ctx v2;
 		var fop = function(x:float,y:float) {
 			match op {
 			| Add -> x + y
@@ -308,10 +308,9 @@ function rec check_class(ctx,p,c) {
 function rec check(ctx,e) {
 	match fst e {
 	| EVar (name,value) ->
-		ctx.vars := Map.add ctx.vars name (replace_vars ctx value);
+		ctx.vars := Map.add ctx.vars name value;
 		e
 	| EVarBlock (name,el) ->
-		var el = List.map (check ctx) el;
 		ctx.blocks := Map.add ctx.blocks name el;
 		e
 	| EBlock (classes,el) ->
@@ -332,7 +331,7 @@ function rec check(ctx,e) {
 		ctx.blocks := snd old;
 		(EBlock classes el,snd e)
 	| EAttribute (name,value) ->
-		var value = replace_vars ctx value;
+		var value = eval ctx value;
 		match value {
 		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> ()
 		| _ ->
@@ -345,19 +344,24 @@ function rec check(ctx,e) {
 		}
 		(EAttribute name value,snd e)
 	| EUseBlock name ->
-		var b = (try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(e) });
+		var b = try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(e) };
+		var b = try List.map (check ctx) b catch { Error l -> throw Error(("Included here ",snd e)::l) };
 		(ESub b, snd e)
 	| ESub el ->
 		(ESub (List.map (check ctx) el),snd e)
 	}
 }
 
-function report(msg,p) {
+function display(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
 	} else
 	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
+}
+
+function report(msg,p) {
+	display msg p;
 	Sys.exit(-1);
 }
 
@@ -395,7 +399,7 @@ try {
 	// in order to get correct constructor hashing
 	| Hss.Lexer.Error(msg,pos) -> report Hss.Lexer.error_msg(msg) pos
 	| Hss.Parser.Error(msg,pos) -> report Hss.Parser.error_msg(msg) pos
-	| Error (msg,pos) -> report msg pos
+	| Error l -> List.iter (function((msg,p)) display msg p) List.rev(l); Sys.exit (-1);
 	| e ->
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" string(e);
