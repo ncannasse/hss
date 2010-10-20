@@ -281,6 +281,14 @@ function rec class(s,first) {
 				| _ ->
 					i
 				}
+			| ParentOpen when i == 1 && c.node == Some "CSS" ->
+				match (stream_token s (i + 1), stream_token s (i + 2)) {
+				| ((Const (String s),_), (ParentClose,p)) ->
+					c.node := Some s;
+					pos := p;
+					loop (i + 3)
+				| _ -> i
+				}
 			| _ ->
 				i
 		}
