@@ -48,6 +48,11 @@ var color = List.append [
 
 var trans_color = RId "transparent" :: color
 
+var rgba = RCall (RId "rgba") [col;col;col;RFloatRange 0. 1.]
+
+var acolor = rgba :: color
+var trans_acolor = rgba :: trans_color
+
 var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"]
 
 var border = [
@@ -110,7 +115,7 @@ var rules = List.concat [[
 	("padding",[RGroup [units;units;units;units];units; RGroup [units;units]]);
 ];[
 	// layout
-	("display",ids ["block";"inline";"none"]);
+	("display",ids ["block";"inline";"none";"inline-block"]);
 	("float",ids ["left";"right";"none"]);
 	("clear",ids ["none";"left";"right";"both"]);
 	("overflow",ids ["auto";"hidden";"scroll";"visible"]);
@@ -131,7 +136,7 @@ var rules = List.concat [[
 	("text-align",ids ["center";"justify";"left";"right"]);
 	("text-decoration",ids ["none";"underline";"blink";"line-through";"overline"]);
 	("font-style",font_style);
-	("color",color);
+	("color",acolor);
 	("text-transform",ids ["capitalize";"lowercase";"none";"uppercase"]);
 	("letter-spacing",RId "normal" :: runits);
 	("word-spacing",RId "normal" :: runits);
@@ -143,10 +148,10 @@ var rules = List.concat [[
 	// background
 	("background",[
 		none;
-		RGroupOpt [ROr trans_color;url;ROr bgrepeat;ROr bgattach;vunits;hunits];
-		RGroupOpt [ROr trans_color;url;ROr bgrepeat;ROr bgattach;hunits;vunits];
+		RGroupOpt [ROr trans_acolor;url;ROr bgrepeat;ROr bgattach;vunits;hunits];
+		RGroupOpt [ROr trans_acolor;url;ROr bgrepeat;ROr bgattach;hunits;vunits];
 	]);
-	("background-color",trans_color);	
+	("background-color",trans_acolor);	
 	("background-image",[url; none]);
 	("background-position",bgpos);
 	("background-repeat",bgrepeat);
@@ -186,16 +191,17 @@ var rules = List.concat [[
 	("list-style-type", lst);
 	("list-style-position", lsp);
 	("list-style-image", [url;none]);
-	("filter", [RCall (RId "alpha") [RBind "opacity" (RIntRange 0 100)]]);
 	("table-layout", ids ["auto";"fixed"]);
 	("border-collapse",ids ["collapse";"separate"]);
 	("border-spacing",runits); // not supported on IE
 	("caption-side", ids ["bottom";"top"]);
+	("user-select", ids ["all";"none";"text"]);
 ];[
-	// mozilla
-	("-moz-border-radius",runits);
-	("-moz-border-radius-topright",runits);
-	("-moz-border-radius-topleft",runits);
-	("-moz-border-radius-bottomright",runits);
-	("-moz-border-radius-bottomleft",runits);
+	// effects (partial browser support)
+	("border-radius",runits);
+	("border-top-right-radius",runits);
+	("border-top-left-radius",runits);
+	("border-bottom-right-radius",runits);
+	("border-bottom-left-radius",runits);
+	("text-shadow",[RList (RGroup [units; units; units; ROr color])]);
 ]];
