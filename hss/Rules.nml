@@ -128,7 +128,7 @@ var rules = List.concat [[
 	("font",[
 		RGroupOpt [ROr font_style;ROr font_variant;ROr font_weight;font_family]; // no support for /line-height notation
 		ROr (ids ["caption";"icon";"menu";"message-box";"small-caption";"status-bar"]);
-	]); 
+	]);
 	("font-family",[font_family]);
 	("font-size",font_size);
 	("font-variant",font_variant);
@@ -151,7 +151,7 @@ var rules = List.concat [[
 		RGroupOpt [ROr trans_acolor;url;ROr bgrepeat;ROr bgattach;vunits;hunits];
 		RGroupOpt [ROr trans_acolor;url;ROr bgrepeat;ROr bgattach;hunits;vunits];
 	]);
-	("background-color",trans_acolor);	
+	("background-color",trans_acolor);
 	("background-image",[url; none]);
 	("background-position",bgpos);
 	("background-repeat",bgrepeat);
@@ -204,5 +204,11 @@ var rules = List.concat [[
 	("border-bottom-right-radius",runits);
 	("border-bottom-left-radius",runits);
 	("text-shadow",[RList (RGroup [units; units; units; ROr color])]);
-	("box-shadow",[RList (RGroup [units; units; units; ROr color])]);
+	("box-shadow",[
+		RGroup [units; units; units; ROr color];
+		RGroup [RId "inset"; units; units; units; ROr color];
+	]);
+	// hss-specific
+	("hss-width",runits_auto);
+	("hss-height",runits_auto);
 ]];

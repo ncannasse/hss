@@ -154,7 +154,7 @@ function rec flatten_subs(acc,e) {
 function rec flatten(parents,e) {
 	match fst e {
 	| EVar _ | EAttribute _ | EUseBlock _ | EVarBlock _ -> []
-	| ESub el -> 
+	| ESub el ->
 		List.concat (List.map (flatten parents) el)
 	| EBlock (classes,el) ->
 		var classes = match parents {
@@ -272,10 +272,10 @@ function rec eval(ctx,v) {
 		| (VUnit (x,u), VFloat y) -> VUnit (fop x y) u
 		| (VInt x, VUnit (y,u)) -> VUnit (fop (x * 1.0) y) u
 		| (VFloat x, VUnit (y,u)) -> VUnit (fop x y) u
-		| (VHex c, VFloat a) -> 
+		| (VHex c, VFloat a) ->
 			// assume color operation
 			var rgb = match String.length c {
-				| 3 -> 
+				| 3 ->
 					var rgb = int ("0x" + c);
 					var rgb = ((rgb and 0xF) or ((rgb and 0xF0) << 4) or ((rgb and 0xF00) << 8));
 					rgb or (rgb << 4)
@@ -289,23 +289,104 @@ function rec eval(ctx,v) {
 			var r = color (rgb and 0xFF);
 			var g = color ((rgb >> 8) and 0xFF);
 			var b = color (rgb >> 16);
-			VHex (sprintf "%.6X" (r or (g << 8) or (b << 16))) 
+			VHex (sprintf "%.6X" (r or (g << 8) or (b << 16)))
 		| _ -> error "Operation not allowed" snd(v)
 		}
-		(res,snd(v))
+		(res,snd v)
 	}
 }
 
-function rec check_class(ctx,p,c) {
-	match c.selector {
-	| None ->
-	| Some s -> if !(List.mem s selectors) then error ("Invalid selector '"+s+"'") p
+function eval_block(ctx,b) {
+	function add(r,v2) {
+		r := fst (eval ctx (VOp Add (*r,snd v2) v2,snd v2))
 	}
-	match c.sub {
-	| None -> ()
-	| Some c -> check_class ctx p c
+	function get_block_sizes(el) {
+		var matched = Hashtbl.create();
+		function set(k) {
+			if Hashtbl.exists matched k then false else {
+				Hashtbl.add matched k ();
+				true;
+			}
+		}
+		var lr = &(VInt 0);
+		var tb = &(VInt 0);
+		List.iter (function(e) {
+			match fst e {
+			| EAttribute (name,v) ->
+				match name {
+				| "padding-left" when set "pl" -> add lr v
+				| "padding-right" when set "pr" -> add lr v
+				| "padding-top" when set "pt" -> add tb v
+				| "padding-bottom" when set "pb" -> add tb v
+				| "padding" ->
+					var t, r, b, l = match fst v {
+					| VGroup [tb;rl] -> (tb, rl, tb, rl)
+					| VGroup [t;rl;b] -> (t, rl, b, rl)
+					| VGroup [t;r;b;l] -> (t, r, b, l)
+					| _ -> (v, v, v, v)
+					}
+					if set "pl" then add lr l;
+					if set "pr" then add lr r;
+					if set "pt" then add tb t;
+					if set "pb" then add tb b;
+				| "border-left-width" when set "bl" -> add lr v
+				| "border-right-width" when set "br" -> add lr v
+				| "border-top-width" when set "bt" -> add tb v
+				| "border-bottom-width" when set "bb" -> add tb v
+				| "border" ->
+					var v = match fst v {
+						| VGroup (v :: _) -> v
+						| _ -> v
+					};
+					if set "bl" then add lr v;
+					if set "br" then add lr v;
+					if set "bt" then add tb v;
+					if set "bb" then add tb v;
+				| "outline" when set "o" ->
+					var v = match fst v {
+						| VGroup (v :: _) -> v
+						| _ -> v
+					};
+					add lr v;
+					add lr v;
+					add tb v;
+					add tb v;
+				| "outline-width" when set "o" ->
+					add lr v;
+					add lr v;
+					add tb v;
+					add tb v;
+				| _ -> ()
+				}
+			| _ -> ()
+			}
+		}) (List.rev el);
+		(*lr, *tb)
+	}
+	match fst b {
+	| EBlock (cl,el) ->
+		var el = List.map (function(e) {
+			match fst e {
+			| EAttribute (name,val) ->
+				var p = snd val;
+				match name {
+				| "hss-width" ->
+					var w, _ = get_block_sizes el;
+					(EAttribute("width", eval ctx (VOp(Sub,val,(w,p)),p)),p)
+				| "hss-height" ->
+					var _, h = get_block_sizes el;
+					(EAttribute("height", eval ctx (VOp(Sub,val,(h,p)),p)),p)
+				| _ -> e
+				}
+			| _ -> assert()
+			}
+		}) el;
+		(EBlock cl el, snd b)
+	| _ ->
+		assert();
 	}
 }
+
 function rec expand_hacks(name,value,p) {
 	function filter(name,params,p) {
 		(EAttribute "filter" (VCall (VIdent "CSS",p) [(VString ("progid:DXImageTransform.Microsoft."+name+"("+params+")"),p)],p),p)
@@ -338,7 +419,7 @@ function rec expand_hacks(name,value,p) {
 			match name {
 			| "background" | "background-color" ->
 				var acol = match fst a {
-					| VFloat f -> 
+					| VFloat f ->
 						var i = Math.floor (f * 255.);
 						sprintf "%.2X" (if i < 0 then 0 else if i > 255 then 255 else i) + hcol
 					| _ -> assert()
@@ -406,6 +487,17 @@ function rec expand_hacks(name,value,p) {
 	}
 }
 
+function rec check_class(ctx,p,c) {
+	match c.selector {
+	| None ->
+	| Some s -> if !(List.mem s selectors) then error ("Invalid selector '"+s+"'") p
+	}
+	match c.sub {
+	| None -> ()
+	| Some c -> check_class ctx p c
+	}
+}
+
 function rec check(ctx,e) {
 	match fst e {
 	| EVar (name,value) ->
@@ -467,7 +559,7 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.1 - (c)2008-2010 Motion-Twin\nUsage : hss [options] <file>";
+	var head = "HSS v1.2 - (c)2008-2011 Motion-Twin\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [
@@ -486,9 +578,11 @@ try {
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
+		// final eval
+		var el = List.map eval_block(ctx) el;
 		// write
 		var file2 = Sys.without_extension file + ".css";
-		var file2 = match *output { None -> file2 | Some dir -> dir + Sys.without_dir file2 };		
+		var file2 = match *output { None -> file2 | Some dir -> dir + Sys.without_dir file2 };
 		if file != file2 then {
 			var ch = IO.write_file file2 true;
 			List.iter (print_css ch "") el;
