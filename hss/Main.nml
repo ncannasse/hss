@@ -342,20 +342,6 @@ function eval_block(ctx,b) {
 					if set "br" then add lr v;
 					if set "bt" then add tb v;
 					if set "bb" then add tb v;
-				| "outline" when set "o" ->
-					var v = match fst v {
-						| VGroup (v :: _) -> v
-						| _ -> v
-					};
-					add lr v;
-					add lr v;
-					add tb v;
-					add tb v;
-				| "outline-width" when set "o" ->
-					add lr v;
-					add lr v;
-					add tb v;
-					add tb v;
 				| _ -> ()
 				}
 			| _ -> ()
