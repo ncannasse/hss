@@ -204,4 +204,5 @@ var rules = List.concat [[
 	("border-bottom-right-radius",runits);
 	("border-bottom-left-radius",runits);
 	("text-shadow",[RList (RGroup [units; units; units; ROr color])]);
+	("box-shadow",[RList (RGroup [units; units; units; ROr color])]);
 ]];

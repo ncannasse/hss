@@ -395,6 +395,12 @@ function rec expand_hacks(name,value,p) {
 			(EAttribute "zoom" (VInt 1,p),p);
 			(EAttribute "*display" (VIdent "inline",p),p);
 		],p)
+	| "box-shadow" ->
+		(ESub [
+			(EAttribute "-moz-box-shadow" value,p);
+			(EAttribute "-webkit-box-shadow" value,p);
+			(EAttribute name value,p)
+		],p)
 	| _ ->
 		(EAttribute name value,p)
 	}
