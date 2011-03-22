@@ -203,10 +203,10 @@ var rules = List.concat [[
 	("border-top-left-radius",runits);
 	("border-bottom-right-radius",runits);
 	("border-bottom-left-radius",runits);
-	("text-shadow",[RList (RGroup [units; units; units; ROr color])]);
+	("text-shadow",[RList (RGroup [units; units; units; ROr acolor])]);
 	("box-shadow",[
-		RGroup [units; units; units; ROr color];
-		RGroup [RId "inset"; units; units; units; ROr color];
+		RGroup [units; units; units; ROr acolor];
+		RGroup [RId "inset"; units; units; units; ROr acolor];
 	]);
 	// hss-specific
 	("hss-width",runits_auto);
