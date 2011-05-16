@@ -85,10 +85,7 @@ function rec print_class(ch,c) {
 	| None -> ()
 	| Some id -> IO.printf ch "#%s" id;
 	}
-	match c.class {
-	| None -> ()
-	| Some id -> IO.printf ch ".%s" id;
-	}
+	List.iter (IO.printf ch ".%s") c.classes;
 	match c.selector {
 	| None -> ()
 	| Some id -> IO.printf ch ":%s" id;
@@ -132,7 +129,7 @@ function rec make_sub(p,c) {
 	{
 		node = p.node;
 		id = p.id;
-		class = p.class;
+		classes = p.classes;
 		selector = p.selector;
 		attribute = p.attribute;
 		operator = p.operator;

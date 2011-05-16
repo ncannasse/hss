@@ -196,7 +196,7 @@ function rec value_hex(p,s) {
 }
 
 function rec class(s,first) {
-	var c = { node = None; id = None; class = None; sub = None; selector = None; attribute = None; operator = OpDefault; };
+	var c = { node = None; id = None; classes = []; sub = None; selector = None; attribute = None; operator = OpDefault; };
 	var pos = &null_pos;
 	var last = &None;
 	function rec loop(i) {
@@ -219,7 +219,7 @@ function rec class(s,first) {
 					loop (i+1)
 				| Some Dot ->
 					last := None;
-					c.class := Some id;
+					c.classes := List.append c.classes [id];
 					loop (i+1)
 				| Some DoubleDot ->
 					last := None;
@@ -234,7 +234,7 @@ function rec class(s,first) {
 			| Sharp when *last == None && c.id == None ->
 				last := Some Sharp;
 				loop (i+1)
-			| Dot when *last == None && c.class == None ->
+			| Dot when *last == None ->
 				last := Some Dot;
 				loop (i+1)
 			| DoubleDot when *last == None && c.selector == None ->
@@ -273,7 +273,7 @@ function rec class(s,first) {
 					loop (i+1)
 				| Some Dot ->
 					last := None;
-					c.class := Some id;
+					c.classes := List.append c.classes [id];
 					c.selector := Some s;
 					loop (i+1)
 				| Some DoubleDot ->
