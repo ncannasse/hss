@@ -20,6 +20,7 @@ exception Error : (string, pos) list;
 type context {
 	mutable vars : (string,value) Map.t;
 	mutable blocks : (string,expr list) Map.t;
+	mutable eval_rec : int;
 }
 
 function error(msg,p) {
@@ -241,7 +242,12 @@ function rec eval(ctx,v) {
 	| VGroup vl ->
 		(VGroup (List.map (eval ctx) vl),snd v)
 	| VVar name ->
-		eval ctx (try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) })
+		if ctx.eval_rec > 1000 then error "Invalid loop in variable expension" snd(v);
+		var val = (try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) });		
+		ctx.eval_rec := ctx.eval_rec + 1;
+		var r = eval ctx val;
+		ctx.eval_rec := ctx.eval_rec - 1;
+		r
 	| VCall(v1,vl) ->
 		(VCall (eval ctx v1) (List.map (eval ctx) vl),snd v)
 	| VLabel (l,v1) ->
@@ -557,7 +563,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { vars = Map.empty(); blocks = Map.empty() };
+		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
