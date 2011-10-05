@@ -21,6 +21,7 @@ type context {
 	mutable vars : (string,value) Map.t;
 	mutable blocks : (string,expr list) Map.t;
 	mutable eval_rec : int;
+	mutable ns : string option;
 }
 
 function error(msg,p) {
@@ -476,6 +477,18 @@ function rec expand_hacks(name,value,p) {
 	}
 }
 
+function rec expand_ns(ns,c) {
+	c.classes := List.map (function(c:string) ns + c) c.classes;
+	match c.id {
+	| None -> ()
+	| Some id -> c.id := Some (ns + id)
+	}
+	match c.sub {
+	| None -> ()
+	| Some c -> expand_ns ns c
+	}
+}
+
 function rec check_class(ctx,p,c) {
 	match c.selector {
 	| None ->
@@ -489,6 +502,12 @@ function rec check_class(ctx,p,c) {
 
 function rec check(ctx,e) {
 	match fst e {
+	| EVar ("namespace",value) ->
+		match fst value {
+		| VString s -> ctx.ns := Some s;
+		| _ -> error "String value require for namespace" snd(value);
+		}
+		e
 	| EVar (name,value) ->
 		ctx.vars := Map.add ctx.vars name value;
 		e
@@ -496,7 +515,12 @@ function rec check(ctx,e) {
 		ctx.blocks := Map.add ctx.blocks name el;
 		e
 	| EBlock (classes,el) ->
+		match ctx.ns {
+		| None -> ()
+		| Some ns -> List.iter (expand_ns ns) classes
+		}
 		var old = (ctx.vars,ctx.blocks);
+		var old_ns = ctx.ns;
 		var el = List.map (check ctx) el;
 		List.iter (check_class ctx snd(e)) classes;
 		// check duplicate variables
@@ -511,6 +535,7 @@ function rec check(ctx,e) {
 		}) Map.empty() el);
 		ctx.vars := fst old;
 		ctx.blocks := snd old;
+		ctx.ns := old_ns;
 		(EBlock classes el,snd e)
 	| EAttribute (name,value) ->
 		var value = eval ctx value;
@@ -563,7 +588,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; };
+		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; ns = None; };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
