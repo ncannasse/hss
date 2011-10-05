@@ -93,6 +93,7 @@ expr := Lexer.build (List.concat [[
 	("%", function(l) { mk l Percent });
 	("!", function(l) { mk l Exclamation });
 	("=", function(l) { mk l Eq });
+	("~", function(l) { mk l Tild });
 	("[ \r\t\n]+", function(l) { Lexer.token l (*expr) });
 	("0", mk_int);
 	("-?[1-9][0-9]*", mk_int);

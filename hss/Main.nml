@@ -95,7 +95,7 @@ function rec print_class(ch,c) {
 	match c.sub {
 	| None -> ()
 	| Some cs ->
-		IO.write ch (match c.operator { OpDefault -> " " | OpChild -> ">" });
+		IO.write ch (match c.operator { OpDefault -> " " | OpChild -> ">" | OpPreceding imm -> if imm then "+" else "~" });
 		print_class ch cs
 	}
 }

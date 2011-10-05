@@ -301,7 +301,9 @@ function rec class(s,first) {
 	| Some t -> error (Unexpected t) (*pos);
 	}
 	match s {
-	| [< (Gt,p) >] -> c.operator := OpChild
+	| [< (Gt,_) >] -> c.operator := OpChild
+	| [< (Tild,_) >] -> c.operator := OpPreceding false
+	| [< (Op Add,_) >] -> c.operator := OpPreceding true
 	| [< >] -> ()
 	}
 	try

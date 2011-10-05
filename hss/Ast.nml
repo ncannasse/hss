@@ -57,6 +57,7 @@ type token {
 	CommentLine : string;
 	Selector : (string,string);
 	Op : op;
+	Tild;
 }
 
 type expr;
@@ -84,6 +85,7 @@ type value = (value_decl , pos)
 type operator {
 	OpDefault;
 	OpChild;
+	OpPreceding : bool;
 }
 
 type class {
@@ -158,5 +160,6 @@ function s_token(x) {
 	| CommentLine s -> "//" + s
 	| Selector (id,s) -> id+":"+s
 	| Op o -> s_op o
+	| Tild -> "~"
 	}
 }
