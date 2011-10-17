@@ -80,6 +80,7 @@ function qstr(l) {
 }
 
 expr := Lexer.build (List.concat [[
+	("\239\187\191", function(l) Lexer.token l (*expr));
 	(";", function(l) { mk l Semicolon });
 	(".", function(l) { mk l Dot });
 	(",", function(l) { mk l Comma });
