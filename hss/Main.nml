@@ -378,10 +378,15 @@ function eval_block(ctx,b) {
 }
 
 function rec expand_hacks(name,value,p) {
+	var label = &None;
+	var value = match fst value {
+		| VLabel(l,v) -> label := Some (l,snd value); v;
+		| _ -> value;
+	}
 	function filter(name,params,p) {
 		(EAttribute "filter" (VCall (VIdent "CSS",p) [(VString ("progid:DXImageTransform.Microsoft."+name+"("+params+")"),p)],p),p)
 	}
-	match name {
+	var w = match name {
 	| "border-radius" | "border-top-right-radius" | "border-top-left-radius" | "border-bottom-right-radius" | "border-bottom-left-radius" ->
 		var moz = match String.split name "-" {
 			| _ :: p1 :: p2 :: _ -> "-"+p1+p2
@@ -474,6 +479,18 @@ function rec expand_hacks(name,value,p) {
 		],p)
 	| _ ->
 		(EAttribute name value,p)
+	}
+	match *label {
+	| None -> w
+	| Some (label,p) ->		
+		function rec wrap(e) {
+			(match fst e {
+			| ESub el -> ESub (List.map wrap el)
+			| EAttribute (name,v) -> EAttribute name (VLabel label v,p)
+			| _ -> assert()
+			},snd e)
+		}
+		wrap w
 	}
 }
 

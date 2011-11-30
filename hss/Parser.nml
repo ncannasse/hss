@@ -231,6 +231,9 @@ function rec class(s,first) {
 				| _ ->
 					i
 				}
+			| Op Mul when *last == None && i == 0 ->
+				c.node := Some "*";
+				loop (i+1)
 			| Sharp when *last == None && c.id == None ->
 				last := Some Sharp;
 				loop (i+1)
