@@ -605,7 +605,7 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.2 - (c)2008-2011 Motion-Twin\nUsage : hss [options] <file>";
+	var head = "HSS v1.3 - (c)2008-2012 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [
