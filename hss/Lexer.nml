@@ -95,6 +95,9 @@ expr := Lexer.build (List.concat [[
 	("!", function(l) { mk l Exclamation });
 	("=", function(l) { mk l Eq });
 	("~", function(l) { mk l Tild });
+	("|", function(l) mk l Op(Or));
+	("&", function(l) mk l Op(And));
+	("^", function(l) mk l Op(Xor));
 	("[ \r\t\n]+", function(l) { Lexer.token l (*expr) });
 	("0", mk_int);
 	("-?[1-9][0-9]*", mk_int);
@@ -106,6 +109,7 @@ expr := Lexer.build (List.concat [[
 		var i = Lexer.current(l);
 		mk l Const(Val (String.sub i 1 (String.length i - 1)))
 	});
+	("$", function(l) mk l Dollar);
 	("#", function(l) { mk l Sharp });
 	(">", function(l) { mk l Gt });
 	("\\+", function(l) { mk l Op(Add) } );

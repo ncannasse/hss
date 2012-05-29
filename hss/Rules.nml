@@ -35,7 +35,10 @@ type rule {
 
 function ids(l) { List.map RId l }
 
-var selectors = ["first-child";"link";"visited";"active";"hover";"focus";"first-letter";"first-line";"before";"after"]
+var selectors = [
+	"first-child";"link";"visited";"active";"hover";"focus";"first-letter";"first-line";"before";"after"; // CSS 2.1
+	"root";"last-child";"first-of-type";"last-of-type";"only-child";"only-of-type";"empty";"target";"enabled";"disabled";"checked" // CSS 3.0
+]
 
 var runits = [RUnit "px";RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
 var units = ROr runits
@@ -44,14 +47,10 @@ var alpha = RFloatRange 0. 1.
 var color = List.append [
 	RHex 3; RHex 6;
 	RCall (RId "rgb") [col;col;col];
+	RCall (RId "rgba") [col;col;col;RFloatRange 0. 1.];
 ] (ids ["aqua";"black";"blue";"fuchsia";"gray";"grey";"green";"lime";"maroon";"navy";"olive";"orange";"purple";"red";"silver";"teal";"white";"yellow"])
 
 var trans_color = RId "transparent" :: color
-
-var rgba = RCall (RId "rgba") [col;col;col;RFloatRange 0. 1.]
-
-var acolor = rgba :: color
-var trans_acolor = rgba :: trans_color
 
 var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"]
 
@@ -62,6 +61,8 @@ var border = [
 ]
 
 var url = RCall RId("url") [RString]
+
+var inherit = RId "inherit"
 
 var horiz = ids ["left";"right";"center"]
 var vert = ids ["top";"bottom";"center"]
@@ -102,7 +103,7 @@ var rules = List.concat [[
 	("margin-right",runits_auto);
 	("margin-top",runits);
 	("margin-bottom",runits);
-	("margin",[RGroup [units;units_auto;units;units_auto];units_auto; RGroup [units;units_auto]]);
+	("margin",[RGroup [units;units_auto;units;units_auto];units_auto; RGroup [units_auto;units_auto]]);
 	("padding-left",runits);
 	("padding-right",runits);
 	("padding-top",runits);
@@ -111,7 +112,7 @@ var rules = List.concat [[
 	("min-height",runits);
 	("max-width",none :: runits);
 	("max-height",none :: runits);
-	("line-height",runits);
+	("line-height",RFloat :: runits);
 	("padding",[RGroup [units;units;units;units];units; RGroup [units;units]]);
 ];[
 	// layout
@@ -136,22 +137,22 @@ var rules = List.concat [[
 	("text-align",ids ["center";"justify";"left";"right"]);
 	("text-decoration",ids ["none";"underline";"blink";"line-through";"overline"]);
 	("font-style",font_style);
-	("color",acolor);
+	("color",color);
 	("text-transform",ids ["capitalize";"lowercase";"none";"uppercase"]);
 	("letter-spacing",RId "normal" :: runits);
 	("word-spacing",RId "normal" :: runits);
 	("text-indent", runits);
 	("vertical-align",List.append runits (ids ["top";"bottom";"middle";"baseline";"sub";"super";"text-bottom";"text-top"]));
-	("white-space", ids ["normal";"nowrap";"pre"]);
+	("white-space", ids ["normal";"nowrap";"pre";"word-break"]);
 	("direction", ids ["ltr";"rtl"]);
 ];[
 	// background
 	("background",[
 		none;
-		RGroupOpt [ROr trans_acolor;url;ROr bgrepeat;ROr bgattach;vunits;hunits];
-		RGroupOpt [ROr trans_acolor;url;ROr bgrepeat;ROr bgattach;hunits;vunits];
+		RGroupOpt [ROr trans_color;url;ROr bgrepeat;ROr bgattach;vunits;hunits];
+		RGroupOpt [ROr trans_color;url;ROr bgrepeat;ROr bgattach;hunits;vunits];
 	]);
-	("background-color",trans_acolor);
+	("background-color",trans_color);
 	("background-image",[url; none]);
 	("background-position",bgpos);
 	("background-repeat",bgrepeat);
@@ -196,6 +197,7 @@ var rules = List.concat [[
 	("border-spacing",runits); // not supported on IE
 	("caption-side", ids ["bottom";"top"]);
 	("user-select", ids ["all";"none";"text"]);
+	("resize", ids ["none";"both";"horizontal";"vertical"]);
 ];[
 	// effects (partial browser support)
 	("border-radius",runits);
@@ -206,19 +208,19 @@ var rules = List.concat [[
 	("text-shadow",[
 		RId "none";
 		RList (ROr [
-			RGroup [units; units; ROr acolor];
-			RGroup [units; units; units; ROr acolor]
+			RGroup [units; units; ROr color];
+			RGroup [units; units; units; ROr color]
 		])
 	]);
 	("box-shadow",[
 		RId "none";
 		RList (ROr [
-			RGroup [units; units; ROr acolor];
-			RGroup [units; units; units; ROr acolor];
-			RGroup [units; units; units; units; ROr acolor];
-			RGroup [RId "inset"; units; units; ROr acolor];
-			RGroup [RId "inset"; units; units; units; ROr acolor];
-			RGroup [RId "inset"; units; units; units; units; ROr acolor];
+			RGroup [units; units; ROr color];
+			RGroup [units; units; units; ROr color];
+			RGroup [units; units; units; units; ROr color];
+			RGroup [RId "inset"; units; units; ROr color];
+			RGroup [RId "inset"; units; units; units; ROr color];
+			RGroup [RId "inset"; units; units; units; units; ROr color];
 		])
 	]);
 	// hss-specific

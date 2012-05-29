@@ -166,6 +166,25 @@ function rec class_list(s,first) {
 	}
 }
 
+function rec parse_attr_value(s) {
+	match s {
+	| [< (Const (Ident v),_) >] -> v
+	| [< (Const (String s),_) >] -> s
+	}
+}
+
+function rec parse_attribute(s) {
+	match s {
+	| [< (BracketClose,p) >] -> (p, AExists)
+	| [< (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, AEqual v)
+	| [< (Tild,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, AContain v)
+	| [< (Op Or,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, ADash v)
+	| [< (Op Xor,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, ABegin v)
+	| [< (Dollar,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, AEnd v)
+	| [< (Op Mul,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, ASubstr v)
+	}
+}
+
 function rec value_hex(p,s) {
 	var str = &"";
 	var pos = &p;
@@ -196,7 +215,7 @@ function rec value_hex(p,s) {
 }
 
 function rec class(s,first) {
-	var c = { node = None; id = None; classes = []; sub = None; selector = None; attribute = None; operator = OpDefault; };
+	var c = { node = None; id = None; classes = []; sub = None; selector = None; attributes = []; operator = OpDefault; };
 	var pos = &null_pos;
 	var last = &None;
 	function rec loop(i) {
@@ -205,7 +224,7 @@ function rec class(s,first) {
 		var p2 = snd t;
 		pos := p2;
 		// contiguous
-		if i > 0 && (p.pline != p2.pline || p.pmax != p2.pmin) then
+		if (i > 0 || c.attributes != []) && (p.pline != p2.pline || p.pmax != p2.pmin) then
 			i
 		else match fst t {
 			| Const (Ident id) ->
@@ -225,9 +244,6 @@ function rec class(s,first) {
 					last := None;
 					c.selector := Some id;
 					loop (i+1)
-				| Some BracketOpen ->
-					last := Some (Const (Ident id));
-					loop (i+1);
 				| _ ->
 					i
 				}
@@ -243,25 +259,16 @@ function rec class(s,first) {
 			| DoubleDot when *last == None && c.selector == None ->
 				last := Some DoubleDot;
 				loop (i+1)
-			| BracketOpen when *last == None && c.attribute == None ->
-				last := Some BracketOpen;
-				loop (i+1)
-			| BracketClose when *last == Some BracketClose ->
-				last := None;
-				loop (i+1)
-			| Eq ->
-				match *last {
-				| Some (Const (Ident _)) -> loop (i+1)
-				| _ -> i
-				}
-			| Const (String s) ->
-				match *last {
-				| Some (Const (Ident att)) ->
-					c.attribute := Some (att,s);
-					last := Some BracketClose;
-					loop (i+1)
+			| BracketOpen when *last == None ->
+				match fst (stream_token s (i+1)) {
+				| Const (Ident att) ->
+					stream_junk s (i + 2);
+					var p, op = parse_attribute s;
+					c.attributes := (att, op) :: c.attributes;
+					pos := p;
+					loop 0
 				| _ ->
-					i
+					i+1
 				}
 			| Selector (id,s) ->
 				match *last {
@@ -297,7 +304,8 @@ function rec class(s,first) {
 		}
 	}
 	var n = loop 0;
-	if n == 0 then error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos);
+	if n == 0 && c.attributes == [] then error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos);
+	c.attributes := List.rev c.attributes;
 	stream_junk s n;
 	match *last {
 	| None -> ()

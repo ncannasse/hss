@@ -32,6 +32,9 @@ type op {
 	Mul;
 	Div;
 	Sub;
+	And;
+	Or;
+	Xor;
 }
 
 type token {
@@ -58,6 +61,7 @@ type token {
 	Selector : (string,string);
 	Op : op;
 	Tild;
+	Dollar;
 }
 
 type expr;
@@ -88,13 +92,23 @@ type operator {
 	OpPreceding : bool;
 }
 
+type attrib_op {
+	AExists;
+	AEqual : string;
+	AContain : string;
+	ADash : string;
+	ABegin : string;
+	AEnd : string;
+	ASubstr : string;
+}
+
 type class {
 	mutable node : string option;
 	mutable classes : string list;
 	mutable id : string option;
 	mutable selector : string option;
 	mutable sub : class option;
-	mutable attribute : (string,string) option;
+	mutable attributes : (string,attrib_op) list;
 	mutable operator : operator;
 }
 
@@ -133,6 +147,9 @@ function s_op(o) {
 	| Sub -> "-"
 	| Mul -> "*"
 	| Div -> "/"
+	| And -> "&"
+	| Or -> "|"
+	| Xor -> "^"
 	}
 }
 
@@ -161,5 +178,6 @@ function s_token(x) {
 	| Selector (id,s) -> id+":"+s
 	| Op o -> s_op o
 	| Tild -> "~"
+	| Dollar -> "$"
 	}
 }

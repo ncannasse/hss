@@ -74,15 +74,29 @@ function rec print_value(ch,v) {
 	}
 }
 
+var r_ident = Regexp.build("^[a-zA-Z_][-a-zA-Z0-9_]*$");
+
+function att_op_str(op) {
+	function quote(v) if Regexp.find r_ident v 0 (String.length v) then v else "\""+v+"\"";
+	match op {
+	| AExists -> ""
+	| AEqual v -> "="+quote(v)
+	| AContain v -> "~="+quote(v)
+	| ADash v -> "|="+quote(v)
+	| ABegin v -> "^="+quote(v)
+	| AEnd v -> "$="+quote(v)
+	| ASubstr v -> "*="+quote(v)
+	}
+}
+
 function rec print_class(ch,c) {
 	match c.node {
 	| None -> ()
 	| Some id -> IO.write ch id;
 	}
-	match c.attribute {
-	| None -> ()
-	| Some (att,val) -> IO.printf ch "[%s=\"%s\"]" (att,val)
-	}
+	List.iter (function((att,op)) {
+		IO.printf ch "[%s%s]" (att,att_op_str op)
+	}) c.attributes;
 	match c.id {
 	| None -> ()
 	| Some id -> IO.printf ch "#%s" id;
@@ -133,7 +147,7 @@ function rec make_sub(p,c) {
 		id = p.id;
 		classes = p.classes;
 		selector = p.selector;
-		attribute = p.attribute;
+		attributes = p.attributes;
 		operator = p.operator;
 		sub = match p.sub {
 			| None -> Some c
@@ -264,6 +278,7 @@ function rec eval(ctx,v) {
 			| Sub -> x - y
 			| Mul -> x * y
 			| Div -> if y == 0. then error "Division by 0" snd(v) else x / y
+			| And | Or | Xor -> error "Not supported" snd(v)
 			}
 		};
 		var res = match (fst v1,fst v2) {
@@ -559,8 +574,8 @@ function rec check(ctx,e) {
 		match value {
 		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> ()
 		| _ ->
-			var rules = try Hashtbl.find hrules name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };
-			if !(List.exists (function(r) check_rule r value) rules) then {
+			var rules = try Hashtbl.find hrules name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };			
+			if !(List.exists (function(r) check_rule r value) (Hss.Rules.inherit :: rules)) then {
 				var buf, str = IO.write_string();
 				print_value buf value;
 				error ("Invalid '"+name+"' value '"+str()+"'") snd(e);
