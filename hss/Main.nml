@@ -281,37 +281,42 @@ function rec eval(ctx,v) {
 			| And | Or | Xor -> error "Not supported" snd(v)
 			}
 		};
-		var res = match (fst v1,fst v2) {
-		| (VInt x, VInt y) -> VFloat (fop (x * 1.0) (y * 1.0))
-		| (VInt x, VFloat y) -> VFloat (fop (x * 1.0) y)
-		| (VFloat x, VInt y) -> VFloat (fop x (y * 1.0))
-		| (VFloat x, VFloat y) -> VFloat (x + y)
-		| (VUnit (x,u), VUnit (y,u2)) when u == u2 -> VUnit (fop x y) u
-		| (VUnit (x,u), VInt y) -> VUnit (fop x (y * 1.0)) u
-		| (VUnit (x,u), VFloat y) -> VUnit (fop x y) u
-		| (VInt x, VUnit (y,u)) -> VUnit (fop (x * 1.0) y) u
-		| (VFloat x, VUnit (y,u)) -> VUnit (fop x y) u
-		| (VHex c, VFloat a) ->
-			// assume color operation
-			var rgb = match String.length c {
-				| 3 ->
-					var rgb = int ("0x" + c);
-					var rgb = ((rgb and 0xF) or ((rgb and 0xF0) << 4) or ((rgb and 0xF00) << 8));
-					rgb or (rgb << 4)
-				| 6 -> int ("0x" + c)
-				| _ -> error "Operation not allowed" snd(v)
+		function rec loop(v1,v2) {
+			match (fst v1,fst v2) {
+			| (VInt x, VInt y) -> VFloat (fop (x * 1.0) (y * 1.0))
+			| (VInt x, VFloat y) -> VFloat (fop (x * 1.0) y)
+			| (VFloat x, VInt y) -> VFloat (fop x (y * 1.0))
+			| (VFloat x, VFloat y) -> VFloat (x + y)
+			| (VUnit (x,u), VUnit (y,u2)) when u == u2 -> VUnit (fop x y) u
+			| (VUnit (x,u), VInt y) -> VUnit (fop x (y * 1.0)) u
+			| (VUnit (x,u), VFloat y) -> VUnit (fop x y) u
+			| (VInt x, VUnit (y,u)) -> VUnit (fop (x * 1.0) y) u
+			| (VFloat x, VUnit (y,u)) -> VUnit (fop x y) u
+			| (VHex c, VFloat a) ->
+				// assume color operation
+				var rgb = match String.length c {
+					| 3 ->
+						var rgb = int ("0x" + c);
+						var rgb = ((rgb and 0xF) or ((rgb and 0xF0) << 4) or ((rgb and 0xF00) << 8));
+						rgb or (rgb << 4)
+					| 6 -> int ("0x" + c)
+					| _ -> error "Operation not allowed" snd(v)
+				}
+				function color(c:int) {
+					var c = Math.round (fop (c * 1.0) a);
+					if c < 0 then 0 else if c > 255 then 255 else c;
+				}
+				var r = color (rgb and 0xFF);
+				var g = color ((rgb >> 8) and 0xFF);
+				var b = color (rgb >> 16);
+				VHex (sprintf "%.6X" (r or (g << 8) or (b << 16)))
+			| (_,VLabel (l,v)) ->
+				VLabel l (loop v1 v, snd v)
+			| _ ->
+				error "Operation not allowed" snd(v)
 			}
-			function color(c:int) {
-				var c = Math.round (fop (c * 1.0) a);
-				if c < 0 then 0 else if c > 255 then 255 else c;
-			}
-			var r = color (rgb and 0xFF);
-			var g = color ((rgb >> 8) and 0xFF);
-			var b = color (rgb >> 16);
-			VHex (sprintf "%.6X" (r or (g << 8) or (b << 16)))
-		| _ -> error "Operation not allowed" snd(v)
 		}
-		(res,snd v)
+		(loop v1 v2,snd v)
 	}
 }
 
