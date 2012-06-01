@@ -437,7 +437,11 @@ function rec expand_hacks(name,value,p) {
 					| VFloat f ->
 						var i = Math.floor (f * 255.);
 						sprintf "%.2X" (if i < 0 then 0 else if i > 255 then 255 else i) + hcol
-					| _ -> assert()
+					| VInt i ->
+						var i = Math.floor (i * 255.);
+						sprintf "%.2X" (if i < 0 then 0 else if i > 255 then 255 else i) + hcol
+					| _ ->
+						assert()
 				};
 				var base = if name == "background" then
 					match fst value {
