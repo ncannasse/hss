@@ -66,6 +66,8 @@ function rec print_value(ch,v) {
 		IO.write ch "(";
 		print_sep "," print_value ch vl;
 		IO.write ch ")";
+	| VLabel ("dup",v) ->
+		print_value ch v;
 	| VLabel (l,v) ->
 		print_value ch v;
 		IO.printf ch " !%s" l;
@@ -567,10 +569,20 @@ function rec check(ctx,e) {
 		// check duplicate variables
 		ignore(List.fold (function(acc,e) {
 			match fst e {
-			| EAttribute(name,_) ->
-				if Map.exists acc name then warning ("Warning, duplicate attribute '"+name+"'") snd(e);
-				Map.add acc name true
-			| ESub _ -> acc // don't take into account sub-blocks
+			| EAttribute(name,v) ->
+				match fst v { 
+				| VCall ((VIdent "CSS",_),_) | VLabel ("dup",_) -> 
+					acc
+				| _ ->
+					try {
+						var v2 = Map.find acc name;
+						warning ("Warning, duplicate attribute '"+name+"'") snd(e);
+					} catch {
+						Not_found -> ()
+					}
+					Map.add acc name v
+				}
+			| ESub _ -> acc // don't take into account sub-blocks (rgba)
 			| _ -> acc
 			}
 		}) Map.empty() el);
