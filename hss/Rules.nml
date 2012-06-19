@@ -40,6 +40,10 @@ var selectors = [
 	"root";"last-child";"first-of-type";"last-of-type";"only-child";"only-of-type";"empty";"target";"enabled";"disabled";"checked" // CSS 3.0
 ]
 
+var allow_duplicate_attributes = [
+	"src"; // @font-face
+];
+
 var runits = [RUnit "px";RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
 var units = ROr runits
 var col = ROr [RIntRange 0 255;RUnit "%"]
@@ -92,7 +96,7 @@ var font_style = ids ["italic";"normal";"oblique"]
 var font_variant = ids ["normal";"small-caps"]
 var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
 
-var font_face_src = RList (RGroup [url;RCall RId("format") [RString]])
+var font_face_src = RList (ROr [url;RGroup [url;RCall RId("format") [RString]]])
 
 var rules = List.concat [[
 	// Units
