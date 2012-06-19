@@ -22,6 +22,7 @@ type context {
 	mutable blocks : (string,expr list) Map.t;
 	mutable eval_rec : int;
 	mutable ns : string option;
+	mutable curblock : class option;
 }
 
 function error(msg,p) {
@@ -243,6 +244,18 @@ var hrules = {
 	var h = Hashtbl.create();
 	List.iter (function((a,b)) Hashtbl.add h a b) Hss.Rules.rules;
 	h
+}
+
+function get_rule(ctx,name) {
+	try 
+		Hashtbl.find hrules name 
+	catch {
+		Not_found ->
+			match (name,ctx.curblock) {
+			| ("src",Some { node = Some "@font-face" }) -> [Hss.Rules.font_face_src]
+			| _ -> throw Not_found
+			}
+	}
 }
 
 function rec eval(ctx,v) {
@@ -563,7 +576,7 @@ function rec check(ctx,e) {
 		| Some ns -> List.iter (expand_ns ns) classes
 		}
 		var old = (ctx.vars,ctx.blocks);
-		var old_ns = ctx.ns;
+		var old2 = (ctx.ns, ctx.curblock);
 		var el = List.map (check ctx) el;
 		List.iter (check_class ctx snd(e)) classes;
 		// check duplicate variables
@@ -588,14 +601,15 @@ function rec check(ctx,e) {
 		}) Map.empty() el);
 		ctx.vars := fst old;
 		ctx.blocks := snd old;
-		ctx.ns := old_ns;
+		ctx.ns := fst old2;
+		ctx.curblock := snd old2;
 		(EBlock classes el,snd e)
 	| EAttribute (name,value) ->
 		var value = eval ctx value;
 		match value {
 		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> ()
 		| _ ->
-			var rules = try Hashtbl.find hrules name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };			
+			var rules = try get_rule ctx name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };			
 			if !(List.exists (function(r) check_rule r value) (Hss.Rules.inherit :: rules)) then {
 				var buf, str = IO.write_string();
 				print_value buf value;
@@ -641,7 +655,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; ns = None; };
+		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
