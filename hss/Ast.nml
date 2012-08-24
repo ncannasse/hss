@@ -62,6 +62,7 @@ type token {
 	Op : op;
 	Tild;
 	Dollar;
+	Media : string;
 }
 
 type expr;
@@ -119,6 +120,7 @@ type expr_decl {
 	EUseBlock : string;
 	EBlock : (class list, expr list);
 	ESub : expr list;
+	EMedia : (string, expr list);
 }
 
 type expr = (expr_decl , pos)
@@ -179,5 +181,6 @@ function s_token(x) {
 	| Op o -> s_op o
 	| Tild -> "~"
 	| Dollar -> "$"
+	| Media str -> "@media " + str
 	}
 }

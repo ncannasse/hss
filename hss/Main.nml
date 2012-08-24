@@ -141,6 +141,10 @@ function rec print_css(ch,tabs,e) {
 		IO.printf ch "%s$%s;\n" (tabs,name);
 	| ESub el ->
 		List.iter (print_css ch tabs) el
+	| EMedia (s,el) ->
+		IO.printf ch "@media %s {\n" s;
+		List.iter (print_css ch (tabs+"\t")) el;
+		IO.printf ch "%s}\n" tabs;
 	}
 }
 
@@ -183,6 +187,8 @@ function rec flatten(parents,e) {
 		| [] -> el
 		| _ -> (EBlock classes attribs,snd e) :: el
 		}
+	| EMedia (str,el) ->
+		[(EMedia(str, List.concat (List.map (flatten parents) el)),snd e)]
 	}
 }
 
@@ -335,7 +341,7 @@ function rec eval(ctx,v) {
 	}
 }
 
-function eval_block(ctx,b) {
+function rec eval_block(ctx,b) {
 	function add(r,v2) {
 		r := fst (eval ctx (VOp Add (*r,snd v2) v2,snd v2))
 	}
@@ -407,6 +413,8 @@ function eval_block(ctx,b) {
 			}
 		}) el;
 		(EBlock cl el, snd b)
+	| EMedia (str,el) ->
+		(EMedia str (List.map (eval_block ctx) el), snd b)
 	| _ ->
 		assert();
 	}
@@ -624,6 +632,8 @@ function rec check(ctx,e) {
 		(ESub b, snd e)
 	| ESub el ->
 		(ESub (List.map (check ctx) el),snd e)
+	| EMedia (m,el) ->
+		(EMedia m (List.map (check ctx) el), snd e)
 	}
 }
 
