@@ -52,6 +52,8 @@ var color = List.append [
 	RHex 3; RHex 6;
 	RCall (RId "rgb") [col;col;col];
 	RCall (RId "rgba") [col;col;col;RFloatRange 0. 1.];
+	RCall (RId "rgba") [RHex 3;RFloatRange 0. 1.];
+	RCall (RId "rgba") [RHex 6;RFloatRange 0. 1.];
 ] (ids ["aqua";"black";"blue";"fuchsia";"gray";"grey";"green";"lime";"maroon";"navy";"olive";"orange";"purple";"red";"silver";"teal";"white";"yellow"])
 
 var trans_color = RId "transparent" :: color

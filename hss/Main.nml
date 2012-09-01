@@ -420,6 +420,39 @@ function rec eval_block(ctx,b) {
 	}
 }
 
+function rec expand_val(value) {
+	var p = snd value;
+	match fst value {
+	| VCall((VIdent "rgba",_) as c,[(VHex h,hp);(VFloat f,fp)]) ->			
+		var r, g, b = if String.length h == 3 then {
+			var r = int ("0x" + String.sub h 0 1);
+			var g = int ("0x" + String.sub h 1 1);
+			var b = int ("0x" + String.sub h 2 1);
+			(r * 16 + r,g*16+g,b*16+b)
+		} else {
+			(int ("0x" + String.sub h 0 2), int ("0x" + String.sub h 2 2), int ("0x" + String.sub h 4 2))
+		}
+		var params = [(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)];
+		expand_val (VCall c params, p)
+	| VCall (v,vl) ->
+		(VCall expand_val(v) (List.map expand_val vl), p)
+	| VList vl ->
+		(VList (List.map expand_val vl),p)
+	| VGroup vl ->
+		(VGroup (List.map expand_val vl),p)
+	| VLabel (l,v) ->
+		(VLabel l expand_val(v),p)
+	| VBind (name,v) ->
+		(VBind name expand_val(v),p)
+	| VOp (op,v1,v2) ->
+		(VOp op expand_val(v1) expand_val(v2),p)	
+	| _ ->
+		value
+	}
+
+}
+
+
 function rec expand_hacks(name,value,p) {
 	var label = &None;
 	var value = match fst value {
@@ -429,6 +462,7 @@ function rec expand_hacks(name,value,p) {
 	function filter(name,params,p) {
 		(EAttribute "filter" (VCall (VIdent "CSS",p) [(VString ("progid:DXImageTransform.Microsoft."+name+"("+params+")"),p)],p),p)
 	}
+	var value = expand_val value;	
 	var w = match name {
 	| "border-radius" | "border-top-right-radius" | "border-top-left-radius" | "border-bottom-right-radius" | "border-bottom-left-radius" ->
 		var moz = match String.split name "-" {
