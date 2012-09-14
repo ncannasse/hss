@@ -197,7 +197,7 @@ estring := Lexer.build [
 	("\\\\" , function(l) { error l Invalid_escape });
 	("\"" , function(l) { });
 	("[^\\\\\"]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
-] (function(l) { assert() });
+] (function(l) { throw Exit });
 
 eqstring := Lexer.build [
 	("\\\\'", function(l) {
@@ -223,4 +223,4 @@ eqstring := Lexer.build [
 	("\\\\" , function(l) { error l Invalid_escape });
 	("'" , function(l) { });
 	("[^\\\\']+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
-] (function(l) { assert() });
+] (function(l) { throw Exit });
