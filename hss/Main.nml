@@ -197,13 +197,8 @@ function rec check_rule(r,v) {
 	| (RId s, VIdent n) -> s == n
 	| (RHex n, VHex s) -> String.length s == n
 	| (RUnit s, VUnit(_,n)) -> s == n
-	| (RCall(r,rl), VCall (v,vl)) when List.length rl == List.length vl ->
-		try  {
-			List.iter2 (function(r,v) if !(check_rule r v) then throw Exit) rl vl;
-			check_rule r v
-		} catch  {
-			Exit -> false
-		}
+	| (RCall(r,p), VCall (c,vl)) ->
+		check_rule r c && check_rule p (VList vl,snd v)
 	| (RFloat, VInt _) | (RFloat, VFloat _) -> true
 	| (RInt, VInt _) -> true
 	| (RFloatRange(min,max), VInt n) -> n * 1.0 >= min && n * 1.0 <= max
@@ -213,8 +208,8 @@ function rec check_rule(r,v) {
 		List.exists (function(r) check_rule r v) rl
 	| (RIdent, VIdent _) -> true
 	| (RString, VString _) -> true
-	| (RList r, VList vl) -> List.all (check_rule r) vl
-	| (RList r, _) -> check_rule r v
+	| (RMany r, VList vl) -> List.all (check_rule r) vl
+	| (RMany r, _) -> check_rule r v
 	| (RGroup rl, VGroup vl) when List.length rl == List.length vl ->
 		try {
 			List.iter2 (function(r,v) if !(check_rule r v) then throw Exit) rl vl;
@@ -222,6 +217,34 @@ function rec check_rule(r,v) {
 		} catch {
 			Exit -> false
 		}
+	| (RList rl, VList vl) when List.length rl == List.length vl ->
+		try {
+			List.iter2 (function(r,v) if !(check_rule r v) then throw Exit) rl vl;
+			true
+		} catch {
+			Exit -> false
+		}
+	| (RListCustom rl, VList vl) ->
+		function rec loop(rl,vl) {
+			match (rl,vl) {
+			| ([], []) -> true
+			| ((r,m) :: rl, v :: vl) ->
+				var ok = check_rule r v;
+				match m {
+				| ONormal -> if ok then loop rl vl else false
+				| OOpt -> if ok then loop rl vl else loop rl (v :: vl)
+				| OMany -> if ok then loop ((r,m) :: rl) vl else loop rl (v :: vl)
+				}
+			| ((_,m) :: rl,[]) ->
+				match m {
+				| ONormal -> false
+				| OOpt | OMany -> loop rl vl
+				}
+			| ([],_) ->
+				false
+			}
+		}
+		loop rl vl
 	| (RGroupOpt rl, VGroup vl) ->
 		function rec loop(rl,vl) {
 			match (rl,vl) {
@@ -253,8 +276,8 @@ var hrules = {
 }
 
 function get_rule(ctx,name) {
-	try 
-		Hashtbl.find hrules name 
+	try
+		Hashtbl.find hrules name
 	catch {
 		Not_found ->
 			match (name,ctx.curblock) {
@@ -279,7 +302,7 @@ function rec eval(ctx,v) {
 		(VGroup (List.map (eval ctx) vl),snd v)
 	| VVar name ->
 		if ctx.eval_rec > 1000 then error "Invalid loop in variable expension" snd(v);
-		var val = (try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) });		
+		var val = (try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) });
 		ctx.eval_rec := ctx.eval_rec + 1;
 		var r = eval ctx val;
 		ctx.eval_rec := ctx.eval_rec - 1;
@@ -423,7 +446,7 @@ function rec eval_block(ctx,b) {
 function rec expand_val(value) {
 	var p = snd value;
 	match fst value {
-	| VCall((VIdent "rgba",_) as c,[(VHex h,hp);(VFloat f,fp)]) ->			
+	| VCall((VIdent "rgba",_) as c,[(VHex h,hp);(VFloat f,fp)]) ->
 		var r, g, b = if String.length h == 3 then {
 			var r = int ("0x" + String.sub h 0 1);
 			var g = int ("0x" + String.sub h 1 1);
@@ -445,7 +468,7 @@ function rec expand_val(value) {
 	| VBind (name,v) ->
 		(VBind name expand_val(v),p)
 	| VOp (op,v1,v2) ->
-		(VOp op expand_val(v1) expand_val(v2),p)	
+		(VOp op expand_val(v1) expand_val(v2),p)
 	| _ ->
 		value
 	}
@@ -462,7 +485,7 @@ function rec expand_hacks(name,value,p) {
 	function filter(name,params,p) {
 		(EAttribute "filter" (VCall (VIdent "CSS",p) [(VString ("progid:DXImageTransform.Microsoft."+name+"("+params+")"),p)],p),p)
 	}
-	var value = expand_val value;	
+	var value = expand_val value;
 	var w = match name {
 	| "border-radius" | "border-top-right-radius" | "border-top-left-radius" | "border-bottom-right-radius" | "border-bottom-left-radius" ->
 		var moz = match String.split name "-" {
@@ -524,6 +547,34 @@ function rec expand_hacks(name,value,p) {
 					(EAttribute name value,p);
 				],p)
 			}
+		| VCall ((VIdent "linear-gradient",_),pl) ->
+			match pl {
+			| [(VHex cola,pa);(VHex colb,pb)] ->
+				var a = (VHex cola,pa);
+				var b = (VHex colb,pb);
+				var fallbacks = [
+					(EAttribute name a,p); // first gradient color
+					(EAttribute name (VCall (VIdent "-moz-linear-gradient",p) [(VIdent "top",p);(VGroup [a;(VUnit 0. "%",p)],p);(VGroup [b; (VUnit 100. "%",p)],p)],p),p);
+					(EAttribute name (VCall (VIdent "-o-linear-gradient",p) [(VIdent "top",p);(VGroup [a;(VUnit 0. "%",p)],p);(VGroup [b; (VUnit 100. "%",p)],p)],p),p);
+					(EAttribute name (VCall (VIdent "-webkit-gradient",p) [ // SAFARI 4.0+
+						(VIdent "linear",p);
+						(VIdent "left top",p);
+						(VIdent "left bottom",p);
+						(VCall (VIdent "color-stop",p) [(VUnit 0. "%",p);a],p);
+						(VCall (VIdent "color-stop",p) [(VUnit 100. "%",p);b],p);
+					],p),p);
+					(EAttribute name value,p); // W3C
+					// disable background-color (IE only)
+					(EAttribute "background-color" (VIdent "transparent\\9",p),p);
+					// adds filter : the only side effect is that the filter will be over the background-image
+					filter "gradient" ("startColorstr=#"+cola+", endColorstr=#"+colb) p;
+					(EAttribute "zoom" (VInt 1,p),p);
+				];
+				(ESub fallbacks,p)
+			| _ ->
+				warning "Linear gradient support is only supported for two #hex colors" p;
+				(EAttribute name value,p)
+			}
 		| _ ->
 			(EAttribute name value,p)
 		}
@@ -563,7 +614,7 @@ function rec expand_hacks(name,value,p) {
 	}
 	match *label {
 	| None -> w
-	| Some (label,p) ->		
+	| Some (label,p) ->
 		function rec wrap(e) {
 			(match fst e {
 			| ESub el -> ESub (List.map wrap el)
@@ -626,8 +677,8 @@ function rec check(ctx,e) {
 		ignore(List.fold (function(acc,e) {
 			match fst e {
 			| EAttribute(name,v) ->
-				match fst v { 
-				| VCall ((VIdent "CSS",_),_) | VLabel ("dup",_) -> 
+				match fst v {
+				| VCall ((VIdent "CSS",_),_) | VLabel ("dup",_) ->
 					acc
 				| _ ->
 					try {
@@ -652,7 +703,7 @@ function rec check(ctx,e) {
 		match value {
 		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> ()
 		| _ ->
-			var rules = try get_rule ctx name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };			
+			var rules = try get_rule ctx name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };
 			if !(List.exists (function(r) check_rule r value) (Hss.Rules.inherit :: rules)) then {
 				var buf, str = IO.write_string();
 				print_value buf value;
