@@ -121,6 +121,7 @@ type expr_decl {
 	EBlock : (class list, expr list);
 	ESub : expr list;
 	EMedia : (string, expr list);
+	EInclude : string;
 }
 
 type expr = (expr_decl , pos)

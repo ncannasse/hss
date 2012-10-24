@@ -62,6 +62,7 @@ function rec expr(s) {
 		| [< (BraceOpen,p2); l = expr_list s >] -> (EVarBlock i l, punion p1 p2)
 		| [< v = value s; p2 = semicolon s >] -> (EVar i v, punion p1 p2)
 		}
+	| [< (Const (Ident "@include"),p1); (ParentOpen,_); (Const (String s),_); (ParentClose,p2) >] -> (EInclude s, punion p1 p2)
 	| [< (Media str,p1); (BraceOpen,_); l = expr_list s; >] -> (EMedia str l, p1)
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
 	}
