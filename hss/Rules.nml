@@ -119,6 +119,38 @@ var bgfilters =
 	]
 
 
+var transform_function = {
+	var num = RFloat;
+	var trans = ROr [RFloat; RUnit "px"];
+	var angle = ROr [RFloat; RUnit "deg"; RUnit "rad"];
+	var len = RFloat;
+	ROr [
+		RCall (RId "matrix") (RList [num;num;num;num;num;num]);
+		RCall (RId "translate") (RList [trans;trans]);
+		RCall (RId "translate") trans;
+		RCall (RId "translateX") trans;
+		RCall (RId "scale") (RList [num;num]);
+		RCall (RId "scale") num;
+		RCall (RId "scaleX") num;
+		RCall (RId "scaleY") num;
+		RCall (RId "rotate") angle;
+		RCall (RId "skew") angle;
+		RCall (RId "skew") (RList [angle;angle]);
+		RCall (RId "skewX") angle;
+		RCall (RId "skewY") angle;
+		RCall (RId "matrix3d") (RList [num;num;num;num;num;num;num;num;num;num;num;num;num;num;num;num]);
+		RCall (RId "translate3d") (RList [trans;trans;len]);
+		RCall (RId "translateZ") len;
+		RCall (RId "scale3d") (RList [num;num;num]);
+		RCall (RId "scaleZ") num;
+		RCall (RId "rotate3d") (RList [num;num;num;angle]);
+		RCall (RId "rotateX") angle;
+		RCall (RId "rotateY") angle;
+		RCall (RId "rotateZ") angle;
+		RCall (RId "perspective") len;
+	];
+}
+
 var rules = List.concat [[
 	// Units
 	("width",runits_auto);
@@ -144,7 +176,7 @@ var rules = List.concat [[
 	("padding",[RGroup [units;units;units;units];units; RGroup [units;units]]);
 ];[
 	// layout
-	("display",ids ["block";"inline";"none";"inline-block"]);
+	("display",ids ["block";"inline";"none";"inline-block";"table";"inline-table";"table-row";"table-row-group";"table-header-group";"table-footer-group";"table-column";"table-column-group";"table-cell";"table-caption"]);
 	("float",ids ["left";"right";"none"]);
 	("clear",ids ["none";"left";"right";"both"]);
 	("overflow",ids ["auto";"hidden";"scroll";"visible"]);
@@ -171,7 +203,10 @@ var rules = List.concat [[
 	("word-spacing",RId "normal" :: runits);
 	("text-indent", runits);
 	("vertical-align",List.append runits (ids ["top";"bottom";"middle";"baseline";"sub";"super";"text-bottom";"text-top"]));
-	("white-space", ids ["normal";"nowrap";"pre";"word-break"]);
+	("white-space", ids ["normal";"pre";"nowrap";"pre-wrap";"pre-line"]);
+	("tab-size", [RInt]);
+	("line-break", ids ["auto";"loose";"normal";"strict"]);
+	("word-break", ids ["normal";"keep-all";"break-all"]);
 	("direction", ids ["ltr";"rtl"]);
 ];[
 	// background
@@ -227,6 +262,24 @@ var rules = List.concat [[
 	("caption-side", ids ["bottom";"top"]);
 	("user-select", ids ["all";"none";"text"]);
 	("resize", ids ["none";"both";"horizontal";"vertical"]);
+];[
+	// transforms
+	("transform", [RMany transform_function]);
+	("transform-origin", [ROr runits;
+		ROr (ids ["left";"center";"right";"top";"bottom"]);
+		RGroup [
+			ROr (List.append runits (ids ["left";"center";"right"]));
+			ROr (List.append runits (ids ["left";"center";"right"]))
+		]]);
+	("perspective-origin", [ROr runits;
+		ROr (ids ["left";"center";"right";"top";"bottom"]);
+		RGroup [
+			ROr (List.append runits (ids ["left";"center";"right"]));
+			ROr (List.append runits (ids ["left";"center";"right"]))
+		]]);
+	("transform-style", ids ["flat";"preserve-3d"]);
+	("persepective", [RId "none";RFloat]);
+	("backface-visible", ids ["visible";"hidden"]);
 ];[
 	// effects (partial browser support)
 	("border-radius",runits);
