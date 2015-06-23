@@ -54,6 +54,8 @@ var allow_duplicate_attributes = [
 
 var runits = [RUnit "px";RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
 var units = ROr runits
+var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"; RId "inherit"]
+var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"; RId "inherit" ]
 var col = ROr [RIntRange 0 255;RUnit "%"]
 var alpha = RFloatRange 0. 1.
 var color = List.append [
@@ -176,7 +178,7 @@ var rules = List.concat [[
 	("padding",[RGroup [units;units;units;units];units; RGroup [units;units]]);
 ];[
 	// layout
-	("display",ids ["block";"inline";"none";"inline-block";"table";"inline-table";"table-row";"table-row-group";"table-header-group";"table-footer-group";"table-column";"table-column-group";"table-cell";"table-caption"]);
+	("display",ids ["block";"inline";"none";"inline-block";"table";"inline-table";"table-row";"table-row-group";"table-header-group";"table-footer-group";"table-column";"table-column-group";"table-cell";"table-caption";"flex";"inline-flex"]);
 	("float",ids ["left";"right";"none"]);
 	("clear",ids ["none";"left";"right";"both"]);
 	("overflow",ids ["auto";"hidden";"scroll";"visible"]);
@@ -308,4 +310,21 @@ var rules = List.concat [[
 	// hss-specific
 	("hss-width",runits_auto);
 	("hss-height",runits_auto);
+];[
+	//flex
+	("flex-direction",rflex_direction);
+	("flex-wrap", rflex_wrap);
+	("flex-flow", [
+			RGroup [ROr rflex_direction; ROr rflex_wrap];
+			RId "initial";
+			RId "inherit";
+		]);
+	("flex-grow", [ RInt; RId "initial"; RId "inherit" ]);
+	("flex-shrink", [ RInt; RId "initial"; RId "inherit" ]);
+	("flex-basis", [ RInt; RId "auto"; RId "initial"; RId "inherit" ]);
+	("align-items", [RId "stretch"; RId "center"; RId "flex-start"; RId "flex-end"; RId "baseline"; 	RId "initial"; RId "inherit"]);
+	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"; RId "initial"; RId "inherit"]);
+	("align-self", [RId "auto"; RId "flex-start"; RId "flex-end"; RId "center"; RId "baseline"; RId "stretch"]);
+	("order", [RInt]);
 ]];
+
