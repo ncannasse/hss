@@ -182,6 +182,8 @@ var rules = List.concat [[
 	("float",ids ["left";"right";"none"]);
 	("clear",ids ["none";"left";"right";"both"]);
 	("overflow",ids ["auto";"hidden";"scroll";"visible"]);
+    ("overflow-x",ids ["auto";"hidden";"scroll";"visible"]);
+    ("overflow-y",ids ["auto";"hidden";"scroll";"visible"]);
 	("position",ids ["absolute";"fixed";"relative";"static"]);
 	("z-index",[RInt;RId "auto"]);
 	("visibility",ids ["visible";"hidden"]);
