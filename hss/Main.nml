@@ -112,7 +112,11 @@ function rec print_class(ch,c) {
 	match c.sub {
 	| None -> ()
 	| Some cs ->
-		IO.write ch (match c.operator { OpDefault -> " " | OpChild -> ">" | OpPreceding imm -> if imm then "+" else "~" });
+		IO.write ch (match c.operator {
+		| OpDefault | OpJoint -> if cs.operator == OpJoint then "" else " "
+		| OpChild -> ">"
+		| OpPreceding imm -> if imm then "+" else "~"
+		});
 		print_class ch cs
 	}
 }
@@ -192,11 +196,11 @@ function rec flatten(parents,e) {
 		| _ -> (EBlock classes attribs,snd e) :: el
 		}
 	| EMedia (str,el) ->
-		[(EMedia(str, List.concat (List.map (flatten parents) el)),snd e)]	
+		[(EMedia(str, List.concat (List.map (flatten parents) el)),snd e)]
 	| EInclude s ->
 		var s = match parents {
 			| [] -> s
-			| l -> 
+			| l ->
 				var ch, out = IO.write_string();
 				List.iter (function(c) { print_class ch c; IO.write ch " "; }) l;
 				out() + s
@@ -452,7 +456,7 @@ function rec eval_block(ctx,b) {
 	| EMedia (str,el) ->
 		(EMedia str (List.map (eval_block ctx) el), snd b)
 	| _ ->
-		b	
+		b
 	}
 }
 

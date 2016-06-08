@@ -261,6 +261,14 @@ function rec class(s,first) {
 			| DoubleDot when *last == None && c.selector == None ->
 				last := Some DoubleDot;
 				loop (i+1)
+			| Op And when i == 0 && first ->
+				match fst (stream_token s 1){
+				| Dot | DoubleDot ->
+					c.operator := OpJoint;
+					stream_junk s 1;
+					loop 0
+				| _ -> i
+				}
 			| BracketOpen when *last == None ->
 				match fst (stream_token s (i+1)) {
 				| Const (Ident att) ->

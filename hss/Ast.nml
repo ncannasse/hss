@@ -91,6 +91,7 @@ type operator {
 	OpDefault;
 	OpChild;
 	OpPreceding : bool;
+	OpJoint;
 }
 
 type attrib_op {
