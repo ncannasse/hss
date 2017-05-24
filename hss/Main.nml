@@ -153,6 +153,9 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch tabs;
 		IO.write ch s;
 		IO.write ch "\n";
+	| EImport s ->
+		IO.write ch s;
+		IO.write ch "\n";
 	}
 }
 
@@ -206,6 +209,9 @@ function rec flatten(parents,e) {
 				out() + s
 		}
 		[(EInclude s,snd e)]
+	| EImport s ->
+		if parents != [] then error "@import(\".css\") Only works on the top" snd(e);
+		[(EImport s ,snd e)]
 	}
 }
 
@@ -743,6 +749,18 @@ function rec check(ctx,e) {
 		(EMedia m (List.map (check ctx) el), snd e)
 	| EInclude _ ->
 		e
+	| EImport s ->
+		if String.sub(s, String.length(s) - 4, 4) != ".css" then {
+			var file = if String.sub(s, String.length(s) - 4, 4) == ".hss" then s else s + ".hss";
+			var ch = IO.read_file file true;
+			var lex = Lexer.create Buffer.create();
+			Lexer.input lex file ch 1 0;
+			var el = Hss.Parser.parse lex;
+			IO.close_in ch;
+			(ESub (List.map (check ctx) el),snd e)
+		} else {
+			(EImport IO.file_contents(s), snd e)
+		}
 	}
 }
 
