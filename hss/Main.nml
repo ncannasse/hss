@@ -626,6 +626,11 @@ function rec expand_hacks(name,value,p) {
 			(EAttribute "-webkit-box-shadow" value,p);
 			(EAttribute name value,p)
 		],p)
+	| "box-sizing" ->
+		(ESub [
+			(EAttribute "-webkit-box-sizing" value,p);
+			(EAttribute "        box-sizing" value,p);
+		],p)
 	| _ ->
 		(EAttribute name value,p)
 	}

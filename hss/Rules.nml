@@ -52,7 +52,7 @@ var allow_duplicate_attributes = [
 	"src"; // @font-face
 ];
 
-var runits = [RUnit "px";RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
+var runits = [RUnit "px"; RUnit "rem"; RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
 var units = ROr runits
 var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"; RId "inherit"]
 var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"; RId "inherit" ]
@@ -187,6 +187,7 @@ var rules = List.concat [[
 	("position",ids ["absolute";"fixed";"relative";"static"]);
 	("z-index",[RInt;RId "auto"]);
 	("visibility",ids ["visible";"hidden"]);
+	("box-sizing", ids ["content-box"; "border-box"]);
 	// clip ?
 ];[
 	// Fonts and texts
@@ -225,6 +226,9 @@ var rules = List.concat [[
 	("background-position",bgpos);
 	("background-repeat",bgrepeat);
 	("background-attachment",bgattach);
+	("background-clip",ids ["border-box"; "padding-box"; "content-box"]);
+	("background-origin",ids ["border-box"; "padding-box"; "content-box"]);
+	("background-size",[ROr(ids ["cover"; "contain"]); units_auto; RGroup [units_auto; units_auto]]);
 ];[
 	// borders
 	("border",border);
@@ -261,6 +265,7 @@ var rules = List.concat [[
 	("list-style-position", lsp);
 	("list-style-image", [url;none]);
 	("table-layout", ids ["auto";"fixed"]);
+	("empty-cells", ids ["show"; "hide"]);
 	("border-collapse",ids ["collapse";"separate"]);
 	("border-spacing",runits); // not supported on IE
 	("caption-side", ids ["bottom";"top"]);
