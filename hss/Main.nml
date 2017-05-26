@@ -750,16 +750,31 @@ function rec check(ctx,e) {
 	| EInclude _ ->
 		e
 	| EImport s ->
-		if String.sub(s, String.length(s) - 4, 4) != ".css" then {
-			var file = if String.sub(s, String.length(s) - 4, 4) == ".hss" then s else s + ".hss";
-			var ch = IO.read_file file true;
-			var lex = Lexer.create Buffer.create();
-			Lexer.input lex file ch 1 0;
-			var el = Hss.Parser.parse lex;
-			IO.close_in ch;
-			(ESub (List.map (check ctx) el),snd e)
+		var p = snd e;
+		var parent = Hss.Path.find(Lexer.source p);
+		var file = if Hss.Path.isabs(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
+		var path = Hss.Path.make(file);
+		if !Hss.Path.duplicate(path) then {
+			Hss.Path.add(path);
+			match path.ext {
+			| "hss"	->
+				var ch = try (IO.read_file path.full true) catch {
+				| err -> error("ERROR: " + (string err), p)
+				}
+				var lex = Lexer.create Buffer.create();
+				Lexer.input lex path.full ch 1 0;
+				var el = Hss.Parser.parse lex;
+				IO.close_in ch;
+				(ESub (List.map (check ctx) el), p)
+			| "css" ->
+				try (EImport IO.file_contents(path.full), p) catch {
+				| err -> error("ERROR: " + (string err), p)
+				}
+			| _ ->
+				error("Unsupported type (." + path.ext + ")", p)
+			}
 		} else {
-			(EImport IO.file_contents(s), snd e)
+			(ESub [], p) // duplicate, simply ignore it;
 		}
 	}
 }
@@ -769,7 +784,7 @@ function display(msg,p) {
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
 	} else
-	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
+	IO.printf IO.stderr "%s:%d: %s\n" (Hss.Path.full2rel(Lexer.source p),Lexer.line p,msg);
 }
 
 function report(msg,p) {
@@ -788,8 +803,10 @@ try {
 	List.iter (function(file) {
 		// parse
 		var ch = IO.read_file file true;
+		var path = Hss.Path.make(file);
+		Hss.Path.refresh(path);
 		var lex = Lexer.create Buffer.create();
-		Lexer.input lex file ch 1 0;
+		Lexer.input lex path.full ch 1 0;
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
