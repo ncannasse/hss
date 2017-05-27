@@ -154,7 +154,11 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch s;
 		IO.write ch "\n";
 	| EImport s ->
-		IO.write ch s;
+		try {
+			IO.write ch IO.file_contents(s)
+		} catch {
+		| err -> error("ERROR: " + (string err), snd e)
+		}
 		IO.write ch "\n";
 	}
 }
@@ -767,9 +771,7 @@ function rec check(ctx,e) {
 				IO.close_in ch;
 				(ESub (List.map (check ctx) el), p)
 			| "css" ->
-				try (EImport IO.file_contents(path.full), p) catch {
-				| err -> error("ERROR: " + (string err), p)
-				}
+				(EImport file, p)
 			| _ ->
 				error("Unsupported type (." + path.ext + ")", p)
 			}
