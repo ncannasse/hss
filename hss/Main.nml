@@ -113,7 +113,7 @@ function rec print_class(ch,c) {
 	| None -> ()
 	| Some cs ->
 		IO.write ch (match c.operator {
-		| OpDefault | OpJoint -> if cs.operator == OpJoint then "" else " "
+		| OpDefault -> if cs.joint == false then " " else ""
 		| OpChild -> ">"
 		| OpPreceding imm -> if imm then "+" else "~"
 		});
@@ -168,6 +168,7 @@ function rec make_sub(p,c) {
 			| None -> Some c
 			| Some p -> Some (make_sub p c)
 		};
+		joint = p.joint;
 	}
 }
 

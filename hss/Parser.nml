@@ -217,7 +217,7 @@ function rec value_hex(p,s) {
 }
 
 function rec class(s,first) {
-	var c = { node = None; id = None; classes = []; sub = None; selector = None; attributes = []; operator = OpDefault; };
+	var c = { node = None; id = None; classes = []; sub = None; selector = None; attributes = []; operator = OpDefault; joint = false; };
 	var pos = &null_pos;
 	var last = &None;
 	function rec loop(i) {
@@ -264,7 +264,7 @@ function rec class(s,first) {
 			| Op And when i == 0 && first ->
 				match fst (stream_token s 1){
 				| Dot | DoubleDot ->
-					c.operator := OpJoint;
+					c.joint := true;
 					stream_junk s 1;
 					loop 0
 				| _ -> i
