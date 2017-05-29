@@ -261,7 +261,7 @@ function rec class(s,first) {
 			| DoubleDot when *last == None && c.selector == None ->
 				last := Some DoubleDot;
 				loop (i+1)
-			| Op And when i == 0 && first ->
+			| Op And when i == 0 ->
 				match fst (stream_token s 1){
 				| Dot | DoubleDot ->
 					c.joint := true;
@@ -325,6 +325,7 @@ function rec class(s,first) {
 	| [< (Gt,_) >] -> c.operator := OpChild
 	| [< (Tild,_) >] -> c.operator := OpPreceding false
 	| [< (Op Add,_) >] -> c.operator := OpPreceding true
+	| [< (Op And,p) >] -> error Unexpected(Op And) p
 	| [< >] -> ()
 	}
 	try
