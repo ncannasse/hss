@@ -91,6 +91,7 @@ type operator {
 	OpDefault;
 	OpChild;
 	OpPreceding : bool;
+	OpJoint;
 }
 
 type attrib_op {
@@ -111,7 +112,6 @@ type class {
 	mutable sub : class option;
 	mutable attributes : (string,attrib_op) list;
 	mutable operator : operator;
-	mutable joint: bool;
 }
 
 type expr_decl {

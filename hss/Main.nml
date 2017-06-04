@@ -92,7 +92,14 @@ function att_op_str(op) {
 	}
 }
 
-function rec print_class(ch,c) {
+function rec print_class(first,ch,c) {
+	if !first then
+		IO.write ch (match c.operator {
+		| OpDefault -> " "
+		| OpChild -> ">"
+		| OpPreceding imm -> if imm then "+" else "~"
+		| OpJoint -> ""
+		})
 	match c.node {
 	| None -> ()
 	| Some id -> IO.write ch id;
@@ -112,12 +119,7 @@ function rec print_class(ch,c) {
 	match c.sub {
 	| None -> ()
 	| Some cs ->
-		IO.write ch (match c.operator {
-		| OpDefault -> if cs.joint == false then " " else ""
-		| OpChild -> ">"
-		| OpPreceding imm -> if imm then "+" else "~"
-		});
-		print_class ch cs
+		print_class false ch cs;
 	}
 }
 
@@ -137,7 +139,7 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch ";\n";
 	| EBlock(classes,el) ->
 		IO.write ch tabs;
-		print_sep ", " print_class ch classes;
+		print_sep ", " (print_class true) ch classes;
 		IO.write ch " {\n";
 		List.iter (print_css ch (tabs+"\t")) el;
 		IO.printf ch "%s}\n" tabs;
@@ -168,7 +170,6 @@ function rec make_sub(p,c) {
 			| None -> Some c
 			| Some p -> Some (make_sub p c)
 		};
-		joint = p.joint;
 	}
 }
 
@@ -203,7 +204,7 @@ function rec flatten(parents,e) {
 			| [] -> s
 			| l ->
 				var ch, out = IO.write_string();
-				List.iter (function(c) { print_class ch c; IO.write ch " "; }) l;
+				List.iter (function(c) { print_class true ch c; IO.write ch " "; }) l;
 				out() + s
 		}
 		[(EInclude s,snd e)]
