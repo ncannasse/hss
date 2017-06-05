@@ -263,6 +263,7 @@ var rules = List.concat [[
 	("outline-style",bstyle);
 	("outline-width",outline_width);
 	("outline-color",color);
+	("outline-offset",runits);
 ];[
 	// others
 	("cursor", ids ["auto";"hand";"crosshair";"default";"e-resize";"help";"move";"n-rsize";"ne-resize";"nw-resize";"pointer";"progress";"s-resize";"se-resize";"sw-resize";"text";"w-resize";"wait"]);
@@ -282,6 +283,7 @@ var rules = List.concat [[
 	("counter-increment", [none; RIdent; RGroup[RIdent; RIdent]; RGroup[RIdent; RInt]; RGroup[RIdent; RInt; RIdent];]);
 	("quotes", [none; RGroup[RString; RString]; RGroup[RString; RString; RString; RString];]);
 	("pointer-events", ids ["auto";"none";"all";"fill";"stroke";"painted";"visible";"visiblePainted";"visibleFill";"visibleStroke"]);
+	("appearance", ids ["none";"button";"checkbox";"listbox";"radio";"textfield";]); // partial
 ];[
 	// transforms
 	("transform", [RMany transform_function]);
