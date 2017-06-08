@@ -112,10 +112,12 @@ function rec print_class(first,ch,c) {
 	| Some id -> IO.printf ch "#%s" id;
 	}
 	List.iter (IO.printf ch ".%s") c.classes;
-	match c.selector {
-	| None -> ()
-	| Some id -> IO.printf ch ":%s" id;
-	}
+	List.iter (function(sel){
+		match sel {
+		| (s, None) -> IO.printf ch ":%s" s;
+		| (s, Some e) -> IO.printf ch ":%s(%s)" (s, e)
+		}
+	}) (List.rev c.selector);
 	match c.sub {
 	| None -> ()
 	| Some cs ->
@@ -301,7 +303,7 @@ function get_rule(ctx,name) {
 		Not_found ->
 			match (name,ctx.curblock) {
 			| ("src",Some { node = Some "@font-face" }) -> [Hss.Rules.font_face_src]
-			| ("content",Some {selector = Some s}) when s == "before" || s == "after" -> [Hss.Rules.pseudo_content]
+			| ("content", Some {selector = (s, None)::_}) when s == "before" || s == "after" -> [Hss.Rules.pseudo_content]
 			| _ -> throw Not_found
 			}
 	}
@@ -665,10 +667,12 @@ function rec expand_ns(ns,c) {
 }
 
 function rec check_class(ctx,p,c) {
-	match c.selector {
-	| None ->
-	| Some s -> if !(List.mem s selectors) then error ("Invalid selector '"+s+"'") p
-	}
+	List.iter (function(sel){
+		match sel {
+		| (s, None) -> if !(List.mem s selectors) then error ("Invalid pseudo-selector ':"+s+"'") p
+		| (s, Some expr) -> () // TODO: check expr
+		}
+	}) c.selector
 	match c.sub {
 	| None -> ()
 	| Some c -> check_class ctx p c

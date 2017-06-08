@@ -220,7 +220,7 @@ function rec value_hex(p,s) {
 }
 
 function rec class(s,first) {
-	var c = { node = None; id = None; classes = []; sub = None; selector = None; attributes = []; operator = OpDefault; };
+	var c = { node = None; id = None; classes = []; sub = None; selector = []; attributes = []; operator = OpDefault; };
 	var pos = &null_pos;
 	var last = &None;
 	function rec loop(i) {
@@ -247,7 +247,7 @@ function rec class(s,first) {
 					loop (i+1)
 				| Some DoubleDot ->
 					last := None;
-					c.selector := Some id;
+					c.selector:= (id, None)::c.selector;
 					loop (i+1)
 				| _ ->
 					i
@@ -261,7 +261,7 @@ function rec class(s,first) {
 			| Dot when *last == None ->
 				last := Some Dot;
 				loop (i+1)
-			| DoubleDot when *last == None && c.selector == None ->
+			| DoubleDot when *last == None ->
 				last := Some DoubleDot;
 				loop (i+1)
 			| BracketOpen when *last == None ->
@@ -279,23 +279,30 @@ function rec class(s,first) {
 				match *last {
 				| None when i == 0 ->
 					c.node := Some id;
-					c.selector := Some s;
+					c.selector:= (s, None)::c.selector;
 					loop (i+1)
 				| Some Sharp ->
 					last := None;
 					c.id := Some id;
-					c.selector := Some s;
+					c.selector:= (s, None)::c.selector;
 					loop (i+1)
 				| Some Dot ->
 					last := None;
 					c.classes := List.append c.classes [id];
-					c.selector := Some s;
+					c.selector:= (s, None)::c.selector;
 					loop (i+1)
 				| Some DoubleDot ->
-					i - 1
+					last := None;
+					c.selector:= (s, None)::(id, None)::c.selector;
+					loop (i+1)
 				| _ ->
 					i
 				}
+			| SelectorCall (s,e) ->
+				last := None;
+				c.selector := (s, Some e)::c.selector;
+				pos := {psource = p2.psource; pline = p2.pline; pmin = p2.pmin; pmax = p2.pmax + 1; };
+				loop (i + 2)
 			| ParentOpen when i == 1 && c.node == Some "CSS" ->
 				match (stream_token s (i + 1), stream_token s (i + 2)) {
 				| ((Const (String s),_), (ParentClose,p)) ->
@@ -314,7 +321,7 @@ function rec class(s,first) {
 	| [< (Op Add,_) >] -> c.operator := OpPreceding true
 	| [< (Op And,p) >] ->
 		match fst (stream_token s 0) {
-		| Dot | DoubleDot | BracketOpen -> c.operator := OpJoint
+		| Dot | DoubleDot | BracketOpen | SelectorCall _ -> c.operator := OpJoint
 		| _ -> error Unexpected(Op And) p
 		}
 	| [< >] -> ()

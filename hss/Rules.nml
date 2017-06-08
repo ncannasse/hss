@@ -48,6 +48,8 @@ var selectors = [
 	"root";"last-child";"first-of-type";"last-of-type";"only-child";"only-of-type";"empty";"target";"enabled";"disabled";"checked" // CSS 3.0
 ]
 
+var selectors_call = [ "lang"; "not"; "nth-child"; "nth-last-child"; "nth-last-of-type"; "nth-of-type";]
+
 var allow_duplicate_attributes = [
 	"src"; // @font-face
 ];

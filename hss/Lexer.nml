@@ -158,7 +158,18 @@ expr := Lexer.build (List.concat [[
 		| _ -> assert()
 		}
 	})
-}) Hss.Rules.selectors])
+}) Hss.Rules.selectors;
+  List.map (function(sel) {
+	(":"+sel+"([^)]*", function(l) {
+		var s = Lexer.current l;
+		var s = String.sub(s, 1, String.length(s) - 1);
+		match String.split s "(" {
+		| [a;b] -> mk l SelectorCall(a,b)
+		| _ -> assert()
+		}
+	})
+}) Hss.Rules.selectors_call;
+])
 	(function(l) {
 		match Lexer.char l {
 		| None -> mk l Eof

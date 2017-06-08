@@ -59,6 +59,7 @@ type token {
 	Comment : string;
 	CommentLine : string;
 	Selector : (string,string);
+	SelectorCall : (string,string);
 	Op : op;
 	Tild;
 	Dollar;
@@ -108,7 +109,7 @@ type class {
 	mutable node : string option;
 	mutable classes : string list;
 	mutable id : string option;
-	mutable selector : string option;
+	mutable selector : (string, string option) list;
 	mutable sub : class option;
 	mutable attributes : (string,attrib_op) list;
 	mutable operator : operator;
@@ -180,6 +181,7 @@ function s_token(x) {
 	| Comment s -> "/*" + s + "*/"
 	| CommentLine s -> "//" + s
 	| Selector (id,s) -> id+":"+s
+	| SelectorCall(s,e) -> s+"("+e+")"
 	| Op o -> s_op o
 	| Tild -> "~"
 	| Dollar -> "$"
