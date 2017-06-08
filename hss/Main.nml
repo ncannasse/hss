@@ -114,8 +114,10 @@ function rec print_class(first,ch,c) {
 	List.iter (IO.printf ch ".%s") c.classes;
 	List.iter (function(sel){
 		match sel {
-		| (s, None) -> IO.printf ch ":%s" s;
-		| (s, Some e) -> IO.printf ch ":%s(%s)" (s, e)
+		| (s, None, false) -> IO.printf ch ":%s" s;
+		| (s, None, true) -> IO.printf ch "::%s" s;
+		| (s, Some e, _) -> IO.printf ch ":%s(%s)" (s, e)
+		| _ -> ()
 		}
 	}) (List.rev c.selector);
 	match c.sub {
@@ -303,7 +305,7 @@ function get_rule(ctx,name) {
 		Not_found ->
 			match (name,ctx.curblock) {
 			| ("src",Some { node = Some "@font-face" }) -> [Hss.Rules.font_face_src]
-			| ("content", Some {selector = (s, None)::_}) when s == "before" || s == "after" -> [Hss.Rules.pseudo_content]
+			| ("content", Some {selector = (s, None, _)::_}) when s == "before" || s == "after" -> [Hss.Rules.pseudo_content]
 			| _ -> throw Not_found
 			}
 	}
@@ -669,8 +671,8 @@ function rec expand_ns(ns,c) {
 function rec check_class(ctx,p,c) {
 	List.iter (function(sel){
 		match sel {
-		| (s, None) -> if !(List.mem s selectors) then error ("Invalid pseudo-selector ':"+s+"'") p
-		| (s, Some expr) -> () // TODO: check expr
+		| (s, None, _) -> if !(List.mem(s, selectors) || String.get(s, 0) == '-') then error ("Invalid pseudo-selector ':"+s+"'") p
+		| (s, Some expr, _) -> () // TODO: check expr
 		}
 	}) c.selector
 	match c.sub {

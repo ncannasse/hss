@@ -91,6 +91,7 @@ expr := Lexer.build (List.concat [[
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
 	(":", function(l) { mk l DoubleDot });
+	("::", function(l) { mk l DbDoubleDot });
 	("%", function(l) { mk l Percent });
 	("!", function(l) { mk l Exclamation });
 	("=", function(l) { mk l Eq });

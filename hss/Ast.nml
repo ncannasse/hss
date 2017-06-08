@@ -46,6 +46,7 @@ type token {
 	Eq;
 	Gt;
 	DoubleDot;
+	DbDoubleDot;
 	Percent;
 	Exclamation;
 	BraceOpen;
@@ -109,7 +110,7 @@ type class {
 	mutable node : string option;
 	mutable classes : string list;
 	mutable id : string option;
-	mutable selector : (string, string option) list;
+	mutable selector : (string, string option, bool) list;
 	mutable sub : class option;
 	mutable attributes : (string,attrib_op) list;
 	mutable operator : operator;
@@ -164,6 +165,7 @@ function s_token(x) {
 	| Semicolon -> ";"
 	| Dot -> "."
 	| DoubleDot -> ":"
+	| DbDoubleDot -> "::"
 	| Percent -> "%"
 	| Comma -> ","
 	| Sharp -> "#"
