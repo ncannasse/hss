@@ -99,24 +99,23 @@ function rec value(s) {
 			value_next (VIdent i,p1) s
 		}
 	| [< (Const (String str),p) >] -> value_next (VString str,p) s
-	| [< (Const (Int i),p) >] -> value_unit (i * 1.0) Some(i) p s
-	| [< (Const (Float f),p) >] -> value_unit f None p s
+	| [< (Const (Int i),p) >] -> value_unit (i * 1.0) (VInt i, p) s
+	| [< (Const (Float f),p) >] -> value_unit f (VFloat f, p) s
 	| [< (Const (Val v),p) >] -> value_next (VVar v,p) s
 	}
 }
 
-function rec value_unit(f,i,p,s) {
-	var v = match s {
-	| [< (Const (Ident i),_) >] ->
-		(VUnit f i, p)
-	| [< (Percent,_) >] ->
-		(VUnit f "%", p)
-	| [< >] ->
-		match i {
-		| None -> (VFloat f, p)
-		| Some i -> (VInt i, p)
+function rec value_unit(f,v,s) {
+	var p = snd v;
+	var p2 = snd (stream_token s 0);
+	var v = if p2.pmin == p.pmax then
+		match s {
+		| [< (Const (Ident i),_) >] -> (VUnit f i, p)
+		| [< (Percent,_) >] -> (VUnit f "%", p)
+		| [< >] -> v
 		}
-	}
+	else
+		v;
 	value_next v s
 }
 
@@ -152,7 +151,11 @@ function rec value_next(v,s) {
 		}
 		loop v2
 	| [< (Op o,_); v2 = value s >] ->
-		(VOp o v v2, punion (pos v) (pos v2))
+		match v2 {
+		| (VList x::tl, lp) -> (VList ((VOp o v x, punion (pos v) (pos v2))::tl), punion (pos v) lp)
+		| (VGroup x::tl, lp)-> (VGroup((VOp o v x, punion (pos v) (pos v2))::tl), punion (pos v) lp)
+		| _-> (VOp o v v2, punion (pos v) (pos v2))
+		}
 	| [< >] ->
 		v
 	}
