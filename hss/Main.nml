@@ -298,9 +298,26 @@ var hrules = {
 	h
 }
 
+function vendor_prefix(s) {
+	if String.get(s, 0) == '-' then {
+		var len = String.length s;
+		if      len > 8 && String.sub(s, 0, 8) == "-webkit-" then
+			(String.sub(s, 8, len - 8), "-webkit-")
+		else if len > 5 && String.sub(s, 0, 5) == "-moz-" then
+			(String.sub(s, 5, len - 5), "-moz-")
+		else if len > 4 && String.sub(s, 0, 4) == "-ms-" then
+			(String.sub(s, 4, len - 4), "-ms-")
+		else if len > 3 && String.sub(s, 0, 3) == "-o-" then
+			(String.sub(s, 3, len - 3), "-o-")
+		else
+			(s, "")
+	} else
+		(s, "")
+}
+
 function get_rule(ctx,name) {
 	try
-		Hashtbl.find hrules name
+		Hashtbl.find hrules (if String.get(name, 0) != '-' then name else fst (vendor_prefix name));
 	catch {
 		Not_found ->
 			match (name,ctx.curblock) {
@@ -671,7 +688,7 @@ function rec expand_ns(ns,c) {
 function rec check_class(ctx,p,c) {
 	List.iter (function(sel){
 		match sel {
-		| (s, None, _) -> if !(List.mem(s, selectors) || String.get(s, 0) == '-') then error ("Invalid pseudo-selector ':"+s+"'") p
+		| (s, None, _) -> if !(List.mem(s, selectors) || (snd vendor_prefix(s) != "")) then error ("Invalid pseudo-selector '"+s+"'") p
 		| (s, Some expr, _) -> () // TODO: check expr
 		}
 	}) c.selector
