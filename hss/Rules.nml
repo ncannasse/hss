@@ -109,7 +109,14 @@ var font_variant = ids ["normal";"small-caps"]
 var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
 
 var font_face_src = RMany (ROr [url;RGroup [url;RCall RId("format") RList([RString])]])
-
+var pseudo_content = ROr [
+		ROr (ids ["none"; "normal"; "open-quote"; "close-quote"; "no-open-quote"; "no-close-quote";]);
+		url;
+		RString;
+		RCall(RId "attr", RList [RIdent]);
+		RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
+		RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
+	]
 var angle = [RUnit "deg";RUnit "rad";RUnit "grad";RUnit "turn"]
 var gradient_color = [ROr color; RGroup [ROr color; RUnit "%"]]
 
@@ -165,7 +172,7 @@ var rules = List.concat [[
 	("margin-right",runits_auto);
 	("margin-top",runits);
 	("margin-bottom",runits);
-	("margin",[RGroup [units;units_auto;units;units_auto];units_auto; RGroup [units_auto;units_auto]]);
+	("margin",[RGroup [units_auto;units_auto;units_auto;units_auto]; units_auto; RGroup [units_auto;units_auto]; RGroup [units_auto;units_auto;units_auto]]);
 	("padding-left",runits);
 	("padding-right",runits);
 	("padding-top",runits);
@@ -175,7 +182,7 @@ var rules = List.concat [[
 	("max-width",none :: runits);
 	("max-height",none :: runits);
 	("line-height",RFloat :: runits);
-	("padding",[RGroup [units;units;units;units];units; RGroup [units;units]]);
+	("padding", [units; RGroup [units;units]; RGroup [units;units;units;units]; RGroup [units;units;units]]);
 ];[
 	// layout
 	("display",ids ["block";"inline";"none";"inline-block";"table";"inline-table";"table-row";"table-row-group";"table-header-group";"table-footer-group";"table-column";"table-column-group";"table-cell";"table-caption";"flex";"inline-flex"]);
@@ -252,10 +259,11 @@ var rules = List.concat [[
 	("border-bottom-style",bstyle);
 	("border-bottom",border);
 	("border-color",[RGroupOpt [ROr trans_color; ROr trans_color; ROr trans_color; ROr trans_color]]);
-	("outline",[none;RGroup [ROr outline_width; ROr bstyle; ROr color]]);
+	("outline",[none; RIntRange 0 0; RGroup [ROr outline_width; ROr bstyle; ROr color]]);
 	("outline-style",bstyle);
 	("outline-width",outline_width);
 	("outline-color",color);
+	("outline-offset",runits);
 ];[
 	// others
 	("cursor", ids ["auto";"hand";"crosshair";"default";"e-resize";"help";"move";"n-rsize";"ne-resize";"nw-resize";"pointer";"progress";"s-resize";"se-resize";"sw-resize";"text";"w-resize";"wait"]);
@@ -271,6 +279,11 @@ var rules = List.concat [[
 	("caption-side", ids ["bottom";"top"]);
 	("user-select", ids ["all";"none";"text"]);
 	("resize", ids ["none";"both";"horizontal";"vertical"]);
+	("counter-reset", [none; RIdent; RGroup[RIdent; RIdent]; RGroup[RIdent; RInt]; RGroup[RIdent; RInt; RIdent];]);
+	("counter-increment", [none; RIdent; RGroup[RIdent; RIdent]; RGroup[RIdent; RInt]; RGroup[RIdent; RInt; RIdent];]);
+	("quotes", [none; RGroup[RString; RString]; RGroup[RString; RString; RString; RString];]);
+	("pointer-events", ids ["auto";"none";"all";"fill";"stroke";"painted";"visible";"visiblePainted";"visibleFill";"visibleStroke"]);
+	("appearance", ids ["none";"button";"checkbox";"listbox";"radio";"textfield";]); // partial
 ];[
 	// transforms
 	("transform", [RMany transform_function]);
@@ -291,7 +304,7 @@ var rules = List.concat [[
 	("backface-visible", ids ["visible";"hidden"]);
 ];[
 	// effects (partial browser support)
-	("border-radius",runits);
+	("border-radius",[units; RGroup [units;units]; RGroup [units;units;units;units]; RGroup [units;units;units]]);
 	("border-top-right-radius",runits);
 	("border-top-left-radius",runits);
 	("border-bottom-right-radius",runits);
