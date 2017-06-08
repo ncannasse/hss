@@ -264,14 +264,6 @@ function rec class(s,first) {
 			| DoubleDot when *last == None && c.selector == None ->
 				last := Some DoubleDot;
 				loop (i+1)
-			| Op And when i == 0 && first ->
-				match fst (stream_token s 1){
-				| Dot | DoubleDot ->
-					c.operator := OpJoint;
-					stream_junk s 1;
-					loop 0
-				| _ -> i
-				}
 			| BracketOpen when *last == None ->
 				match fst (stream_token s (i+1)) {
 				| Const (Ident att) ->
@@ -316,6 +308,17 @@ function rec class(s,first) {
 				i
 		}
 	}
+	match s {
+	| [< (Gt,_) >] -> c.operator := OpChild
+	| [< (Tild,_) >] -> c.operator := OpPreceding false
+	| [< (Op Add,_) >] -> c.operator := OpPreceding true
+	| [< (Op And,p) >] ->
+		match fst (stream_token s 0) {
+		| Dot | DoubleDot | BracketOpen -> c.operator := OpJoint
+		| _ -> error Unexpected(Op And) p
+		}
+	| [< >] -> ()
+	}
 	var n = loop 0;
 	if n == 0 && c.attributes == [] then error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos);
 	c.attributes := List.rev c.attributes;
@@ -323,12 +326,6 @@ function rec class(s,first) {
 	match *last {
 	| None -> ()
 	| Some t -> error (Unexpected t) (*pos);
-	}
-	match s {
-	| [< (Gt,_) >] -> c.operator := OpChild
-	| [< (Tild,_) >] -> c.operator := OpPreceding false
-	| [< (Op Add,_) >] -> c.operator := OpPreceding true
-	| [< >] -> ()
 	}
 	try
 		c.sub := Some (class s false)
