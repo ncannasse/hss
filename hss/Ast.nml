@@ -125,6 +125,7 @@ type expr_decl {
 	ESub : expr list;
 	EMedia : (string, expr list);
 	EInclude : string;
+	EImport : string;
 }
 
 type expr = (expr_decl , pos)

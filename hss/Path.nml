@@ -1,0 +1,112 @@
+/*
+ *  Hss Format
+ *  Copyright (c)2008 Nicolas Cannasse
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU Lesser General Public
+ *  License as published by the Free Software Foundation; either
+ *  version 2.1 of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  Lesser General Public License or the LICENSE file for more details.
+ */
+
+type path {
+	dir : string; // without trailing slash
+	name: string;
+	ext : string;
+	full: string;
+}
+
+var file_full_path: string -> string = neko("$loader.loadprim('std@file_full_path',1)");
+var imports: path list ref = &[];
+
+function lastchar(s: string, c: char, i: int): int {
+	function rec loop(i)	{
+		if i < 0 then -1
+		else if String.get(s, i) == c then i
+		else loop(i - 1)
+	}
+	loop(i)
+}
+
+function without_extension(s) {
+	if s != "" then {
+		var cp = lastchar(s, '.', (String.length s) - 1);
+		if cp == -1 then s else String.sub(s, 0, cp)
+	} else
+		s
+}
+
+function isabs(s) {
+	match String.length s {
+	| 0 -> false
+	| 1 -> '/' == String.get(s, 0)
+	| _ -> ':' == String.get(s, 1) || '/' == String.get(s, 0)
+	}
+}
+
+function duplicate(path) {
+	function cmp(p1, p2) {
+		without_extension(p1.full) == without_extension(p2.full)
+	}
+	function rec loop(l) {
+		match l {
+		| [] -> false
+		| x::tl -> if cmp(x, path) then true else loop(tl)
+		}
+	}
+	loop(*imports)
+}
+
+function add(path) {
+	imports := path::(*imports);
+}
+
+function refresh(init) {
+	imports := [init];
+}
+
+function find(full) {
+	function rec loop(l){
+		match l {
+		| [] -> throw Not_found
+		| x::tl -> if x.full == full then x else loop(tl)
+		}
+	}
+	loop(*imports)
+}
+
+function rel_path(path) {
+	(if path.dir == "" then path.name else (path.dir + "/" + path.name)) + "." + path.ext
+}
+
+function full2rel(full) {
+	rel_path(find full)
+}
+
+function make(s: string) {
+	var last = String.length(s) - 1;
+	var c1, c2 = (lastchar(s, '/' , last), lastchar(s, '\\', last))
+	var dir, name = if c1 < c2 then
+		(String.sub(s, 0, c2), String.sub(s, c2 + 1, last - c2))
+	else if c2 < c1 then
+		(String.sub(s, 0, c1), String.sub(s, c1 + 1, last - c1))
+	else
+		("", s)
+
+	var last = String.length(name) - 1;
+	var cp = lastchar(name, '.' , last);
+	var full, ext, name = if cp != -1 then
+		(s, String.sub(name, cp + 1, last - cp), String.sub(name, 0, cp))
+	else
+		(s + ".hss", "hss", name)
+	{
+		dir  = dir;
+		name = name;
+		ext  = ext;
+		full = file_full_path(full);
+	}
+}

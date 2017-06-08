@@ -159,6 +159,13 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch tabs;
 		IO.write ch s;
 		IO.write ch "\n";
+	| EImport s ->
+		try {
+			IO.write ch IO.file_contents(s)
+		} catch {
+		| err -> error("ERROR: " + (string err), snd e)
+		}
+		IO.write ch "\n";
 	}
 }
 
@@ -212,6 +219,9 @@ function rec flatten(parents,e) {
 				out() + s
 		}
 		[(EInclude s,snd e)]
+	| EImport s ->
+		if parents != [] then error "@import(\".css\") Only works on the top" snd(e);
+		[(EImport s ,snd e)]
 	}
 }
 
@@ -846,6 +856,31 @@ function rec check(ctx,e) {
 		(EMedia m (List.map (check ctx) el), snd e)
 	| EInclude _ ->
 		e
+	| EImport s ->
+		var p = snd e;
+		var parent = Hss.Path.find(Lexer.source p);
+		var file = if Hss.Path.isabs(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
+		var path = Hss.Path.make(file);
+		if !Hss.Path.duplicate(path) then {
+			Hss.Path.add(path);
+			match path.ext {
+			| "hss"	->
+				var ch = try (IO.read_file path.full true) catch {
+				| err -> error("ERROR: " + (string err), p)
+				}
+				var lex = Lexer.create Buffer.create();
+				Lexer.input lex path.full ch 1 0;
+				var el = Hss.Parser.parse lex;
+				IO.close_in ch;
+				(ESub (List.map (check ctx) el), p)
+			| "css" ->
+				(EImport file, p)
+			| _ ->
+				error("Unsupported type (." + path.ext + ")", p)
+			}
+		} else {
+			(ESub [], p) // duplicate, simply ignore it;
+		}
 	}
 }
 
@@ -854,7 +889,7 @@ function display(msg,p) {
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
 	} else
-	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
+	IO.printf IO.stderr "%s:%d: %s\n" (Hss.Path.full2rel(Lexer.source p),Lexer.line p,msg);
 }
 
 function report(msg,p) {
@@ -873,8 +908,10 @@ try {
 	List.iter (function(file) {
 		// parse
 		var ch = IO.read_file file true;
+		var path = Hss.Path.make(file);
+		Hss.Path.refresh(path);
 		var lex = Lexer.create Buffer.create();
-		Lexer.input lex file ch 1 0;
+		Lexer.input lex path.full ch 1 0;
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
