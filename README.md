@@ -1,6 +1,6 @@
 #### HSS is tool that extends the CSS syntax with powerful features such as variables and nested blocks.
 
-#Usage
+## Usage
 First download HSS and put it in some place where it can be run from the commandline :
 
  * Windows version : <http://ncannasse.fr/file/hss-1.3-win.zip>
@@ -22,7 +22,7 @@ You can specify an output directory with `-output <dir>` if you need it to be di
 
 > **TIP:** Since every time the HSS file is modified the CSS file needs to be regenerated, it's better if the website itself automatically runs HSS when it notices that the HSS file has changed, and displays errors if any occurs.
 
-#Syntax
+## Syntax
 HSS is a CSS compiler which supports valid CSS syntax, so for every error that occurs during the parsing of the HSS file, it will display and error indicating at which file and which line the error occurred.
 
 HSS also enforce additional syntax rules. While this is valid CSS, the following is not HSS-valid since there is a missing semicolon at the end of the color value :
@@ -51,7 +51,7 @@ body {
 ```
 Variables are a very good way to avoid replacing everything in a CSS file every time you want to change a single color value. It also helps designers to remember and easily locate the main colors that are used in a given website.
 
-#Block Variables
+### Block Variables
 You can also declare variables that will declare several properties at the same time :
 ```
 var nomargin = { margin : 0px; padding : 0px; }
@@ -71,7 +71,7 @@ One of the things that are the most annoying with CSS is when you want to avoid 
 Then there is an high possibility that class="name" is used in several different parts of the website, and needs to be styled differently depending on the case.
 
 In order to avoid these problems, it's often needed to specify the context in which is class occurs, which often to the following declarations :
-```
+```css
 .faq {
     color : #BC683C;
 }
@@ -97,7 +97,7 @@ In order to avoid these problems, it's often needed to specify the context in wh
 In that CSS example, we can see how the natural nested XHTML structure has been "flattened", and how we need to specify before each block the complete context in which the class occurs.
 
 HSS allows then a much more natural way of declaring the same thing, which is called nested blocks. Here's the previous example rewritten by using nested blocks :
-```
+```scss
 .faq {
     color : #BC683C;
     .form {
@@ -118,14 +118,73 @@ HSS allows then a much more natural way of declaring the same thing, which is ca
 ```
 As you can see, such nested structure provides much more readability and maintainability than flatten one. Using nested blocks is very good way to express complex structures and avoid class name clashing.
 
-#Comments
-There are two kind of comments possible in HSS, which are the same used in popular syntax such as C/Java. The `/* ... */` comment is a multiline comment which is already part of CSS and the `// ....` comment is used for single-line comment.
+more complex:
+
+```scss
+a {
+    var color = #0366d6;
+    color: #666;
+    &.disabled, &:disabled {
+        color: lighten($color, 20%);   // color function: darken/lighten/saturate/desaturate/invert
+    }
+    &:hover > li {
+        float: left;
+    }
+    > span, ~ i {
+        font-size: 80%;
+    }
+    + a {
+        margin-left: -1px;
+    }
+    &:hover::after {
+        content: "x";
+    }
+    &[href] {
+        color: $color;
+    }
+    &:not([href]):nth-child(2n+1) {
+        text-decoration: none;
+    }
+}
 ```
+
+generated css:
+
+```css
+a {
+	color: #666;
+}
+a.disabled, a:disabled {
+	color: #439AFC;
+}
+a:hover > li {
+	float: left;
+}
+a > span, a ~ i {
+	font-size: 80%;
+}
+a + a {
+	margin-left: -1px;
+}
+a:hover::after {
+	content: "x";
+}
+a[href] {
+	color: #0366d6;
+}
+a:not([href]):nth-child(2n+1) {
+	text-decoration: none;
+}
+```
+
+### Comments
+There are two kind of comments possible in HSS, which are the same used in popular syntax such as C/Java. The `/* ... */` comment is a multiline comment which is already part of CSS and the `// ....` comment is used for single-line comment.
+```scss
 p {
 //  color : red;
     font-weight : bold;
 /*  margin : 0px;
-    padding : 0px; */    
+    padding : 0px; */
 }
 ```
 All comments are removed from the CSS output.
@@ -143,13 +202,13 @@ HSS also enforces some good CSS practices such as :
 
  * properties declarations must always end with a semicolon (;)
  * URLs must be quoted : don't do url(img.gif) but please use url('img.gif') instead.
- * the background property has a fixed order, which is the following : 
+ * the background property has a fixed order, which is the following :
  * background : [color] [url] [repeat] [scroll|fixed] [horiz.] [vert.]
- 
-#CSS Rules
+
+### CSS Rules
 The whole CSS properties rules that are used to check the property value correctness are listed in the Rules.nml file of the HSS sources. You might want to modify them for your own needs.
 
-#Selectors
+### Selectors
 Here's the list of CSS selectors with their HSS support status, see here for the corresponding explanations :
 ```
 E : supported
@@ -159,16 +218,16 @@ E + F : supported
 E ~ F : supported
 DIV.warning : supported
 E#myid : supported
-E:first-child, E:link, E:hover and other CSS2 and 3 pseudo-classes selectors are supported (except the ones that takes an argument
+E:first-child, E:link, E:hover and other CSS2 and 3 pseudo-classes selectors are supported
 E[foo], E[foo=value], E[foo|=value], E[foo~=value], E[foo^=value], E[foo$=value], E[foo*=value] : supported
 ```
-Other selectors are not supported, but can be used with the CSS function :
+[supported pseudo-classes selectors](hss/Rules.nml#L46-L51), Other selectors maybe not supported, but can be used with the CSS function :
 ```
-.page CSS("h1.nth-child(2)") {
+.page CSS("h1:placeholder") {
     color : red
 }
 ```
-#IE hacks
+### IE hacks
 It's sometimes useful to use non-standard CSS properties, in particular for various IE-specific things. HSS adds a specific command for doing that. Here's a small example how it can be used :
 ```
 .image {
@@ -177,7 +236,7 @@ It's sometimes useful to use non-standard CSS properties, in particular for vari
 ```
 In that case, this will simply output the property in the CSS file without checking that it's defined in the CSS standard or that the value is correct.
 
-#Operations
+### Operations
 It is possible to perform some operations between values :
 ```
 var scale = 3;
@@ -189,7 +248,7 @@ var scale = 3;
 ```
 Operations between two different units (for instance 50px + 3em) are not allowed.
 
-#Hacks Support
+### Hacks Support
 Some hacks has been added to support new CSS properties on most recent browsers.
 
  * `opacity` : will also generate the corresponding IE filter alpha
@@ -203,5 +262,5 @@ Some hacks has been added to support new CSS properties on most recent browsers.
  * `background : linear-gradient(#color1,#color2)` : will add support for all browsers, including IE6-8 New in 1.4
  * You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
 
-#Credits
-The HSS software was developed by Nicolas Cannasse for Motion-Twin. 
+## Credits
+The HSS software was developed by Nicolas Cannasse for Motion-Twin.
