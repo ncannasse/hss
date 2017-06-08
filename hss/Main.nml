@@ -96,8 +96,8 @@ function rec print_class(first,ch,c) {
 	if !first then
 		IO.write ch (match c.operator {
 		| OpDefault -> " "
-		| OpChild -> ">"
-		| OpPreceding imm -> if imm then "+" else "~"
+		| OpChild -> " > "
+		| OpPreceding imm -> if imm then " + " else " ~ "
 		| OpJoint -> ""
 		})
 	match c.node {
@@ -134,7 +134,7 @@ function rec print_css(ch,tabs,e) {
 		List.iter (print_css ch (tabs+"\t")) el;
 		IO.printf ch "%s}\n" tabs;
 	| EAttribute(name,val) ->
-		IO.printf ch "%s%s : " (tabs,name);
+		IO.printf ch "%s%s: " (tabs,name);
 		print_value ch val;
 		IO.write ch ";\n";
 	| EBlock(classes,el) ->
@@ -513,9 +513,9 @@ function rec expand_hacks(name,value,p) {
 			| _ -> ""
 		};
 		(ESub [
-			(EAttribute name value,p);
-			(EAttribute ("-moz-border-radius"+moz) value,p);
-			(EAttribute ("-webkit-"+name) value,p)
+			(EAttribute ("-webkit-" + name) value,p);
+			(EAttribute ("   -moz-border-radius"+moz) value,p);
+			(EAttribute ("        " + name) value,p);
 		],p)
 	| "background-color" | "color" | "background" ->
 		var first = match fst value { VGroup v :: l -> v | _ -> value };
@@ -611,9 +611,10 @@ function rec expand_hacks(name,value,p) {
 		],p)
 	| "user-select" ->
 		(ESub [
-			(EAttribute name value,p);
-			(EAttribute "-moz-user-select" value,p);
-			(EAttribute "-webkit-user-select" value,p)
+			(EAttribute "-webkit-user-select" value,p);
+			(EAttribute "   -moz-user-select" value,p);
+			(EAttribute "    -ms-user-select" value,p);
+			(EAttribute ("        "+name) value,p);
 		],p)
 	| "display" when fst value == VIdent "inline-block" ->
 		(ESub [
@@ -625,9 +626,9 @@ function rec expand_hacks(name,value,p) {
 		],p)
 	| "box-shadow" ->
 		(ESub [
-			(EAttribute "-moz-box-shadow" value,p);
 			(EAttribute "-webkit-box-shadow" value,p);
-			(EAttribute name value,p)
+			(EAttribute "   -moz-box-shadow" value,p);
+			(EAttribute ("        " + name)  value,p)
 		],p)
 	| "box-sizing" ->
 		(ESub [
