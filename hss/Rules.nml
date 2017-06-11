@@ -54,7 +54,8 @@ var allow_duplicate_attributes = [
 	"src"; // @font-face
 ];
 
-var runits = [RUnit "px"; RUnit "rem"; RUnit "em";RUnit "%";RUnit "pt"; RIntRange 0 0]
+var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in";]
+var runits = (RUnit "%")::rlength
 var units = ROr runits
 var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"; RId "inherit"]
 var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"; RId "inherit" ]
@@ -71,13 +72,6 @@ var color = List.append [
 var trans_color = RId "transparent" :: color
 
 var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"]
-
-var border = [
-	RIntRange 0 0;
-	RId "none";
-	RUnit "px";
-	RGroup [RUnit "px";ROr bstyle;ROr trans_color];
-]
 
 var url = RCall RId("url") RList([RString])
 
@@ -101,8 +95,13 @@ var bgpos = [hunits; RGroup [hunits;vunits];RGroup [ROr vert;ROr horiz];]
 var bgrepeat = ids ["repeat";"repeat-x";"repeat-y";"no-repeat"]
 var bgattach = ids ["scroll";"fixed"]
 
-var outline_width = List.append runits (ids ["thin";"medium";"thick"])
+var outline_width = List.append (ids ["thin";"medium";"thick"]) rlength
 var border_width = outline_width;
+var border = [
+	RId "none";
+	ROr border_width;
+	RGroup [ROr border_width;ROr bstyle;ROr trans_color];
+]
 
 var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
 var font_family = RMany ROr([RIdent;RString;RGroup [RIdent;RIdent]]) // can be composed of up to 2 words
@@ -131,34 +130,39 @@ var bgfilters =
 
 
 var transform_function = {
-	var num = RFloat;
-	var trans = ROr [RFloat; RUnit "px"];
-	var angle = ROr [RFloat; RUnit "deg"; RUnit "rad"];
-	var len = RFloat;
+	var num   = RFloat;
+	var trans = units;
+	var angle = ROr angle;
+	var len   = ROr rlength;
+	var r_num   = RList [num];
+	var r_trans = RList [trans];
+	var r_angle = RList [angle];
+	var r_len   = RList [len];
 	ROr [
 		RCall (RId "matrix") (RList [num;num;num;num;num;num]);
 		RCall (RId "translate") (RList [trans;trans]);
-		RCall (RId "translate") trans;
-		RCall (RId "translateX") trans;
+		RCall (RId "translate") r_trans;
+		RCall (RId "translateX") r_trans;
+		RCall (RId "translateY") r_trans;
 		RCall (RId "scale") (RList [num;num]);
-		RCall (RId "scale") num;
-		RCall (RId "scaleX") num;
-		RCall (RId "scaleY") num;
-		RCall (RId "rotate") angle;
-		RCall (RId "skew") angle;
+		RCall (RId "scale") r_num;
+		RCall (RId "scaleX") r_num;
+		RCall (RId "scaleY") r_num;
+		RCall (RId "rotate") r_angle;
+		RCall (RId "skew") r_angle;
 		RCall (RId "skew") (RList [angle;angle]);
-		RCall (RId "skewX") angle;
-		RCall (RId "skewY") angle;
+		RCall (RId "skewX") r_angle;
+		RCall (RId "skewY") r_angle;
 		RCall (RId "matrix3d") (RList [num;num;num;num;num;num;num;num;num;num;num;num;num;num;num;num]);
 		RCall (RId "translate3d") (RList [trans;trans;len]);
-		RCall (RId "translateZ") len;
+		RCall (RId "translateZ") r_len;
 		RCall (RId "scale3d") (RList [num;num;num]);
-		RCall (RId "scaleZ") num;
+		RCall (RId "scaleZ") r_num;
 		RCall (RId "rotate3d") (RList [num;num;num;angle]);
-		RCall (RId "rotateX") angle;
-		RCall (RId "rotateY") angle;
-		RCall (RId "rotateZ") angle;
-		RCall (RId "perspective") len;
+		RCall (RId "rotateX") r_angle;
+		RCall (RId "rotateY") r_angle;
+		RCall (RId "rotateZ") r_angle;
+		RCall (RId "perspective") r_len;
 	];
 }
 
@@ -221,6 +225,7 @@ var rules = List.concat [[
 	("tab-size", [RInt]);
 	("line-break", ids ["auto";"loose";"normal";"strict"]);
 	("word-break", ids ["normal";"keep-all";"break-all"]);
+	("word-wrap", ids ["normal";"break-word"]);
 	("direction", ids ["ltr";"rtl"]);
 ];[
 	// background
@@ -288,7 +293,7 @@ var rules = List.concat [[
 	("appearance", ids ["none";"button";"checkbox";"listbox";"radio";"textfield";]); // partial
 ];[
 	// transforms
-	("transform", [RMany transform_function]);
+	("transform", [RGroupOpt [transform_function; transform_function; transform_function; transform_function; transform_function]]);
 	("transform-origin", [ROr runits;
 		ROr (ids ["left";"center";"right";"top";"bottom"]);
 		RGroup [
