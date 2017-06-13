@@ -805,7 +805,7 @@ function rec check(ctx,e) {
 		}
 		var old = (ctx.vars,ctx.blocks);
 		var old2 = (ctx.ns, ctx.curblock);
-		ctx.curblock := match classes { [a] -> Some a | _ -> None };
+		ctx.curblock := match classes { a::_ -> Some a | _ -> None };
 		var el = List.map (check ctx) el;
 		List.iter (check_class ctx snd(e)) classes;
 		// check duplicate variables
