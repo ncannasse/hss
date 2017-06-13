@@ -151,6 +151,12 @@ expr := Lexer.build (List.concat [[
 		var n = (if String.get s (len - 1) == '\r' then 3 else 2);
 		mk l CommentLine(String.sub s 0 (len - n))
 	});
+	("\"\\\\[A-Za-z0-9]+\"", function(l) {
+		var s = Lexer.current l;
+		if (String.length s) != 7 then error l (Invalid_character '\\');
+		String.set s 0 '\\';
+		(Const String(String.sub s 0 6), Lexer.curpos l)
+	});
 ];List.map (function(sel) {
 	(ident+":"+sel, function(l) {
 		var s = Lexer.current l;
