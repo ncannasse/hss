@@ -59,6 +59,14 @@ var runits = (RUnit "%")::rlength
 var units = ROr runits
 var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"; RId "inherit"]
 var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"; RId "inherit" ]
+var rflex_basis = List.append (ids ["auto";"content"]) runits
+var rflex = [
+	RId "none";
+	RFloat;           // interpreted as "flex-grow"
+	ROr rflex_basis;  // interpreted as "flex-basis"
+	RGroup [RFloat; ROr rflex_basis];        // flex-shrink, flex-basis
+	RGroup [RFloat; RFloat; ROr rflex_basis] // flex-grow, flex-shrink, flex-basis
+]
 var col = ROr [RIntRange 0 255;RUnit "%"]
 var alpha = RFloatRange 0. 1.
 var color = List.append [
@@ -110,13 +118,17 @@ var font_variant = ids ["normal";"small-caps"]
 var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
 
 var font_face_src = RMany (ROr [url;RGroup [url;RCall RId("format") RList([RString])]])
+var multi_content = ROr [
+	ROr (ids ["open-quote"; "close-quote"; "no-open-quote"; "no-close-quote"]);
+	url;
+	RString;
+	RCall(RId "attr", RList [RIdent]);
+	RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
+	RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
+]
 var pseudo_content = ROr [
-		ROr (ids ["none"; "normal"; "open-quote"; "close-quote"; "no-open-quote"; "no-close-quote";]);
-		url;
-		RString;
-		RCall(RId "attr", RList [RIdent]);
-		RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
-		RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
+		ROr (ids ["none"; "normal"]);
+		RGroupOpt [multi_content; multi_content; multi_content; multi_content; multi_content; multi_content; multi_content];
 	]
 var angle = [RUnit "deg";RUnit "rad";RUnit "grad";RUnit "turn"]
 var gradient_color = [ROr color; RGroup [ROr color; RUnit "%"]]
@@ -339,6 +351,7 @@ var rules = List.concat [[
 	("hss-height",runits_auto);
 ];[
 	//flex
+	("flex", rflex);
 	("flex-direction",rflex_direction);
 	("flex-wrap", rflex_wrap);
 	("flex-flow", [
@@ -346,9 +359,9 @@ var rules = List.concat [[
 			RId "initial";
 			RId "inherit";
 		]);
-	("flex-grow", [ RInt; RId "initial"; RId "inherit" ]);
-	("flex-shrink", [ RInt; RId "initial"; RId "inherit" ]);
-	("flex-basis", [ RInt; RId "auto"; RId "initial"; RId "inherit" ]);
+	("flex-grow", [RFloat; RId "initial"; RId "inherit" ]);
+	("flex-shrink", [RFloat; RId "initial"; RId "inherit" ]);
+	("flex-basis", rflex_basis);
 	("align-items", [RId "stretch"; RId "center"; RId "flex-start"; RId "flex-end"; RId "baseline"; 	RId "initial"; RId "inherit"]);
 	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"; RId "initial"; RId "inherit"]);
 	("align-self", [RId "auto"; RId "flex-start"; RId "flex-end"; RId "center"; RId "baseline"; RId "stretch"]);
