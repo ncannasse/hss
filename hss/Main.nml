@@ -784,6 +784,13 @@ function rec check_class(ctx,p,c) {
 	}
 }
 
+function rec find_subclass(c: class) {
+	match c.sub {
+	| Some sc -> find_subclass sc
+	| None -> c
+	}
+}
+
 function rec check(ctx,e) {
 	match fst e {
 	| EVar ("namespace",value) ->
@@ -805,7 +812,7 @@ function rec check(ctx,e) {
 		}
 		var old = (ctx.vars,ctx.blocks);
 		var old2 = (ctx.ns, ctx.curblock);
-		ctx.curblock := match classes { a::_ -> Some a | _ -> None };
+		ctx.curblock := match classes { a::_ -> Some(find_subclass a) | _ -> None };
 		var el = List.map (check ctx) el;
 		List.iter (check_class ctx snd(e)) classes;
 		// check duplicate variables
