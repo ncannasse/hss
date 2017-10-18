@@ -182,10 +182,10 @@ var rules = List.concat [[
 	// Units
 	("width",runits_auto);
 	("height",runits_auto);
-	("top",runits);
-	("bottom",runits);
-	("left",runits);
-	("right",runits);
+	("top",runits_auto);
+	("bottom",runits_auto);
+	("left",runits_auto);
+	("right",runits_auto);
 	("margin-left",runits_auto);
 	("margin-right",runits_auto);
 	("margin-top",runits);
