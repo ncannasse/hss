@@ -151,12 +151,6 @@ expr := Lexer.build (List.concat [[
 		var n = (if String.get s (len - 1) == '\r' then 3 else 2);
 		mk l CommentLine(String.sub s 0 (len - n))
 	});
-	("\"\\\\[A-Za-z0-9]+\"", function(l) {
-		var s = Lexer.current l;
-		if (String.length s) != 7 then error l (Invalid_character '\\');
-		String.set s 0 '\\';
-		(Const String(String.sub s 0 6), Lexer.curpos l)
-	});
 ];List.map (function(sel) {
 	(ident+":"+sel, function(l) {
 		var s = Lexer.current l;
@@ -212,6 +206,11 @@ estring := Lexer.build [
 		Buffer.add_char (Lexer.data l) '\r';
 		str l
 	});
+	("\\\\[A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9]", function(l) {
+		Buffer.add_char (Lexer.data l) '\\';
+		Buffer.add (Lexer.data l) (Lexer.current l);
+		str l
+	});
 	("\\\\" , function(l) { error l Invalid_escape });
 	("\"" , function(l) { });
 	("[^\\\\\"]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
@@ -236,6 +235,11 @@ eqstring := Lexer.build [
 	});
 	("\\\\r", function(l) {
 		Buffer.add_char (Lexer.data l) '\r';
+		qstr l
+	});
+	("\\\\[A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9][A-Fa-f0-9]", function(l) {
+		Buffer.add_char (Lexer.data l) '\\';
+		Buffer.add (Lexer.data l) (Lexer.current l);
 		qstr l
 	});
 	("\\\\" , function(l) { error l Invalid_escape });
