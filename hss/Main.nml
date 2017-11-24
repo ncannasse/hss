@@ -843,7 +843,7 @@ function rec check(ctx,e) {
 	| EAttribute (name,value) ->
 		var value = eval ctx value;
 		match value {
-		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> ()
+		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> e
 		| _ ->
 			var rules = try get_rule ctx name catch { Not_found -> error ("Unknown attribute '"+name+"'") snd(e) };
 			if !(List.exists (function(r) check_rule r value) (Hss.Rules.inherit :: rules)) then {
@@ -851,8 +851,8 @@ function rec check(ctx,e) {
 				print_value buf value;
 				error ("Invalid '"+name+"' value '"+str()+"'") snd(e);
 			}
+			expand_hacks name value snd(e)
 		}
-		expand_hacks name value snd(e)
 	| EUseBlock name ->
 		var b = try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(e) };
 		var b = try List.map (check ctx) b catch { Error l -> throw Error(("Included here ",snd e)::l) };
