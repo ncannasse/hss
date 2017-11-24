@@ -36,7 +36,7 @@ In that case, you will get an error telling :
 `myfile.hss:3: Unexpected '}' maybe missing ;`
 Fix all the errors and HSS will then be able to generate the corresponding CSS file.
 
-#Property Variables
+### Property Variables
 HSS adds property variables to the CSS syntax.
 
 You can declare a variable with the keyword var and use it in the HSS file by prefixing the variable name with a dollar :
@@ -63,7 +63,7 @@ pre {
 ```
 Block variables are very useful to share some "behaviors" between unrelated rules. They can be used to improve the way CSS files are organized and makes it much more easy to test style-changes.
 
-#Nested Blocks
+### Nested Blocks
 One of the things that are the most annoying with CSS is when you want to avoid class-names clashing. For instance if you declare the following :
 ```
 .name { font-weight : bold; }
@@ -123,6 +123,8 @@ more complex:
 ```scss
 a {
     var color = #0366d6;
+    var margin = 4px;
+
     color: #666;
     &.disabled, &:disabled {
         color: lighten($color, 20%);   // color function: darken/lighten/saturate/desaturate/invert
@@ -134,10 +136,10 @@ a {
         font-size: 80%;
     }
     + a {
-        margin-left: -1px;
+        margin-left: 0 - $margin;      // -$margin
     }
     &:hover::after {
-        content: "x";
+        content: " \f2b9 ";
     }
     &[href] {
         color: $color;
@@ -152,28 +154,28 @@ generated css:
 
 ```css
 a {
-	color: #666;
+    color: #666;
 }
 a.disabled, a:disabled {
-	color: #439AFC;
+    color: #439AFC;
 }
 a:hover > li {
-	float: left;
+    float: left;
 }
 a > span, a ~ i {
-	font-size: 80%;
+    font-size: 80%;
 }
 a + a {
-	margin-left: -1px;
+    margin-left: -4px;
 }
 a:hover::after {
-	content: "x";
+    content: " \f2b9 ";
 }
 a[href] {
-	color: #0366d6;
+    color: #0366d6;
 }
 a:not([href]):nth-child(2n+1) {
-	text-decoration: none;
+    text-decoration: none;
 }
 ```
 
@@ -189,7 +191,7 @@ p {
 ```
 All comments are removed from the CSS output.
 
-#CSS Validation
+### CSS Validation
 Apart from validating the syntax and providing additional things, HSS also checks the validity of the CSS properties values. For instance the following will not be allowed because of the double 't' :
 ```
 pre { font-weightt : bold; }
@@ -261,6 +263,7 @@ Some hacks has been added to support new CSS properties on most recent browsers.
  * `hss-width` and `hss-height` : will generate width and height from which will be subtracted the padding and border values declared in the current block.
  * `background : linear-gradient(#color1,#color2)` : will add support for all browsers, including IE6-8 New in 1.4
  * You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
+ * `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate imported files will be ignored.
 
 ## Credits
 The HSS software was developed by Nicolas Cannasse for Motion-Twin.
