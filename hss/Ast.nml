@@ -191,3 +191,20 @@ function s_token(x) {
 	| Media str -> "@media " + str
 	}
 }
+
+function rec s_value(v) {
+	match fst v {
+	| VUnit (x, u) -> "" + x + u
+	| VInt i   -> "" + i
+	| VFloat f -> "" + f
+	| VString s  -> "\"" + s + "\""
+	| VHex s -> "#" + s
+	| VVar i -> "$" + i
+	| VList l -> String.concat ", " (List.map s_value l)
+	| VGroup l -> String.concat " " (List.map s_value l)
+	| VCall ((VIdent n, _), l) -> n + "(" + (s_value (VList l, pos v)) +")"
+	| VOp(op, v1, v2) -> (s_value v1) + " " +(s_op op) + " " + (s_value v2)
+	| VUrl u -> "url(\"" + u + "\")"
+	| x -> string x
+	}
+}

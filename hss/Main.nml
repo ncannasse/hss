@@ -491,7 +491,7 @@ function rec eval(ctx,v) {
 			| (_,VLabel (l,v)) ->
 				VLabel l (loop v1 v, snd v)
 			| _ ->
-				error "Operation not allowed" snd(v)
+				error ("'" + (s_value v) + "' are not allowed") snd(v)
 			}
 		}
 		(loop v1 v2,snd v)
