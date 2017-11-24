@@ -149,10 +149,18 @@ function rec value_next(v,s) {
 		}
 		loop v2
 	| [< (Op o,_); v2 = value s >] ->
-		match v2 {
-		| (VList x::tl, lp) -> (VList ((VOp o v x, punion (pos v) (pos v2))::tl), punion (pos v) lp)
-		| (VGroup x::tl, lp)-> (VGroup((VOp o v x, punion (pos v) (pos v2))::tl), punion (pos v) lp)
-		| _-> (VOp o v v2, punion (pos v) (pos v2))
+		function rec loop(o, v, v2) {
+			var p = punion (pos v) (pos v2);
+			match fst v2 {
+			| VOp(o1, v1, v2) -> (VOp o1 (loop o v v1) v2, p)
+			| _ -> (VOp o v v2, p)
+			}
+		}
+		var p = punion (pos v) (pos v2);
+		match fst v2 {
+		| VList (v2 :: l) -> (VList  ((loop o v v2) :: l), p)
+		| VGroup(v2 :: l) -> (VGroup ((loop o v v2) :: l), p)
+		| _-> loop o v v2
 		}
 	| [< >] ->
 		v
