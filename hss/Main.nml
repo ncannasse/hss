@@ -723,7 +723,7 @@ function rec expand_hacks(name,value,p) {
 			(EAttribute "-webkit-user-select" value,p);
 			(EAttribute "   -moz-user-select" value,p);
 			(EAttribute "    -ms-user-select" value,p);
-			(EAttribute ("        "+name) value,p);
+			(EAttribute "        user-select" value,p);
 		],p)
 	| "display" when fst value == VIdent "inline-block" ->
 		(ESub [
@@ -737,7 +737,7 @@ function rec expand_hacks(name,value,p) {
 		(ESub [
 			(EAttribute "-webkit-box-shadow" value,p);
 			(EAttribute "   -moz-box-shadow" value,p);
-			(EAttribute ("        " + name)  value,p)
+			(EAttribute "        box-shadow" value,p)
 		],p)
 	| "box-sizing" ->
 		(ESub [

@@ -63,9 +63,7 @@ function rec expr(s) {
 		| [< v = value s; p2 = semicolon s >] -> (EVar i v, punion p1 p2)
 		}
 	| [< (Const (Ident "@include"),p1); (ParentOpen,_); (Const (String s),_); (ParentClose,p2) >] -> (EInclude s, punion p1 p2)
-	| [< (Const (Ident "@import" ),p1); (ParentOpen,_); (Const (String f),_); (ParentClose,p2) >] when f != "" ->
-		if (fst (stream_token s 0) == Semicolon) then (stream_junk s 1); // for syntax highlighting/completion of some IDE
-		(EImport f, punion p1 p2)
+	| [< (Const (Ident "@import" ),p1); (ParentOpen,_); (Const (String f),_); (ParentClose,p2) >] -> (EImport  f, punion p1 p2)
 	| [< (Media str,p1); (BraceOpen,_); l = expr_list s; >] -> (EMedia str l, p1)
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
 	}
