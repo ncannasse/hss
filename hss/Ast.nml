@@ -126,6 +126,7 @@ type expr_decl {
 	EMedia : (string, expr list);
 	EInclude : string;
 	EImport : string;
+	EKeyframes: (string, (value, expr list) list);
 }
 
 type expr = (expr_decl , pos)
