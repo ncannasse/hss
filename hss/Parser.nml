@@ -107,16 +107,16 @@ function rec value(s) {
 }
 
 function rec value_unit(f,v,s) {
-	var p1 = pos v;
-	var v = match (stream_token s 0) {
-	| (Const (Ident i), p2) when (f != 0.) || (p1.pmax == p2.pmin && p1.pline == p2.pline) ->
-		stream_junk s 1;
-		(VUnit f i, punion p1 p2)
-	| (Percent, p2) ->
-		stream_junk s 1;
-		(VUnit f "%", punion p1 p2)
-	| _ -> v
-	}
+	var p1 = pos v
+	var p2 = pos (stream_token s 0)
+	var v = if (p1.pmax == p2.pmin && p1.pline == p2.pline) then
+		match s {
+		| [< (Const (Ident i),_) >] -> (VUnit f i, punion p1 p2)
+		| [< (Percent,_) >] -> (VUnit f "%", punion p1 p2)
+		| [< >] -> v
+		}
+	else
+		v;
 	value_next v s
 }
 
