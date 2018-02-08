@@ -596,7 +596,7 @@ function rec expand_val(value) {
 		(VBind name expand_val(v),p)
 	| VOp (op,v1,v2) ->
 		(VOp op expand_val(v1) expand_val(v2),p)
-	| VUnit(0., _) ->
+	| VUnit(0., u) when u != "s" && u != "ms" ->
 		(VInt 0, p)
 	| _ ->
 		value

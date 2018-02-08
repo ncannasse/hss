@@ -366,5 +366,36 @@ var rules = List.concat [[
 	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"; RId "initial"; RId "inherit"]);
 	("align-self", [RId "auto"; RId "flex-start"; RId "flex-end"; RId "center"; RId "baseline"; RId "stretch"]);
 	("order", [RInt]);
-]];
+]; (function(){
+	// animations
+	var name = [RMany RIdent]
+	var dir  = [RId "normal"; RId "reverse"; RId "alternate"; RId "alternate-reverse"]
+	var mode = [none; RId "forwards"; RId "backwards"; RId "both"]
+	var delay = [RUnit "s"; RUnit "ms";]
+	var count = [RId "infinite"; RInt; RFloat]
+	var state = [RId "running"; RId "paused"]
+	var duration = delay;
+	var tween = [
+		RId "ease"; RId "linear";RId "ease-in"; RId "ease-out"; RId "ease-in-out"; RId "step-start"; RId "step-end";
+		RCall (RId "frames") (RList [RInt]);
+		RCall (RId "cubic-bezier") (RList [RFloat; RFloat; RFloat; RFloat]);
+		RCall (RId "steps") (RListCustom [(RInt, ONormal); (ROr [RId "start"; RId "end"], OOpt)]);
+	]
+	function many(r) {RMany (ROr r)}
+	function ors(li) {List.map(function(r){ROr r}, li)}
+	[("animation", [
+		RGroup ors([duration; name]);
+		RGroup ors([duration; tween; delay; name]);
+		RGroup ors([duration; tween; delay; count; dir; mode; state; name]);
+	]);
+	("animation-delay", [many delay]);
+	("animation-direction", [many dir]);
+	("animation-duration", [many duration]);
+	("animation-fill-mode", [many mode]);
+	("animation-iteration-count", [many count]);
+	("animation-name", [many name]);
+	("animation-play-state", [many state]);
+	("animation-timing-function", [many tween]);
+]})()
+];
 
