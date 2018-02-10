@@ -344,7 +344,7 @@ function vendor_prefix(s) {
 
 function get_rule(ctx,name) {
 	try
-		Hashtbl.find hrules (if String.get(name, 0) != '-' then name else fst (vendor_prefix name));
+		Hashtbl.find hrules name
 	catch {
 		Not_found ->
 			match (name,ctx.curblock) {
@@ -811,11 +811,16 @@ function rec find_subclass(c: class) {
 }
 
 function load_rules(ctx, name, value, p) {
-	var rules = try get_rule ctx name catch { Not_found -> error ("Unknown attribute '"+name+"'") p };
-	if !(List.exists (function(r) check_rule r value) (Hss.Rules.inherit :: rules)) then {
-		var buf, str = IO.write_string();
-		print_value buf value;
-		error ("Invalid '"+name+"' value '"+str()+"'") p;
+	try {
+		var rules = get_rule ctx name;
+		if !(List.exists (function(r) check_rule r value) (Hss.Rules.inherit :: rules)) then {
+			var buf, str = IO.write_string();
+			print_value buf value;
+			error ("Invalid '"+name+"' value '"+str()+"'") p;
+		}
+	} catch {
+	| Not_found -> if snd(vendor_prefix name) == "" then error("Unknown attribute '"+name+"'",p) // ignored if prefix with vendor.
+	| e -> throw e
 	}
 }
 
