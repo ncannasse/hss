@@ -269,11 +269,11 @@ function rec class(s,first) {
 					loop (i+1)
 				| Some DoubleDot ->
 					last := None;
-					c.selector:= (id, None, false)::c.selector;
+					c.selector:= (PSelector id)::c.selector;
 					loop (i+1)
 				| Some DbDoubleDot ->
 					last := None;
-					c.selector:= (id, None, true)::c.selector;
+					c.selector:= (PDbSelector id)::c.selector;
 					loop (i+1)
 				| _ ->
 					i
@@ -308,28 +308,28 @@ function rec class(s,first) {
 				match *last {
 				| None when i == 0 ->
 					c.node := Some id;
-					c.selector:= (s, None, false)::c.selector;
+					c.selector:= (PSelector s)::c.selector;
 					loop (i+1)
 				| Some Sharp ->
 					last := None;
 					c.id := Some id;
-					c.selector:= (s, None, false)::c.selector;
+					c.selector:= (PSelector s)::c.selector;
 					loop (i+1)
 				| Some Dot ->
 					last := None;
 					c.classes := List.append c.classes [id];
-					c.selector:= (s, None, false)::c.selector;
+					c.selector:= (PSelector s)::c.selector;
 					loop (i+1)
 				| Some DoubleDot ->
 					last := None;
-					c.selector:= (s, None, false)::(id, None, false)::c.selector;
+					c.selector:= (PSelector s)::(PSelector id)::c.selector;
 					loop (i+1)
 				| _ ->
 					i
 				}
 			| SelectorCall (s,e) ->
 				last := None;
-				c.selector := (s, Some e, false)::c.selector;
+				c.selector := PSelectorCall(s, e)::c.selector;
 				pos := {psource = p2.psource; pline = p2.pline; pmin = p2.pmin; pmax = p2.pmax + 1; };
 				loop (i + 2)
 			| ParentOpen when i == 1 && c.node == Some "CSS" ->

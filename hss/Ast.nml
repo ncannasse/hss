@@ -106,11 +106,17 @@ type attrib_op {
 	ASubstr : string;
 }
 
+type pseudo {
+	PSelector : string;
+	PDbSelector : string;
+	PSelectorCall : (string, string); // (name, args)
+}
+
 type class {
 	mutable node : string option;
 	mutable classes : string list;
 	mutable id : string option;
-	mutable selector : (string, string option, bool) list;
+	mutable selector : pseudo list;
 	mutable sub : class option;
 	mutable attributes : (string,attrib_op) list;
 	mutable operator : operator;
