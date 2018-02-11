@@ -57,8 +57,8 @@ var allow_duplicate_attributes = [
 var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in";]
 var runits = (RUnit "%")::rlength
 var units = ROr runits
-var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"; RId "inherit"]
-var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"; RId "inherit" ]
+var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"]
+var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"]
 var rflex_basis = List.append (ids ["auto";"content"]) runits
 var rflex = [
 	RId "none";
@@ -355,15 +355,16 @@ var rules = List.concat [[
 	("flex-direction",rflex_direction);
 	("flex-wrap", rflex_wrap);
 	("flex-flow", [
+			ROr rflex_direction;
+			ROr rflex_wrap;
 			RGroup [ROr rflex_direction; ROr rflex_wrap];
 			RId "initial";
-			RId "inherit";
 		]);
-	("flex-grow", [RFloat; RId "initial"; RId "inherit" ]);
-	("flex-shrink", [RFloat; RId "initial"; RId "inherit" ]);
+	("flex-grow", [RFloat; RId "initial"]);
+	("flex-shrink", [RFloat; RId "initial"]);
 	("flex-basis", rflex_basis);
-	("align-items", [RId "stretch"; RId "center"; RId "flex-start"; RId "flex-end"; RId "baseline"; 	RId "initial"; RId "inherit"]);
-	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"; RId "initial"; RId "inherit"]);
+	("align-items", [RId "stretch"; RId "center"; RId "flex-start"; RId "flex-end"; RId "baseline"; RId "initial";]);
+	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"; RId "initial";]);
 	("align-self", [RId "auto"; RId "flex-start"; RId "flex-end"; RId "center"; RId "baseline"; RId "stretch"]);
 	("order", [RInt]);
 ]; (function(){
