@@ -324,23 +324,6 @@ var hrules = {
 	h
 }
 
-function vendor_prefix(s) {
-	if String.get(s, 0) == '-' then {
-		var len = String.length s;
-		if      len > 8 && String.sub(s, 0, 8) == "-webkit-" then
-			(String.sub(s, 8, len - 8), "-webkit-")
-		else if len > 5 && String.sub(s, 0, 5) == "-moz-" then
-			(String.sub(s, 5, len - 5), "-moz-")
-		else if len > 4 && String.sub(s, 0, 4) == "-ms-" then
-			(String.sub(s, 4, len - 4), "-ms-")
-		else if len > 3 && String.sub(s, 0, 3) == "-o-" then
-			(String.sub(s, 3, len - 3), "-o-")
-		else
-			(s, "")
-	} else
-		(s, "")
-}
-
 function get_rule(ctx,name) {
 	try
 		Hashtbl.find hrules name
@@ -355,87 +338,14 @@ function get_rule(ctx,name) {
 	}
 }
 
-function hsl2rgb(h:float, s:float, l:float) {
-	if (s <= 0.) then {
-		var r = Math.round((max 0. (min 1. l)) * 255);
-		(r, r, r)
-	} else {
-		function hue2rgb(p: float, q:float, t: float) {
-			var t = if t < 0. then t + 1. else t;
-			var t = if t > 1. then t - 1. else t;
-			if t < 1/6. then
-				p + (q - p) * 6. * t
-			else if t < 1/2. then
-				q
-			else if t < 2/3. then
-				p + (q - p) * (2/3. - t) * 6.
-			else
-				p
-		}
-		var q = if l < 0.5 then l * (1. + s) else l + s - l * s;
-		var p = 2. * l - q;
-		var r = max 0. (min 1. hue2rgb(p, q, h + 1/3.));
-		var g = max 0. (min 1. hue2rgb(p, q, h));
-		var b = max 0. (min 1. hue2rgb(p, q, h - 1/3.));
-		(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255))
-	}
-}
-
-function rgb2hsl(ir: int, ig: int, ib: int) {
-	var r = max 0. min(1., ir / 255.);
-	var g = max 0. min(1., ig / 255.);
-	var b = max 0. min(1., ib / 255.);
-	var max = max(max(r, g), b);
-	var min = min(min(r, g), b);
-	var l = (max + min) / 2.;
-	if (max == min) then
-		(0., 0., l)
-	else {
-		var d = max - min;
-		var s = if l > 0.5 then d / (2 - max - min) else d / (max + min);
-
-		var h = if max == r then
-			(g - b) / d + (if g < b then 6. else 0.)
-		else if max == g then
-			(b - r) / d + 2.
-		else
-			(r - g) / d + 4.;
-		(h/6., s, l)
-	}
-}
-
-function ofhex(h, v) {
-	match String.length h {
-	| 3 ->
-		var r = int ("0x" + String.sub h 0 1);
-		var g = int ("0x" + String.sub h 1 1);
-		var b = int ("0x" + String.sub h 2 1);
-		(r * 16 + r,g*16+g,b*16+b)
-	| 6 ->
-		(int ("0x" + String.sub h 0 2), int ("0x" + String.sub h 2 2), int ("0x" + String.sub h 4 2))
-	| _ ->
-		error ("Invalid 'color' value #" + h) v;
-	}
-}
-
-function custom_calls(v1, vl) {
-	function adjust(hex, hp, dh, ds, dl) {
-		var r, g, b = ofhex hex hp;
-		var h, s, l = rgb2hsl r g b;
-		var r, g, b = hsl2rgb(h + dh, s + ds, l + dl);
-		VHex (sprintf "%.6X" ((r << 16) or (g << 8) or b))
-	}
-	match (v1, vl) {
-	| ((VIdent "lighten", _),[(VHex h, hp); (VUnit(i, "%"), _)]) ->
-		Some adjust(h, hp, 0., 0.,  i/100.)
-	| ((VIdent "darken", _), [(VHex h, hp); (VUnit(i, "%"), _)]) ->
-		Some adjust(h, hp, 0., 0., -i/100.)
-	| ((VIdent "saturate", _), [(VHex h, hp); (VUnit(i, "%"), _)]) ->
-		Some adjust(h, hp, 0.,  i/100., 0.)
-	| ((VIdent "desaturate",_),[(VHex h, hp); (VUnit(i, "%"), _)]) ->
-		Some adjust(h, hp, 0., -i/100., 0.)
-	| ((VIdent "invert",_),[(VHex h, hp)]) ->
-		var r, g, b = ofhex h hp;
+function custom_calls(ident, vl) {
+	match (fst ident, vl) {
+	| (VIdent "lighten"   , [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0., 0.,  i/100.))
+	| (VIdent "darken"    , [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0., 0., -i/100.))
+	| (VIdent "saturate"  , [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0.,  i/100., 0.))
+	| (VIdent "desaturate", [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0., -i/100., 0.))
+	| (VIdent "invert", [(VHex h, p)]) ->
+		var r, g, b = Hss.Utils.ofhex h p;
 		var r, g, b = (255 - r, 255 - g, 255 - b);
 		Some VHex(sprintf "%.6X" ((r << 16) or (g << 8) or b))
 	| _ -> None;
@@ -462,12 +372,12 @@ function rec eval(ctx,v) {
 		var r = eval ctx val;
 		ctx.eval_rec := ctx.eval_rec - 1;
 		r
-	| VCall(v1,vl) ->
-		var v1 = eval ctx v1;
+	| VCall(i,vl) ->
+		var i = eval ctx i;
 		var vl = List.map (eval ctx) vl;
-		match custom_calls v1 vl {
-		| Some(vhex) -> (vhex, snd v)
-		| None -> (VCall v1 vl,snd v)
+		match custom_calls i vl {
+		| Some(val) -> (val, snd v)
+		| None -> (VCall(i, vl), snd v)
 		}
 	| VLabel (l,v1) ->
 		(VLabel l (eval ctx v1), snd v)
@@ -502,7 +412,7 @@ function rec eval(ctx,v) {
 					var c = Math.round (fop (c * 1.0) a);
 					if c < 0 then 0 else if c > 255 then 255 else c;
 				}
-				var r, g, b = ofhex(c, snd v1);
+				var r, g, b = Hss.Utils.ofhex(c, snd v1);
 				var r, g, b = (color r, color g, color b);
 				VHex (sprintf "%.6X" ((r << 16) or (g << 8) or b))
 			| (_,VLabel (l,v)) ->
@@ -598,7 +508,7 @@ function rec expand_val(value) {
 	var p = snd value;
 	match fst value {
 	| VCall((VIdent "rgba",_) as c,[(VHex h,hp);(VFloat f,fp)]) ->
-		var r, g, b = ofhex h hp;
+		var r, g, b = Hss.Utils.ofhex h hp;
 		var params = [(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)];
 		expand_val (VCall c params, p)
 	| VCall (v,vl) ->
@@ -618,7 +528,6 @@ function rec expand_val(value) {
 	| _ ->
 		value
 	}
-
 }
 
 
@@ -793,7 +702,7 @@ function rec expand_ns(ns,c) {
 function rec check_class(ctx,p,c) {
 	List.iter (function(sel){
 		match sel {
-		| PSelector s | PDbSelector s -> if !(List.mem(s, selectors) || (snd vendor_prefix(s) != "")) then error ("Invalid pseudo-selector '"+s+"'") p
+		| PSelector s | PDbSelector s -> if !(List.mem(s, selectors) || (snd Hss.Utils.vendor_prefix(s) != "")) then error ("Invalid pseudo-selector '"+s+"'") p
 		| _ -> () // No need to check name of "PSelectorCall", Because it's generated by Lexer.
 		}
 	}) c.selector
@@ -819,7 +728,7 @@ function load_rules(ctx, name, value, p) {
 			error ("Invalid '"+name+"' value '"+str()+"'") p;
 		}
 	} catch {
-	| Not_found -> if snd(vendor_prefix name) == "" then error("Unknown attribute '"+name+"'",p) // ignored if prefix with vendor.
+	| Not_found -> if snd(Hss.Utils.vendor_prefix name) == "" then error("Unknown attribute '"+name+"'",p) // ignored if prefix with vendor.
 	| e -> throw e
 	}
 }
@@ -995,6 +904,7 @@ try {
 	// in order to get correct constructor hashing
 	| Hss.Lexer.Error(msg,pos) -> report Hss.Lexer.error_msg(msg) pos
 	| Hss.Parser.Error(msg,pos) -> report Hss.Parser.error_msg(msg) pos
+	| Hss.Utils.Error(msg,pos) -> report msg pos
 	| Error l -> List.iter (function((msg,p)) display msg p) List.rev(l); Sys.exit (-1);
 	| e ->
 		Stack.dump IO.stderr Stack.exc();
