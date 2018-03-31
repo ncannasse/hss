@@ -103,3 +103,43 @@ function colormix(hex: string, hp: Lexer.pos, dh: float, ds: float, dl: float): 
 	var r, g, b = hsl2rgb(h + dh, s + ds, l + dl);
 	sprintf "%.6X" ((r << 16) or (g << 8) or b)
 }
+
+var base64_encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+var base_encode : string -> string -> string = neko "$loader.loadprim('std@base_encode',2)";
+
+function img_to_base64(org_path: string, p: Lexer.pos): string {
+	var parent: Hss.Path.path = Hss.Path.find(Lexer.source p);
+	var path = if (parent.dir == "") then org_path else parent.dir + "/" + org_path;
+	try {
+		var content = IO.file_contents(path);
+		var content_len = String.length content;
+		var extra = content_len % 3;
+		var size: int = ((content_len + 2) / 3) << 2;
+		if size > 32768 then {                        // 32K
+			IO.printf IO.stderr "%s%s:%d: %s\n" ("Warning: ", path, Lexer.line p, "Image size exceeds 24K and will not be embedded.");
+			throw Exit;
+		}
+		var prefix = "data:image/png;base64,";
+		var prefix_len = String.length prefix;
+		var out = String.create(prefix_len + size);
+		String.blit(out, 0, prefix, 0, prefix_len);
+		var sign = ord(String.get content 0) + (ord(String.get content 1) << 8);
+		match sign {
+		| 0xD8FF -> String.blit(out, 11, "jpg", 0, 3) // "jpg"
+		| 0x5089 -> ()                                // "png"
+		| 0x4947 -> String.blit(out, 11, "gif", 0, 3) // "gif"
+		| _ -> throw Error("Unsupported image type: " + path, p)
+		}
+		var extra = match extra {
+		| 2 -> String.set(out, prefix_len + size - 1, '='); 1
+		| 1 -> String.set(out, prefix_len + size - 1, '='); String.set(out, prefix_len + size - 2, '='); 2
+		| _ -> extra                                  // 0
+		}
+		String.blit(out, prefix_len, base_encode(content, base64_encode_table), 0, size - extra);
+		out
+	} catch {
+	| Exit -> org_path
+	| (Error _) as err -> throw err
+	| _ -> throw Error("Cannot find the file: " + path, p)
+	}
+}

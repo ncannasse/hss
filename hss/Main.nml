@@ -348,6 +348,13 @@ function custom_calls(ident, vl) {
 		var r, g, b = Hss.Utils.ofhex h p;
 		var r, g, b = (255 - r, 255 - g, 255 - b);
 		Some VHex(sprintf "%.6X" ((r << 16) or (g << 8) or b))
+	| (VIdent "url", [(VString path, p1); (VIdent em, _) ]) ->
+		if em == "embed" then {
+			if String.sub(path, 0, 4) == "http" then error "Embed Only for local files" p1;
+			Some VCall(ident, [(VString Hss.Utils.img_to_base64(path, p1), p1)])
+		} else {
+			Some VCall(ident, (List.hd vl)::[])
+		}
 	| _ -> None;
 	}
 }
@@ -867,7 +874,7 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.5 - (c)2008-2013 Nicolas Cannasse\nUsage : hss [options] <file>";
+	var head = "HSS v1.5.1 - (c)2008-2013 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [
