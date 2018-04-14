@@ -104,11 +104,104 @@ function colormix(hex: string, hp: Lexer.pos, dh: float, ds: float, dl: float): 
 	sprintf "%.6X" ((r << 16) or (g << 8) or b)
 }
 
+// Path
+var file_full_path: string -> string = neko("$loader.loadprim('std@file_full_path',1)");
+
+function is_abs_path(s) {
+	match String.length s {
+	| 0 -> false
+	| 1 -> '/' == String.get(s, 0)
+	| _ -> ':' == String.get(s, 1) || '/' == String.get(s, 0)
+	}
+}
+
+function last_char(s: string, c: char): int {
+	function rec loop(i) {
+		match i {
+		| -1 -> i
+		| _ -> if String.get(s, i) == c then i else loop(i - 1)
+		}
+	}
+	loop((String.length s) - 1)
+}
+
+function without_extension(s) {
+	match (last_char s '.') {
+	| -1 -> s
+	| i -> String.sub s 0 i
+	}
+}
+
+type path {
+	dir : string; // without trailing slash
+	name: string;
+	ext : string;
+	full: string;
+}
+var path_imports: path list ref = &[];
+
+function path_add(path) {
+	path_imports := path::(*path_imports);
+}
+
+function path_find(full) {
+	function rec loop(l){
+		match l {
+		| [] -> throw Not_found
+		| x::tl -> if x.full == full then x else loop tl
+		}
+	}
+	loop(*path_imports)
+}
+
+function path_duplicate(path):bool {
+	function rec loop(l, full) {
+		match l {
+		| [] -> false
+		| x::tl -> if full == without_extension(x.full) then true else loop tl full
+		}
+	}
+	loop (*path_imports) without_extension(path.full)
+}
+
+function relative_path(full: string):string {
+	try {
+		var path = path_find full;
+		(if path.dir == "" then path.name else path.dir + "/" + path.name)
+		+ (if path.ext == "" then "" else "." + path.ext)
+	} catch {
+	| Not_found -> full
+	| err -> throw err;
+	}
+}
+
+function path_make(s: string, def_ext: string):path {
+	var last = (String.length s) - 1
+	var c1, c2 = (last_char s '/', last_char s '\\')
+	var dir, name = if c1 < c2 then
+		(String.sub(s, 0, c2), String.sub(s, c2 + 1, last - c2))
+	else if c2 < c1 then
+		(String.sub(s, 0, c1), String.sub(s, c1 + 1, last - c1))
+	else
+		("", s)
+	var cp = last_char name '.'
+	var ext, name = if cp != -1 then
+		(String.sub(name, cp + 1, (String.length name) - 1 - cp), String.sub(name, 0, cp))
+	else
+		(def_ext, name)
+	{
+		dir  = dir;
+		name = name;
+		ext  = ext;
+		full = file_full_path(if def_ext == "" then s else s + "." + def_ext);
+	}
+}
+
 var base64_encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 var base_encode : string -> string -> string = neko "$loader.loadprim('std@base_encode',2)";
 
 function img_to_base64(org_path: string, p: Lexer.pos): string {
-	var parent: Hss.Path.path = Hss.Path.find(Lexer.source p);
+	var parent: path = path_find(Lexer.source p);
 	var path = if (parent.dir == "") then org_path else parent.dir + "/" + org_path;
 	try {
 		var content = IO.file_contents(path);

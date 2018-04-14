@@ -809,11 +809,11 @@ function rec check(ctx,e) {
 		e
 	| EImport s ->
 		var p = snd e;
-		var parent = Hss.Path.find(Lexer.source p);
-		var file = if Hss.Path.isabs(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
-		var path = Hss.Path.make(file);
-		if !Hss.Path.duplicate(path) then {
-			Hss.Path.add(path);
+		var parent = Hss.Utils.path_find(Lexer.source p);
+		var file = if Hss.Utils.is_abs_path(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
+		var path = Hss.Utils.path_make(file, "hss");
+		if !Hss.Utils.path_duplicate(path) then {
+			Hss.Utils.path_add(path);
 			match path.ext {
 			| "hss"	->
 				var ch = try (IO.read_file path.full true) catch {
@@ -827,7 +827,7 @@ function rec check(ctx,e) {
 			| "css" ->
 				(EImport file, p)
 			| _ ->
-				error("Unsupported type (." + path.ext + ")", p)
+				error("UnSupported type (." + path.ext + ")", p)
 			}
 		} else {
 			(ESub [], p) // duplicate, simply ignore it;
@@ -865,7 +865,7 @@ function display(msg,p) {
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
 	} else
-	IO.printf IO.stderr "%s:%d: %s\n" (Hss.Path.full2rel(Lexer.source p),Lexer.line p,msg);
+	IO.printf IO.stderr "%s:%d: %s\n" (Hss.Utils.relative_path(Lexer.source p),Lexer.line p,msg);
 }
 
 function report(msg,p) {
@@ -884,8 +884,8 @@ try {
 	List.iter (function(file) {
 		// parse
 		var ch = IO.read_file file true;
-		var path = Hss.Path.make(file);
-		Hss.Path.refresh(path);
+		var path = Hss.Utils.path_make(file, "");
+		Hss.Utils.path_add(path)
 		var lex = Lexer.create Buffer.create();
 		Lexer.input lex path.full ch 1 0;
 		var el = Hss.Parser.parse lex;
