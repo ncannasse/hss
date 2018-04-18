@@ -72,7 +72,7 @@ function rec print_value(ch,v) {
 	| VLabel (l,v) ->
 		print_value ch v;
 		IO.printf ch " !%s" l;
-	| VOp _ ->
+	| VOp _ | VParentheses _ ->
 		assert()
 	}
 }
@@ -390,6 +390,7 @@ function rec eval(ctx,v) {
 		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->
 		(VBind name (eval ctx v1), snd v)
+	| VParentheses v -> eval ctx v
 	| VOp (op,v1,v2) ->
 		var v1 = eval ctx v1;
 		var v2 = eval ctx v2;

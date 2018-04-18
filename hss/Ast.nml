@@ -85,6 +85,7 @@ type value_decl {
 	VLabel : (string, value);
 	VBind : (string, value);
 	VOp :  (op, value, value);
+	VParentheses: value;
 }
 
 type value = (value_decl , pos)
