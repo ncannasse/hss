@@ -136,7 +136,7 @@ a {
         font-size: 80%;
     }
     + a {
-        margin-left: 0 - $margin;      // -$margin
+        margin-left: -$margin;
     }
     &:hover::after {
         content: " \f2b9 ";
