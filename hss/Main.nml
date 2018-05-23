@@ -659,14 +659,6 @@ function rec expand_hacks(name,value,p) {
 			(EAttribute "    -ms-user-select" value,p);
 			(EAttribute "        user-select" value,p);
 		],p)
-	| "display" when fst value == VIdent "inline-block" ->
-		(ESub [
-			//(EAttribute "display" (VIdent "-moz-inline-stack",p),p); // Firefox 2 fix
-			(EAttribute "display" value,p);
-			// these two will fix inline-block for IE7
-			(EAttribute "zoom" (VInt 1,p),p);
-			(EAttribute "*display" (VIdent "inline",p),p);
-		],p)
 	| "box-shadow" ->
 		(ESub [
 			(EAttribute "-webkit-box-shadow" value,p);

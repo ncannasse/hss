@@ -257,7 +257,6 @@ Some hacks has been added to support new CSS properties on most recent browsers.
  * `border-radius` (and border-top-left-radius, etc) : will also generate -moz-border-radius and -webkit-border-radius for Firefox and Chrome/Safari support
  * `box-shadow` : will also generate both -moz-box-shadow and -webkit-box-shadow for Firefor and Chrome/Safari support
  * `text-shadow` : supported by HSS, but doesn't show anything on IE6-8
- * `display` : inline-block : will add a IE fix to get correct support
  * `color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
  * `background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba, and also add some IE6-8 hacks that correctly display the transparent background color. The only drawback is that the block background image will display below the background color.
  * `hss-width` and `hss-height` : will generate width and height from which will be subtracted the padding and border values declared in the current block.
