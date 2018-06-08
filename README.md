@@ -2,8 +2,10 @@
 
 ## Usage
 
-First you should typing: `make` to compile them, it depends on Neko, but if you already have [haxe](https://haxe.org/), then you will no longer need to download [Neko](http://nekovm.org/).
+First you should compile them, it depends on Neko, but if you already have the [haxe](https://haxe.org/), then you will no longer need to download [Neko](http://nekovm.org/).
 
+> If you are on Windows platform and don't have the `gun make`, just run `build.bat`
+>
 > Or Download HSS and put it in some place where it can be run from the commandline :
 >* Windows version : <http://ncannasse.fr/file/hss-1.3-win.zip>
 >* OSX version : <http://ncannasse.fr/file/hss-1.3-osx.gz>
