@@ -53,7 +53,7 @@ var selectors_call = [ "lang"; "not"; "nth-child"; "nth-last-child"; "nth-last-o
 var allow_duplicate_attributes = [
 	"src"; // @font-face
 ];
-
+var none = RId "none"
 var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in";]
 var runits = (RUnit "%")::rlength
 var units = ROr runits
@@ -61,7 +61,7 @@ var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-r
 var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"]
 var rflex_basis = List.append (ids ["auto";"content"]) runits
 var rflex = [
-	RId "none";
+	none;
 	RFloat;           // interpreted as "flex-grow"
 	ROr rflex_basis;  // interpreted as "flex-basis"
 	RGroup [RFloat; ROr rflex_basis];        // flex-shrink, flex-basis
@@ -88,8 +88,6 @@ var inherit = RId "inherit"
 var lst = ids ["circle";"disc";"square";"decimal";"lower-alpha";"lower-roman";"upper-alpha";"upper-roman";"none"]
 var lsp = ids ["inside";"outside"]
 
-var none = RId "none"
-
 var horiz = ids ["left";"right";"center"]
 var vert = ids ["top";"bottom";"center"]
 
@@ -106,7 +104,7 @@ var bgattach = ids ["scroll";"fixed"]
 var outline_width = List.append (ids ["thin";"medium";"thick"]) rlength
 var border_width = outline_width;
 var border = [
-	RId "none";
+	none;
 	ROr border_width;
 	RGroup [ROr border_width;ROr bstyle;ROr trans_color];
 ]
@@ -118,18 +116,19 @@ var font_variant = ids ["normal";"small-caps"]
 var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
 
 var font_face_src = RMany (ROr [url;RGroup [url;RCall RId("format") RList([RString])]])
-var multi_content = ROr [
-	ROr (ids ["open-quote"; "close-quote"; "no-open-quote"; "no-close-quote"]);
-	url;
-	RString;
-	RCall(RId "attr", RList [RIdent]);
-	RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
-	RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
-]
+
 var pseudo_content = ROr [
-		ROr (ids ["none"; "normal"]);
-		RGroupOpt [multi_content; multi_content; multi_content; multi_content; multi_content; multi_content; multi_content];
+		ROr ([none; RId "normal"]);
+		RMany (ROr [
+			ROr (ids ["open-quote"; "close-quote"; "no-open-quote"; "no-close-quote"]);
+			url;
+			RString;
+			RCall(RId "attr", RList [RIdent]);
+			RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
+			RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
+		])
 	]
+
 var angle = [RUnit "deg";RUnit "rad";RUnit "grad";RUnit "turn"]
 var gradient_color = [ROr color; RGroup [ROr color; RUnit "%"]]
 
@@ -305,21 +304,18 @@ var rules = List.concat [[
 	("appearance", ids ["none";"button";"checkbox";"listbox";"radio";"textfield";]); // partial
 ];[
 	// transforms
-	("transform", [RGroupOpt [transform_function; transform_function; transform_function; transform_function; transform_function]]);
-	("transform-origin", [ROr runits;
-		ROr (ids ["left";"center";"right";"top";"bottom"]);
-		RGroup [
-			ROr (List.append runits (ids ["left";"center";"right"]));
-			ROr (List.append runits (ids ["left";"center";"right"]))
-		]]);
-	("perspective-origin", [ROr runits;
-		ROr (ids ["left";"center";"right";"top";"bottom"]);
-		RGroup [
-			ROr (List.append runits (ids ["left";"center";"right"]));
-			ROr (List.append runits (ids ["left";"center";"right"]))
-		]]);
+	("transform", [RMany transform_function]);
+	("transform-origin", [RGroupOpt [
+		ROr (List.append (ids ["left";"center";"right"]) runits);
+		ROr (List.append (ids ["top";"center";"bottom"]) runits);
+		ROr runits;
+	]]);
+	("perspective-origin", [RGroupOpt [
+		ROr (List.append (ids ["left";"center";"right"]) runits);
+		ROr (List.append (ids ["top";"center";"bottom"]) runits);
+	]]);
 	("transform-style", ids ["flat";"preserve-3d"]);
-	("persepective", [RId "none";RFloat]);
+	("perspective", [none; units]);
 	("backface-visible", ids ["visible";"hidden"]);
 ];[
 	// effects (partial browser support)
@@ -329,14 +325,14 @@ var rules = List.concat [[
 	("border-bottom-right-radius",runits);
 	("border-bottom-left-radius",runits);
 	("text-shadow",[
-		RId "none";
+		none;
 		RMany (ROr [
 			RGroup [units; units; ROr color];
 			RGroup [units; units; units; ROr color]
 		])
 	]);
 	("box-shadow",[
-		RId "none";
+		none;
 		RMany (ROr [
 			RGroup [units; units; ROr color];
 			RGroup [units; units; units; ROr color];
@@ -383,13 +379,12 @@ var rules = List.concat [[
 	]
 	function many(r) {RMany (ROr r)}
 	function ors(li) {List.map(function(r){ROr r}, li)}
-	[("animation", [
-		RGroup ors([duration; name]);
-		RGroup ors([duration; tween; name]);
-		RGroup ors([duration; tween; delay; name]);
-		RGroup ors([duration; tween; delay; count; dir; mode; state; name]);
-	]);
 	// animations
+	[("animation", [
+		none;
+		RGroupOpt (ors [name; duration; tween; delay; count; dir; mode; state]);
+		RGroupOpt (ors [duration; tween; delay; count; dir; mode; state; name]);
+	]);
 	("animation-delay", [many delay]);
 	("animation-direction", [many dir]);
 	("animation-duration", [many duration]);
