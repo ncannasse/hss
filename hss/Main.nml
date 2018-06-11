@@ -338,25 +338,38 @@ function get_rule(ctx,name) {
 	}
 }
 
-function custom_calls(ident, vl) {
-	match (fst ident, vl) {
-	| (VIdent "lighten"   , [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0., 0.,  i/100.))
-	| (VIdent "darken"    , [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0., 0., -i/100.))
-	| (VIdent "saturate"  , [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0.,  i/100., 0.))
-	| (VIdent "desaturate", [(VHex h, p); (VUnit(i, "%"), _)]) -> Some VHex(Hss.Utils.colormix(h, p, 0., -i/100., 0.))
-	| (VIdent "invert", [(VHex h, p)]) ->
-		var r, g, b = Hss.Utils.ofhex h p;
-		var r, g, b = (255 - r, 255 - g, 255 - b);
-		Some VHex(sprintf "%.6X" ((r << 16) or (g << 8) or b))
-	| (VIdent "url", [(VString path, p1); (VIdent em, _) ]) ->
-		if em == "embed" then {
-			if String.sub(path, 0, 4) == "http" then error "Embed Only for local files" p1;
-			Some VCall(ident, [(VString Hss.Utils.img_to_base64(path, p1), p1)])
-		} else {
-			Some VCall(ident, (List.hd vl)::[])
-		}
-	| _ -> None;
+function custom_calls(c, vl, p) {
+	function cint(i, p) { if (i < 0 || i > 255) then error "OutOfRange" p; i}
+	function mix(ds, dl, vl, p) {
+		var r, g, b, i = (match vl {
+		| [(VHex h, p); (VUnit(i,"%"),_)] ->
+			var r, g, b = Hss.Utils.ofhex h p;
+			(r, g, b, i)
+		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_); (VUnit(i,"%"),_)] ->
+			(cint r rp, cint g gp, cint b bp, i)
+		| _ ->
+			error "Invalid Value" p
+		})
+		var h, s, l = Hss.Utils.rgb2hsl r g b
+		var r, g, b = Hss.Utils.hsl2rgb h (i * ds + s) (i * dl + l);
+		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
 	}
+	var id = match (fst c) {| VIdent s -> s | _ -> ""}
+	(match id {
+	| "lighten" ->    mix( 0.  ,  0.01, vl, p)
+	| "darken" ->     mix( 0.  , -0.01, vl, p)
+	| "saturate" ->   mix( 0.01,  0.  , vl, p)
+	| "desaturate" -> mix(-0.01,  0.  , vl, p)
+	| "invert" ->
+		var r, g, b = (match vl {
+		| [(VHex h, p)] -> Hss.Utils.ofhex h p
+		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_)] -> (cint r rp, cint g gp, cint b bp)
+		| _ -> error "Invalid Value" p
+		})
+		var r, g, b = (255 - r, 255 - g, 255 - b);
+		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
+	| _ -> VCall c vl
+	}, p)
 }
 
 function rec eval(ctx,v) {
@@ -382,10 +395,7 @@ function rec eval(ctx,v) {
 	| VCall(i,vl) ->
 		var i = eval ctx i;
 		var vl = List.map (eval ctx) vl;
-		match custom_calls i vl {
-		| Some(val) -> (val, snd v)
-		| None -> (VCall(i, vl), snd v)
-		}
+		custom_calls i vl (pos v)
 	| VLabel (l,v1) ->
 		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->
@@ -519,6 +529,8 @@ function rec expand_val(value) {
 		var r, g, b = Hss.Utils.ofhex h hp;
 		var params = [(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)];
 		expand_val (VCall c params, p)
+	| VCall((VIdent "embed",p1), [(VString url, p2)]) ->
+		(VCall (VIdent "url",p1) [(VString Hss.Utils.img_to_base64(url, p2), p2)], p)
 	| VCall (v,vl) ->
 		(VCall expand_val(v) (List.map expand_val vl), p)
 	| VList vl ->

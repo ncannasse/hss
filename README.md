@@ -265,17 +265,18 @@ Some hacks has been added to support new CSS properties on most recent browsers.
  * `background : linear-gradient(#color1,#color2)` : will add support for all browsers, including IE6-8 New in 1.4
  * You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
  * `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate imported files will be ignored.
- * Color functions: `darken, lighten, saturate, desaturate, invert` same as *sass/less*, but accept only Hex values/variables.
- * `url("path/to/image", embed)` for embedding small(less than 24KB) images(png/jpg/gif). since *v1.5.1*.
-
+ * Color functions: `darken, lighten, saturate, desaturate, invert` same as *sass/less*, but only accept `#RRGGBB` and `rgb(int,int,int)`
+   ```scss
+   body {
+     var gray = #999;
+     border-color: darken(rgb(255, 255, 255), 5%);
+     color: lighten(invert($gray * 0.5), 5%);
+   }
+   ```
+ * `embed("path/to/image")`: for embedding small(less than 24KB) image(png/jpg/gif) as `data:image/png;base64`.
    ```scss
    .logo {
-     background-image: url("logo.png");           // normal css value
-     &:hover {
-       background-image: url("hover.png", embed); // .png will be embedded as "data:image/png;base64"
-       // Note: If the second parameter is **embed** then The path of the image file will
-       // relative to the current .hss file. otherwise it will be relative to the `out.css` file.
-     }
+     background-image: embed("logo.png"); // the png is relative to current .hss file.
    }
    ```
 

@@ -46,11 +46,11 @@ function ofhex(h: string, p: Lexer.pos) {
 		throw Error("Invalid color value #" + h, p);
 	}
 }
-
+// Assumes r, g, and b are contained in the set [0, 255]
 function rgb2hsl(ir: int, ig: int, ib: int) {
-	var r = max 0. min(1., ir / 255.);
-	var g = max 0. min(1., ig / 255.);
-	var b = max 0. min(1., ib / 255.);
+	var r = ir / 255.
+	var g = ig / 255.
+	var b = ib / 255.
 	var max = max(max(r, g), b);
 	var min = min(min(r, g), b);
 	var l = (max + min) / 2.;
@@ -71,8 +71,7 @@ function rgb2hsl(ir: int, ig: int, ib: int) {
 }
 
 function hue2rgb(p: float, q:float, t: float) {
-	var t = if t < 0. then t + 1. else t;
-	var t = if t > 1. then t - 1. else t;
+	var t = if t < 0. then t + 1. else (if t > 1. then t - 1. else t)
 	if t < 1/6. then
 		p + (q - p) * 6. * t
 	else if t < 1/2. then
@@ -88,20 +87,16 @@ function hsl2rgb(h:float, s:float, l:float) {
 		var r = Math.round((max 0. (min 1. l)) * 255);
 		(r, r, r)
 	} else {
+		var s = min 1.0 s;
+		var h = max 0. (min 1. h);
+		var l = max 0. (min 1. l);
 		var q = if l < 0.5 then l * (1. + s) else l + s - l * s;
 		var p = 2. * l - q;
-		var r = max 0. (min 1. hue2rgb(p, q, h + 1/3.));
-		var g = max 0. (min 1. hue2rgb(p, q, h));
-		var b = max 0. (min 1. hue2rgb(p, q, h - 1/3.));
+		var r = hue2rgb(p, q, h + 1/3.);
+		var g = hue2rgb(p, q, h);
+		var b = hue2rgb(p, q, h - 1/3.);
 		(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255))
 	}
-}
-
-function colormix(hex: string, hp: Lexer.pos, dh: float, ds: float, dl: float): string {
-	var r, g, b = ofhex hex hp;
-	var h, s, l = rgb2hsl r g b;
-	var r, g, b = hsl2rgb(h + dh, s + ds, l + dl);
-	sprintf "%.6X" ((r << 16) or (g << 8) or b)
 }
 
 // Path
@@ -200,39 +195,37 @@ function path_make(s: string, def_ext: string):path {
 var base64_encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 var base_encode : string -> string -> string = neko "$loader.loadprim('std@base_encode',2)";
 
-function img_to_base64(org_path: string, p: Lexer.pos): string {
+function img_to_base64(path: string, p: Lexer.pos): string {
+	if String.sub(path, 0, 4) == "http" then throw Error("Image embedding for local files only", p);
 	var parent: path = path_find(Lexer.source p);
-	var path = if (parent.dir == "") then org_path else parent.dir + "/" + org_path;
-	try {
-		var content = IO.file_contents(path);
-		var content_len = String.length content;
-		var extra = content_len % 3;
-		var size: int = ((content_len + 2) / 3) << 2;
-		if size > 32768 then {                        // 32K
-			IO.printf IO.stderr "%s%s:%d: %s\n" ("Warning: ", path, Lexer.line p, "Image size exceeds 24K and will not be embedded.");
-			throw Exit;
-		}
-		var prefix = "data:image/png;base64,";
-		var prefix_len = String.length prefix;
-		var out = String.create(prefix_len + size);
-		String.blit(out, 0, prefix, 0, prefix_len);
-		var sign = ord(String.get content 0) + (ord(String.get content 1) << 8);
-		match sign {
-		| 0xD8FF -> String.blit(out, 11, "jpg", 0, 3) // "jpg"
-		| 0x5089 -> ()                                // "png"
-		| 0x4947 -> String.blit(out, 11, "gif", 0, 3) // "gif"
-		| _ -> throw Error("Unsupported image type: " + path, p)
-		}
-		var extra = match extra {
-		| 2 -> String.set(out, prefix_len + size - 1, '='); 1
-		| 1 -> String.set(out, prefix_len + size - 1, '='); String.set(out, prefix_len + size - 2, '='); 2
-		| _ -> extra                                  // 0
-		}
-		String.blit(out, prefix_len, base_encode(content, base64_encode_table), 0, size - extra);
-		out
+	var path = if (parent.dir == "") then path else parent.dir + "/" + path;
+	var content = try {
+		IO.file_contents(path);
 	} catch {
-	| Exit -> org_path
-	| (Error _) as err -> throw err
 	| _ -> throw Error("Cannot find the file: " + path, p)
 	}
+	var content_len = String.length content;
+	var extra = content_len % 3;
+	var size: int = ((content_len + 2) / 3) << 2;
+	if size > 32768 then {                        // 32K
+		throw Error("Image size should be limited to 24K: " + path, p)
+	}
+	var prefix = "data:image/png;base64,";
+	var prefix_len = String.length prefix;
+	var out = String.create(prefix_len + size);
+	String.blit(out, 0, prefix, 0, prefix_len);
+	var sign = ord(String.get content 0) + (ord(String.get content 1) << 8);
+	match sign {
+	| 0xD8FF -> String.blit(out, 11, "jpg", 0, 3) // "jpg"
+	| 0x5089 -> ()                                // "png"
+	| 0x4947 -> String.blit(out, 11, "gif", 0, 3) // "gif"
+	| _ -> throw Error("Unsupported image type: " + path, p)
+	}
+	var extra = match extra {
+	| 2 -> String.set(out, prefix_len + size - 1, '='); 1
+	| 1 -> String.set(out, prefix_len + size - 1, '='); String.set(out, prefix_len + size - 2, '='); 2
+	| _ -> extra                                  // 0
+	}
+	String.blit(out, prefix_len, base_encode(content, base64_encode_table), 0, size - extra);
+	out
 }

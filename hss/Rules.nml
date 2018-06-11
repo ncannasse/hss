@@ -54,8 +54,9 @@ var allow_duplicate_attributes = [
 	"src"; // @font-face
 ];
 var none = RId "none"
+var pct = RUnit "%"
 var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in";]
-var runits = (RUnit "%")::rlength
+var runits = pct::rlength
 var len = ROr rlength
 var units = ROr runits
 var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"]
@@ -68,14 +69,16 @@ var rflex = [
 	RGroup [RFloat; ROr rflex_basis];        // flex-shrink, flex-basis
 	RGroup [RFloat; RFloat; ROr rflex_basis] // flex-grow, flex-shrink, flex-basis
 ]
-var col = ROr [RIntRange 0 255;RUnit "%"]
+var max255 = RIntRange 0 255
 var alpha = RFloatRange 0. 1.
 var color = List.append [
-	RHex 3; RHex 6;
-	RCall (RId "rgb") (RList [col;col;col]);
-	RCall (RId "rgba") (RList [col;col;col; alpha]);
-	RCall (RId "rgba") (RList [RHex 3; alpha]);
+	RHex 6; RHex 3;
+	RCall (RId "rgba") (RList [max255;max255;max255; alpha]);
+	RCall (RId "rgb") (RList [max255;max255;max255]);
 	RCall (RId "rgba") (RList [RHex 6; alpha]);
+	RCall (RId "rgba") (RList [RHex 3; alpha]);
+	RCall (RId "rgba") (RList [pct;pct;pct; alpha]);
+	RCall (RId "rgb") (RList [pct;pct;pct]);
 ] (ids ["aqua";"black";"blue";"fuchsia";"gray";"grey";"green";"lime";"maroon";"navy";"olive";"orange";"purple";"red";"silver";"teal";"white";"yellow"])
 
 var trans_color = RId "transparent" :: color
@@ -83,10 +86,11 @@ var trans_color = RId "transparent" :: color
 var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"]
 
 var url = RCall RId("url") RList([RString])
+var url_or_embed = ROr [url; RCall RId("embed") RList([RString])]
 
 var inherit = RId "inherit"
 
-var lst = ids ["circle";"disc";"square";"decimal";"lower-alpha";"lower-roman";"upper-alpha";"upper-roman";"none"]
+var lst = ids ["none"; "circle";"disc";"square";"decimal";"lower-alpha";"lower-roman";"upper-alpha";"upper-roman"]
 var lsp = ids ["inside";"outside"]
 
 var horiz = ids ["left";"right";"center"]
@@ -281,12 +285,12 @@ var rules = List.concat [[
 	// background
 	("background",[
 		none;
-		RGroupOpt [ROr bgcolor;url;ROr bgrepeat;ROr bgattach;vunits;hunits];
-		RGroupOpt [ROr bgcolor;url;ROr bgrepeat;ROr bgattach;hunits;vunits];
+		RGroupOpt [ROr bgcolor;url_or_embed;ROr bgrepeat;ROr bgattach;vunits;hunits];
+		RGroupOpt [ROr bgcolor;url_or_embed;ROr bgrepeat;ROr bgattach;hunits;vunits];
 		ROr bgfilters;
 	]);
 	("background-color",bgcolor);
-	("background-image",[url; none]);
+	("background-image",[url_or_embed; none]);
 	("background-position",bgpos);
 	("background-repeat",bgrepeat);
 	("background-attachment",bgattach);
@@ -325,10 +329,10 @@ var rules = List.concat [[
 	// others
 	("cursor", ids ["auto";"hand";"crosshair";"default";"e-resize";"help";"move";"n-rsize";"ne-resize";"nw-resize";"pointer";"progress";"s-resize";"se-resize";"sw-resize";"text";"w-resize";"wait"]);
 	("opacity", [alpha]);
-	("list-style", [ROr lst;url;RGroup [ROr lst;ROr lsp; url]]);
+	("list-style", [none; RGroupOpt [ROr (List.tl lst); ROr lsp; url_or_embed]]); // remove "none" from lst
 	("list-style-type", lst);
 	("list-style-position", lsp);
-	("list-style-image", [url;none]);
+	("list-style-image", [url_or_embed; none]);
 	("table-layout", ids ["auto";"fixed"]);
 	("empty-cells", ids ["show"; "hide"]);
 	("border-collapse",ids ["collapse";"separate"]);
