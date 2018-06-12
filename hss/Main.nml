@@ -257,7 +257,8 @@ function rec check_rule(r,v) {
 		List.exists (function(r) check_rule r v) rl
 	| (RIdent, VIdent _) -> true
 	| (RString, VString _) -> true
-	| (RMany r, VList vl) | (RMany r, VGroup vl) -> List.all (check_rule r) vl
+	| (_,VLabel (_,v)) -> check_rule r v
+	| (RMany r, VList vl) -> List.all (check_rule r) vl
 	| (RMany r, _) -> check_rule r v
 	| (RGroup rl, VGroup vl) when List.length rl == List.length vl ->
 		try {
@@ -313,7 +314,6 @@ function rec check_rule(r,v) {
 		List.exists (function(r) check_rule r v) rl
 	| (RBind (s,r), VBind (n,v)) when s == n ->
 		check_rule r v
-	| (_,VLabel (_,v)) -> check_rule r v
 	| _ -> false
 	}
 }

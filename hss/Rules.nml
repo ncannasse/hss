@@ -122,17 +122,20 @@ var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRa
 
 var font_face_src = RMany (ROr [url;RGroup [url;RCall RId("format") RList([RString])]])
 
-var pseudo_content = ROr [
+var pseudo_content = {
+	var c = ROr [
+		ROr (ids ["open-quote"; "close-quote"; "no-open-quote"; "no-close-quote"]);
+		url;
+		RString;
+		RCall(RId "attr", RList [RIdent]);
+		RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
+		RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
+	];
+	ROr [
 		ROr ([none; RId "normal"]);
-		RMany (ROr [
-			ROr (ids ["open-quote"; "close-quote"; "no-open-quote"; "no-close-quote"]);
-			url;
-			RString;
-			RCall(RId "attr", RList [RIdent]);
-			RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
-			RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
-		])
+		RGroupOpt [c; c; c; c; c] // repeatable
 	]
+}
 
 var angle = [RUnit "deg";RUnit "rad";RUnit "grad";RUnit "turn"]
 var gradient_color = [ROr color; RGroup [ROr color; RUnit "%"]]
@@ -152,7 +155,7 @@ var transform_function = {
 	var r_trans = RList [trans];
 	var r_angle = RList [angle];
 	var r_len   = RList [len];
-	[RMany (ROr [
+	var c = ROr [
 		RCall (RId "matrix") (RList [num;num;num;num;num;num]);
 		RCall (RId "translate") (RList [trans;trans]);
 		RCall (RId "translate") r_trans;
@@ -177,7 +180,8 @@ var transform_function = {
 		RCall (RId "rotateY") r_angle;
 		RCall (RId "rotateZ") r_angle;
 		RCall (RId "perspective") r_len;
-	])]
+	];
+	[RGroupOpt [c; c; c; c; c]]  // repeatable
 }
 
 var filter_function = {
@@ -188,22 +192,23 @@ var filter_function = {
 	var dir = RIntRange 0 360;
 	var r_numpct = RList [ROr [RFloat; RUnit "%"]];
 	function b(s, r) {(RBind(s, r), OOpt)}
+	var c = ROr [ // css3 filter
+		url; // url to SVG filter
+		RCall (RId "blur") (RList [len]);
+		RCall (RId "brightness") r_numpct;
+		RCall (RId "contrast") r_numpct;
+		RCall (RId "grayscale") r_numpct;
+		RCall (RId "invert") r_numpct;
+		RCall (RId "opacity") r_numpct;
+		RCall (RId "saturate") r_numpct;
+		RCall (RId "sepia") r_numpct;
+		RCall (RId "hue-rotate") (RList [ROr angle]);
+		RCall (RId "drop-shadow") (RListCustom [(len, ONormal); (len, ONormal); (len, OOpt); (color, OOpt)]);
+	];
 	[
 		none;
-		RMany (ROr [ // css3 filter
-			url; // url to SVG filter
-			RCall (RId "blur") (RList [len]);
-			RCall (RId "brightness") r_numpct;
-			RCall (RId "contrast") r_numpct;
-			RCall (RId "grayscale") r_numpct;
-			RCall (RId "invert") r_numpct;
-			RCall (RId "opacity") r_numpct;
-			RCall (RId "saturate") r_numpct;
-			RCall (RId "sepia") r_numpct;
-			RCall (RId "hue-rotate") (RList [ROr angle]);
-			RCall (RId "drop-shadow") (RListCustom [(len, ONormal); (len, ONormal); (len, OOpt); (color, OOpt)]);
-		]);
-		ROr [       // old IE filter
+		RGroupOpt [c; c; c; c; c]; // css3 filters, repeatable
+		ROr [                      // old IE filters
 			RId "xray"; RId "invert"; RId "gray"; RId "fliph"; RId "flipv";
 			RCall (RId "alpha") (RListCustom [
 				b("opacity", i100);
