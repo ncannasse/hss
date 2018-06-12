@@ -145,27 +145,6 @@ function rec value_next(v,s) {
 		value_next (VCall v args, punion (pos v) p2) s
 	| [< (Exclamation,p1); (Const (Ident i),p2) >] ->
 		(VLabel i v,punion p1 p2)
-	| [< v2 = value s >] ->
-		function rec loop(v2) {
-			var p = punion (pos v) (pos v2);
-			match fst v2 {
-			| VGroup l -> (VGroup (v :: l), p)
-			| VList (v2 :: l) -> (VList (loop v2 :: l), p)
-			| VLabel (l,v2) -> (VLabel l (loop v2), p)
-			| _ -> (VGroup [v;v2], p)
-			}
-		}
-		loop v2
-	| [< (Comma,_); v2 = value s >] ->
-		function rec loop(v2) {
-			var p = punion (pos v) (pos v2);
-			match fst v2 {
-			| VList l -> (VList (v :: l), p)
-			| VLabel (l,v2) -> (VLabel l (loop v2), p)
-			| _ -> (VList [v;v2], p)
-			}
-		}
-		loop v2
 	| [< (Op o,_); v2 = value s >] ->
 		function rec loop(o, v, v2) {
 			var p = punion (pos v) (pos v2);
@@ -181,6 +160,27 @@ function rec value_next(v,s) {
 		| VGroup(v2 :: l) -> (VGroup ((loop o v v2) :: l), punion (pos v) (pos v2))
 		| _-> loop o v v2
 		}
+	| [< (Comma,_); v2 = value s >] ->
+		function rec loop(v2) {
+			var p = punion (pos v) (pos v2);
+			match fst v2 {
+			| VList l -> (VList (v :: l), p)
+			| VLabel (l,v2) -> (VLabel l (loop v2), p)
+			| _ -> (VList [v;v2], p)
+			}
+		}
+		loop v2
+	| [< v2 = value s >] ->
+		function rec loop(v2) {
+			var p = punion (pos v) (pos v2);
+			match fst v2 {
+			| VGroup l -> (VGroup (v :: l), p)
+			| VList (v2 :: l) -> (VList (loop v2 :: l), p)
+			| VLabel (l,v2) -> (VLabel l (loop v2), p)
+			| _ -> (VGroup [v;v2], p)
+			}
+		}
+		loop v2
 	| [< >] ->
 		v
 	}
