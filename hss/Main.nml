@@ -557,21 +557,8 @@ function rec expand_hacks(name,value,p) {
 		| VLabel(l,v) -> label := Some (l,snd value); v;
 		| _ -> value;
 	}
-	function filter(name,params,p) {
-		(EAttribute "filter" (VCall (VIdent "CSS",p) [(VString ("progid:DXImageTransform.Microsoft."+name+"("+params+")"),p)],p),p)
-	}
 	var value = expand_val value;
 	var w = match name {
-	| "border-radius" | "border-top-right-radius" | "border-top-left-radius" | "border-bottom-right-radius" | "border-bottom-left-radius" ->
-		var moz = match String.split name "-" {
-			| _ :: p1 :: p2 :: _ -> "-"+p1+p2
-			| _ -> ""
-		};
-		(ESub [
-			(EAttribute ("-webkit-" + name) value,p);
-			(EAttribute ("   -moz-border-radius"+moz) value,p);
-			(EAttribute ("        " + name) value,p);
-		],p)
 	| "background-color" | "color" | "background" ->
 		var first = match fst value { VGroup v :: l -> v | _ -> value };
 		match fst first {
@@ -585,103 +572,13 @@ function rec expand_hacks(name,value,p) {
 				| _ -> assert()
 				}
 			}) [r;g;b]);
-			var col = (VHex hcol,p);
-			match name {
-			| "background" | "background-color" ->
-				var acol = match fst a {
-					| VFloat f ->
-						var i = Math.floor (f * 255.);
-						sprintf "%.2X" (if i < 0 then 0 else if i > 255 then 255 else i) + hcol
-					| VInt i ->
-						var i = Math.floor (i * 255.);
-						sprintf "%.2X" (if i < 0 then 0 else if i > 255 then 255 else i) + hcol
-					| _ ->
-						assert()
-				};
-				var base = if name == "background" then
-					match fst value {
-					| VGroup _ :: l ->
-						// let's first apply all other properties (except color)
-						[(EAttribute "background" (VGroup l,snd value),p)]
-					| _ -> []
-				} else [];
-				(ESub (List.append base [
-					// fallback fixed color
-					(EAttribute "background-color" col,p);
-					// original rgba
-					(EAttribute "background-color" first,p);
-					// disable background-color (IE only)
-					(EAttribute "background-color" (VIdent "transparent\\9",p),p);
-					// adds filter : the only side effect is that the filter will be over the background-image
-					filter "gradient" ("startColorstr=#"+acol+", endColorstr=#"+acol) p;
-					(EAttribute "zoom" (VInt 1,p),p);
-				]),p)
-			| _ ->
-				(ESub [
-					(EAttribute name col,p); // simply adds a fallback with fixed hex color
-					(EAttribute name value,p);
-				],p)
-			}
-		| VCall ((VIdent "linear-gradient",_),pl) ->
-			match pl {
-			| [(VHex cola,pa);(VHex colb,pb)] ->
-				var a = (VHex cola,pa);
-				var b = (VHex colb,pb);
-				var fallbacks = [
-					(EAttribute name a,p); // first gradient color
-					(EAttribute name (VCall (VIdent "-moz-linear-gradient",p) [(VIdent "top",p);(VGroup [a;(VUnit 0. "%",p)],p);(VGroup [b; (VUnit 100. "%",p)],p)],p),p);
-					(EAttribute name (VCall (VIdent "-o-linear-gradient",p) [(VIdent "top",p);(VGroup [a;(VUnit 0. "%",p)],p);(VGroup [b; (VUnit 100. "%",p)],p)],p),p);
-					(EAttribute name (VCall (VIdent "-webkit-gradient",p) [ // SAFARI 4.0+
-						(VIdent "linear",p);
-						(VIdent "left top",p);
-						(VIdent "left bottom",p);
-						(VCall (VIdent "color-stop",p) [(VUnit 0. "%",p);a],p);
-						(VCall (VIdent "color-stop",p) [(VUnit 100. "%",p);b],p);
-					],p),p);
-					(EAttribute name value,p); // W3C
-					// disable background-color (IE only)
-					(EAttribute "background-color" (VIdent "transparent\\9",p),p);
-					// adds filter : the only side effect is that the filter will be over the background-image
-					filter "gradient" ("startColorstr=#"+cola+", endColorstr=#"+colb) p;
-					(EAttribute "zoom" (VInt 1,p),p);
-				];
-				(ESub fallbacks,p)
-			| _ ->
-				warning "Linear gradient support is only supported for two #hex colors" p;
-				(EAttribute name value,p)
-			}
+			(ESub [
+				(EAttribute name (VHex hcol,p),p); // simply adds a fallback with fixed hex color
+				(EAttribute name value,p);
+			],p)
 		| _ ->
 			(EAttribute name value,p)
 		}
-	| "opacity" ->
-		var v = match fst value {
-			| VInt i -> i * 100
-			| VFloat f -> Math.floor (f * 100)
-			| _ -> assert()
-		}
-		(ESub [
-			(EAttribute "opacity" value,p);
-			(EAttribute "filter" (VCall (VIdent "alpha",p) [(VBind "opacity" (VInt v,p),p)],p),p);
-			(EAttribute "zoom" (VInt 1,p),p);
-		],p)
-	| "user-select" ->
-		(ESub [
-			(EAttribute "-webkit-user-select" value,p);
-			(EAttribute "   -moz-user-select" value,p);
-			(EAttribute "    -ms-user-select" value,p);
-			(EAttribute "        user-select" value,p);
-		],p)
-	| "box-shadow" ->
-		(ESub [
-			(EAttribute "-webkit-box-shadow" value,p);
-			(EAttribute "   -moz-box-shadow" value,p);
-			(EAttribute "        box-shadow" value,p)
-		],p)
-	| "box-sizing" ->
-		(ESub [
-			(EAttribute "-webkit-box-sizing" value,p);
-			(EAttribute "        box-sizing" value,p);
-		],p)
 	| _ ->
 		(EAttribute name value,p)
 	}

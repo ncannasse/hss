@@ -255,14 +255,8 @@ Operations between two different units (for instance 50px + 3em) are not allowed
 ### Hacks Support
 Some hacks has been added to support new CSS properties on most recent browsers.
 
- * `opacity` : will also generate the corresponding IE filter alpha
- * `border-radius` (and border-top-left-radius, etc) : will also generate -moz-border-radius and -webkit-border-radius for Firefox and Chrome/Safari support
- * `box-shadow` : will also generate both -moz-box-shadow and -webkit-box-shadow for Firefor and Chrome/Safari support
- * `text-shadow` : supported by HSS, but doesn't show anything on IE6-8
- * `color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
- * `background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba, and also add some IE6-8 hacks that correctly display the transparent background color. The only drawback is that the block background image will display below the background color.
+ * `color : rgba(r,g,b,a); background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
  * `hss-width` and `hss-height` : will generate width and height from which will be subtracted the padding and border values declared in the current block.
- * `background : linear-gradient(#color1,#color2)` : will add support for all browsers, including IE6-8 New in 1.4
  * You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
  * `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate imported files will be ignored.
  * Color functions: `darken, lighten, saturate, desaturate, invert` same as *sass/less*, but only accept `#RRGGBB` and `rgb(int,int,int)`
