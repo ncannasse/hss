@@ -256,47 +256,25 @@ function rec class(s,first) {
 		// contiguous
 		if (i > 0 || c.attributes != []) && (p.pline != p2.pline || p.pmax != p2.pmin) then
 			i
-		else match fst t {
-			| Const (Ident id) ->
-				match *last {
-				| None when i == 0 ->
-					c.node := Some id;
-					loop (i+1)
-				| Some Sharp ->
-					last := None;
-					c.id := Some id;
-					loop (i+1)
-				| Some Dot ->
-					last := None;
-					c.classes := List.append c.classes [id];
-					loop (i+1)
-				| Some DoubleDot ->
-					last := None;
-					c.selector:= (PSelector id)::c.selector;
-					loop (i+1)
-				| Some DbDoubleDot ->
-					last := None;
-					c.selector:= (PDbSelector id)::c.selector;
-					loop (i+1)
-				| _ ->
-					i
-				}
-			| Op Mul when *last == None && i == 0 ->
-				c.node := Some "*";
-				loop (i+1)
-			| Sharp when *last == None && c.id == None ->
-				last := Some Sharp;
-				loop (i+1)
-			| Dot when *last == None ->
+		else match *last {
+		| None -> // STATE 1
+			match fst t {
+			| Dot ->
 				last := Some Dot;
 				loop (i+1)
-			| DoubleDot when *last == None ->
-				last := Some DoubleDot;
+			| Const (Ident id) ->
+				c.node := Some id;
 				loop (i+1)
-			| DbDoubleDot when *last == None ->
-				last := Some DbDoubleDot;
+			| Sharp when c.id == None ->
+				last := Some Sharp;
 				loop (i+1)
-			| BracketOpen when *last == None ->
+			| DoubleDotx2 ->
+				last := Some DoubleDotx2;
+				loop (i+1)
+			| Op Mul when i == 0 ->
+				c.node := Some "*";
+				loop 1
+			| BracketOpen ->
 				match fst (stream_token s (i+1)) {
 				| Const (Ident att) ->
 					stream_junk s (i + 2);
@@ -307,69 +285,62 @@ function rec class(s,first) {
 				| _ ->
 					i+1
 				}
-			| Selector (id,s) ->
-				match *last {
-				| None when i == 0 ->
-					c.node := Some id;
-					c.selector:= (PSelector s)::c.selector;
-					loop (i+1)
-				| Some Sharp ->
-					last := None;
-					c.id := Some id;
-					c.selector:= (PSelector s)::c.selector;
-					loop (i+1)
-				| Some Dot ->
-					last := None;
-					c.classes := List.append c.classes [id];
-					c.selector:= (PSelector s)::c.selector;
-					loop (i+1)
-				| Some DoubleDot ->
-					last := None;
-					c.selector:= (PSelector s)::(PSelector id)::c.selector;
-					loop (i+1)
-				| _ ->
-					i
-				}
+			| Selector s ->
+				c.selector := (PSelector s)::c.selector;
+				loop (i+1)
 			| SelectorCall (s,e) ->
-				last := None;
 				c.selector := PSelectorCall(s, e)::c.selector;
-				pos := {psource = p2.psource; pline = p2.pline; pmin = p2.pmin; pmax = p2.pmax + 1; };
-				loop (i + 2)
+				pos := {psource = p2.psource; pline = p2.pline; pmin = p2.pmin; pmax = p2.pmax + 1};
+				loop (i+2)
 			| ParentOpen when i == 1 && c.node == Some "CSS" ->
 				match (stream_token s (i + 1), stream_token s (i + 2)) {
 				| ((Const (String s),_), (ParentClose,p)) ->
 					c.node := Some s;
 					pos := p;
-					loop (i + 3)
+					loop (i+3)
 				| _ -> i
 				}
 			| _ ->
 				i
+			}
+		| Some v -> // STATE 2
+			last := None;
+			match fst t {
+			| Const (Ident id) ->
+				match v {
+				| Dot -> c.classes := List.append c.classes [id];
+				| Sharp -> c.id := Some id;
+				| DoubleDotx2 -> c.selector:= (PSelector2 id)::c.selector;
+				| _ -> error (Unexpected v) p // never run to this line
+				}
+			| t -> error (Unexpected t) p2
+			}
+			loop (i+1)
 		}
 	}
-	match s {
-	| [< (Gt,_) >] -> c.operator := OpChild
-	| [< (Tild,_) >] -> c.operator := OpPreceding false
-	| [< (Op Add,_) >] -> c.operator := OpPreceding true
+
+	var opt = (stream_token s 0);
+	c.operator := match s {
+	| [< (Gt,_) >] -> OpChild
+	| [< (Tild,_) >] -> OpPreceding false
+	| [< (Op Add,_) >] -> OpPreceding true
 	| [< (Op And,p) >] ->
 		match fst (stream_token s 0) {
-		| Dot | DoubleDot | DbDoubleDot | BracketOpen | SelectorCall _ -> c.operator := OpJoint
+		| Dot | Selector _ | DoubleDotx2 | BracketOpen | SelectorCall _ -> OpJoint
 		| _ -> error Unexpected(Op And) p
 		}
-	| [< >] -> ()
+	| [< >] -> OpDefault
 	}
 	var n = loop 0;
-	if n == 0 && c.attributes == [] then error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos);
+	if n == 0 && c.attributes == [] then {
+		if c.operator != OpDefault then error Unexpected(fst opt) (snd opt);
+		error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos)
+	}
 	c.attributes := List.rev c.attributes;
 	stream_junk s n;
-	match *last {
-	| None -> ()
-	| Some t -> error (Unexpected t) (*pos);
-	}
-	try
-		c.sub := Some (class s false)
-	catch {
-		Error (Class_expected,_) -> ()
+	match fst(stream_token s 0) {
+	| BraceOpen | Comma -> ()
+	| _ -> try c.sub := Some (class s false) catch { Error (Class_expected,_) -> () }
 	}
 	c
 }

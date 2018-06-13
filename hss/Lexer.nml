@@ -91,7 +91,7 @@ expr := Lexer.build (List.concat [[
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
 	(":", function(l) { mk l DoubleDot });
-	("::", function(l) { mk l DbDoubleDot });
+	("::", function(l) { mk l DoubleDotx2 });
 	("%", function(l) { mk l Percent });
 	("!", function(l) { mk l Exclamation });
 	("=", function(l) { mk l Eq });
@@ -151,25 +151,23 @@ expr := Lexer.build (List.concat [[
 		var n = (if String.get s (len - 1) == '\r' then 3 else 2);
 		mk l CommentLine(String.sub s 0 (len - n))
 	});
-];List.map (function(sel) {
-	(ident+":"+sel, function(l) {
-		var s = Lexer.current l;
-		match String.split s ":" {
-		| [a;b] -> mk l Selector(a,b)
-		| _ -> assert()
-		}
-	})
-}) Hss.Rules.selectors;
-  List.map (function(sel) {
-	(":"+sel+"([^)]*", function(l) {
-		var s = Lexer.current l;
-		var s = String.sub(s, 1, String.length(s) - 1);
-		match String.split s "(" {
-		| [a;b] -> mk l SelectorCall(a,b)
-		| _ -> assert()
-		}
-	})
-}) Hss.Rules.selectors_call;
+];
+	(List.map (function(sel) {
+		(":"+sel, function(l) {
+			var s = Lexer.current l;
+			mk l Selector(String.sub(s, 1, String.length(s) - 1))
+		})
+	}) Hss.Rules.selectors);
+	(List.map (function(sel) {
+		(":"+sel+"([^)]*", function(l) {
+			var s = Lexer.current l;
+			var s = String.sub(s, 1, String.length(s) - 1);
+			match String.split s "(" {
+			| [a;b] -> mk l SelectorCall(a,b)
+			| _ -> assert()
+			}
+		})
+	}) Hss.Rules.selectors_call);
 ])
 	(function(l) {
 		match Lexer.char l {

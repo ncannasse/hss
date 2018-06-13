@@ -46,7 +46,7 @@ type token {
 	Eq;
 	Gt;
 	DoubleDot;
-	DbDoubleDot;
+	DoubleDotx2;
 	Percent;
 	Exclamation;
 	BraceOpen;
@@ -59,7 +59,7 @@ type token {
 	Keyword : keyword;
 	Comment : string;
 	CommentLine : string;
-	Selector : (string,string);
+	Selector : (string);
 	SelectorCall : (string,string);
 	Op : op;
 	Tild;
@@ -109,7 +109,7 @@ type attrib_op {
 
 type pseudo {
 	PSelector : string;
-	PDbSelector : string;
+	PSelector2 : string; // double colon(::) as prefix
 	PSelectorCall : (string, string); // (name, args)
 }
 
@@ -174,7 +174,7 @@ function s_token(x) {
 	| Semicolon -> ";"
 	| Dot -> "."
 	| DoubleDot -> ":"
-	| DbDoubleDot -> "::"
+	| DoubleDotx2 -> "::"
 	| Percent -> "%"
 	| Comma -> ","
 	| Sharp -> "#"
@@ -191,7 +191,7 @@ function s_token(x) {
 	| Keyword k -> s_keyword k
 	| Comment s -> "/*" + s + "*/"
 	| CommentLine s -> "//" + s
-	| Selector (id,s) -> id+":"+s
+	| Selector s -> ":"+s
 	| SelectorCall(s,e) -> s+"("+e+")"
 	| Op o -> s_op o
 	| Tild -> "~"
