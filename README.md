@@ -274,5 +274,26 @@ Some hacks has been added to support new CSS properties on most recent browsers.
    }
    ```
 
+### Notes
+
+* `@media`: HSS will try to detect if @media query is valid, but not all the syntax, so in some cases you should use **quotes** to skip detection
+
+  ```scss
+  // Only supports using variables in value of the feature/attribute
+  var narrow_width = 767px;
+  @media only screen and (max-width : $narrow_width) {}
+
+  // Hss does not support any ratio value, so you need use quotes to skip detection in media query.
+  @media (min-aspect-ratio: "1/1") {}
+
+  // quotes for some deprecated type
+  @media "tv", "handheld" {}
+
+  // You can use quotes almost everywhere.
+  @media "screen and (min-width: 30em) and (orientation: landscape)" {}
+  @media screen and (min-width: 30em) "and (orientation: landscape)" {}
+  @media screen "and (min-width: 30em)" and (orientation: landscape) {}
+  ```
+
 ## Credits
 The HSS software was developed by Nicolas Cannasse for Motion-Twin.

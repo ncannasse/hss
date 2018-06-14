@@ -64,7 +64,7 @@ type token {
 	Op : op;
 	Tild;
 	Dollar;
-	Media : string;
+	Media;
 }
 
 type expr;
@@ -123,6 +123,20 @@ type class {
 	mutable operator : operator;
 }
 
+type media;
+type media_decl {
+	MComma;
+	MNot;
+	MOnly;
+	MAnd;
+	MType: string;          // screen, all, print, speech
+	MAttr: (string, value); // (attr: value)
+	MSigAttr: string;       // (attr)
+	MCSS: string;           // "string"
+	MParent: media list;    // ()
+}
+type media = (media_decl, pos)
+
 type expr_decl {
 	EVar : (string, value);
 	EVarBlock : (string, expr list);
@@ -130,7 +144,7 @@ type expr_decl {
 	EUseBlock : string;
 	EBlock : (class list, expr list);
 	ESub : expr list;
-	EMedia : (string, expr list);
+	EMedia : (media list, expr list);
 	EInclude : string;
 	EImport : string;
 	EKeyframes: (string, (value, expr list) list);
@@ -196,7 +210,7 @@ function s_token(x) {
 	| Op o -> s_op o
 	| Tild -> "~"
 	| Dollar -> "$"
-	| Media str -> "@media " + str
+	| Media -> "@media"
 	}
 }
 

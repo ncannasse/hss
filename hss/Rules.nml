@@ -457,3 +457,39 @@ var rules = List.concat [[
 ]})()
 ];
 
+var media_rules = [
+	("width",rlength);
+	("min-width",rlength);
+	("max-width",rlength);
+	("height",rlength);
+	("min-height",rlength);
+	("max-height",rlength);
+	//("aspect-ratio", ratio(1/2)); // not support
+	("orientation", [RId "portrait"; RId "landscape"]);
+	("resolution", [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"]);
+	("min-resolution", [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"]);
+	("max-resolution", [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"]);
+	("scan", [RId "interlace"; RId "progressive"]);
+	("grid", [RIntRange 0 1]);
+	("update", [none; RId "slow"; RId "fast"]);
+	("overflow-block", [none; RId "scroll"; RId "paged"; RId "optional-paged"]);
+	("overflow-inline", [none; RId "scroll"]);
+	("color", [RInt]);       // can be empty
+	("min-color", [RInt]);
+	("max-color", [RInt]);
+	("color-index", [RInt]); // can be empty
+	("min-color-index", [RInt]);
+	("max-color-index", [RInt]);
+	("color-gamut", [RId "srgb"; RId "p3"; RId "rec2020"]);
+	("display-mode", [RId "fullscreen"; RId "standalone"; RId "minimal-ui"; RId "browser"]);
+	("monochrome", [RInt]);  // can be empty
+	("min-monochrome", [RInt]);
+	("max-monochrome", [RInt]);
+	("inverted-colors", [none; RId "inverted"]);
+	("pointer", [none; RId "coarse"; RId "fine"]);
+	("any-pointer", [none; RId "coarse"; RId "fine"]);
+	("hover", [none; RId "hover"]);
+	("any-hover", [none; RId "hover"]);
+	("light-level", [RId "dim"; RId "normal"; RId "washed"]);
+	("scripting", [none; RId "initial-only"; RId "enabled"]);
+]

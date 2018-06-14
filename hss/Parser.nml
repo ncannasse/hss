@@ -65,8 +65,28 @@ function rec expr(s) {
 	| [< (Const (Ident "@include"),p1); (ParentOpen,_); (Const (String s),_); (ParentClose,p2) >] -> (EInclude s, punion p1 p2)
 	| [< (Const (Ident "@import" ),p1); (ParentOpen,_); (Const (String f),_); (ParentClose,p2) >] -> (EImport  f, punion p1 p2)
 	| [< (Const (Ident "@keyframes" ),_); (Const (Ident n),p); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, p)
-	| [< (Media str,p1); (BraceOpen,_); l = expr_list s; >] -> (EMedia str l, p1)
+	| [< (Media,p1); v = media_list s; (BraceOpen,_); l = expr_list s; >] -> (EMedia v l, p1)
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
+	}
+}
+
+function rec media_list(s) {
+	match s {
+	| [< (Comma, p) >] -> (MComma,p)::(media_list s)
+	| [< (Const (String str),p) >] -> (MCSS str, p)::(media_list s)
+	| [< (Const (Ident id), p) >] ->
+		var id = String.lowercase id;
+		(match id {
+		| "not" -> (MNot, p)
+		| "only" -> (MOnly, p)
+		| "and" -> (MAnd, p)
+		| "all" | "screen" | "print" | "speech" -> (MType id, p)
+		| _ -> error Unexpected(Const (Ident id)) p
+		})::(media_list s)
+	| [< (ParentOpen,_); (Const (Ident id),p); (ParentClose,_) >] -> (MSigAttr id, p)::(media_list s)
+	| [< (ParentOpen,_); (Const (Ident id),p); (DoubleDot,_); v = value s; (ParentClose,_)>] -> (MAttr id v, p)::(media_list s)
+	| [< (ParentOpen,p1); l = media_list s; (ParentClose,p2) >] -> (MParent l, punion p1 p2)::(media_list s)
+	| [< >] -> []
 	}
 }
 

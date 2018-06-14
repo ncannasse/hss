@@ -159,14 +159,17 @@ function path_duplicate(path):bool {
 	loop (*path_imports) without_extension(path.full)
 }
 
+function path_str(path):string {
+	(if path.dir == "" then path.name else path.dir + "/" + path.name)
+	+
+	(if path.ext == "" then "" else "." + path.ext)
+}
+
 function relative_path(full: string):string {
 	try {
-		var path = path_find full;
-		(if path.dir == "" then path.name else path.dir + "/" + path.name)
-		+ (if path.ext == "" then "" else "." + path.ext)
+		path_str(path_find full)
 	} catch {
 	| Not_found -> full
-	| err -> throw err;
 	}
 }
 
@@ -202,7 +205,7 @@ function img_to_base64(path: string, p: Lexer.pos): string {
 	var content = try {
 		IO.file_contents(path);
 	} catch {
-	| _ -> throw Error("Cannot find the file: " + path, p)
+	| _ -> throw Error("file error: " + path, p)
 	}
 	var content_len = String.length content;
 	var extra = content_len % 3;
@@ -219,7 +222,7 @@ function img_to_base64(path: string, p: Lexer.pos): string {
 	| 0xD8FF -> String.blit(out, 11, "jpg", 0, 3) // "jpg"
 	| 0x5089 -> ()                                // "png"
 	| 0x4947 -> String.blit(out, 11, "gif", 0, 3) // "gif"
-	| _ -> throw Error("Unsupported image type: " + path, p)
+	| _ -> throw Error("UnSupported Type: " + path, p)
 	}
 	var extra = match extra {
 	| 2 -> String.set(out, prefix_len + size - 1, '='); 1

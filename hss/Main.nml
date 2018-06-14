@@ -126,6 +126,32 @@ function rec print_class(first,ch,c) {
 	}
 }
 
+function rec print_media(ch, sp, e) {
+	var t = fst e;
+	if t != MComma then IO.write ch sp;
+	match t {
+	| MComma -> IO.write_char ch ',';
+	| MNot   -> IO.write ch "not"
+	| MOnly  -> IO.write ch "only"
+	| MAnd   -> IO.write ch "and"
+	| MType s | MCSS s -> IO.write ch s;
+	| MSigAttr s       -> IO.write_char ch '('; IO.write ch s; IO.write_char ch ')';
+	| MAttr(s, val)    -> IO.write_char ch '('; IO.write ch s; IO.write_char ch ':';
+		IO.write_char ch ' ';
+		match fst val {
+		| VString s | VIdent s -> IO.write ch s; // MCSS does not require quotes
+		| _ -> print_value ch val;
+		}
+		IO.write_char ch ')';
+	| MParent x::tl ->
+		IO.write_char ch '(';
+		print_media ch "" x;
+		List.iter (print_media ch " ") tl;
+		IO.write_char ch ')';
+	| _ ->
+	}
+}
+
 function rec print_css(ch,tabs,e) {
 	match fst e {
 	| EVar(name,val) ->
@@ -150,10 +176,16 @@ function rec print_css(ch,tabs,e) {
 		IO.printf ch "%s$%s;\n" (tabs,name);
 	| ESub el ->
 		List.iter (print_css ch tabs) el
-	| EMedia (s,el) ->
-		IO.printf ch "@media %s {\n" s;
-		List.iter (print_css ch (tabs+"\t")) el;
-		IO.printf ch "%s}\n" tabs;
+	| EMedia (v,el) ->
+		match el {
+		| [] ->
+		| _ ->
+			IO.write ch "@media";
+			List.iter (print_media ch " ") v;
+			IO.write ch " {\n";
+			List.iter (print_css ch (tabs+"\t")) el;
+			IO.printf ch "%s}\n" tabs;
+		}
 	| EInclude s ->
 		IO.write ch tabs;
 		IO.write ch s;
@@ -162,7 +194,7 @@ function rec print_css(ch,tabs,e) {
 		try {
 			IO.write ch IO.file_contents(s)
 		} catch {
-		| err -> error("ERROR: " + (string err), snd e)
+		| _ -> error("file error: " + s, snd e)
 		}
 		IO.write ch "\n";
 	| EKeyframes (name, ks) ->
@@ -326,7 +358,7 @@ var hrules = {
 
 function get_rule(ctx,name) {
 	try
-		Hashtbl.find hrules name
+		Hss.Rules.inherit :: (Hashtbl.find hrules name)
 	catch {
 	| Not_found ->
 		match (name,ctx.curblock) {
@@ -628,18 +660,82 @@ function rec find_subclass(c: class) {
 	}
 }
 
-function load_rules(ctx, name, value, p) {
+function load_rules(find, name, value, p) {
 	try {
-		var rules = get_rule ctx name;
-		if !(List.exists (function(r) check_rule r value) (Hss.Rules.inherit :: rules)) then {
+		var rules = find name
+		if !(List.exists (function(r) check_rule r value) rules) then {
 			var buf, str = IO.write_string();
 			print_value buf value;
 			error ("Invalid '"+name+"' value '"+str()+"'") p;
 		}
 	} catch {
-	| Not_found -> if snd(Hss.Utils.vendor_prefix name) == "" then error("Unknown attribute '"+name+"'",p) // ignored if prefix with vendor.
-	| e -> throw e
+	| Not_found -> if snd(Hss.Utils.vendor_prefix name) == "" then error("Unknown attribute '"+name+"'",p)
 	}
+}
+
+var media_hrules = {
+	var h = Hashtbl.create();
+	List.iter (function((a,b)) Hashtbl.add h a b) Hss.Rules.media_rules;
+	h
+}
+
+function check_media(ctx, l: media list) {
+	function err (s, p) { error ("Unexpected" + " " + s) p}
+	// eval ,check rule, and check state in a loop
+	function rec loop(l: media list, state: int ref) {
+		var i = *state;
+		// 0: after MCSS          -> for ALL Types
+		// 1: after(BEGIN, MComma)-> MCSS, (MType, MAttr, MSigAttr, MParent), (MNot, MOnly)
+		// 2: after (MAnd)        -> MCSS, (MType, MAttr, MSigAttr, MParent)
+		// 3: after (MType, MAttr, MSigAttr, MParent) -> MCSS, (MComma, MAnd)
+		// 4: after (MNot, MOnly) -> MCSS, MType
+		match l {
+		| [] as l -> l
+		| x :: tl ->
+			var p = pos x;
+			(match fst x {
+			| MComma ->
+				state := if (i == 3 || i == 0) then 1 else err(",", p);
+				x
+			| MAnd ->
+				state := if (i == 3 || i == 0) then 2 else err("and", p);
+				x
+			| MNot | MOnly ->
+				state := if i < 2 then 4 else err (if fst x == MNot then "not" else "only") p;
+				x
+			| MType s ->
+				state := if i != 3 then 3 else err(s, p);
+				x
+			| MSigAttr s ->
+				state := if i < 3 then 3 else err("("+ s + ")", p);
+				match s {
+				| "color" | "color-index" | "monochrome" -> ()
+				| _ -> err("("+ s + ")", p)
+				}
+				x
+			| MAttr(k, v) ->
+				state := if i < 3 then 3 else err("("+ k + ": " + (s_value v) + ")", p);
+				var v = eval ctx v;
+				match fst v {
+				| VString _ -> () // skip check rule
+				| _ -> load_rules(Hashtbl.find media_hrules, k, v, p)
+				}
+				(MAttr(k, v), p)
+			| MParent l ->
+				if l == [] then err("empty ()", p)
+				var r = if i < 3 then 3 else err("(...)", p);
+				state := 1        // set begin
+				var x = (MParent (loop l state), p);
+				state := r;
+				x;
+			| MCSS _ ->
+				state := 0;
+				x
+			}) :: (loop tl state)
+		}
+	}
+	var state = &1;
+	loop l state
 }
 
 function rec check(ctx,e) {
@@ -696,7 +792,7 @@ function rec check(ctx,e) {
 		match value {
 		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> e
 		| _ ->
-			load_rules(ctx, name, value, pos e);
+			load_rules(get_rule ctx, name, value, pos e);
 			expand_hacks(name, value, pos e)
 		}
 	| EUseBlock name ->
@@ -705,8 +801,8 @@ function rec check(ctx,e) {
 		(ESub b, snd e)
 	| ESub el ->
 		(ESub (List.map (check ctx) el),snd e)
-	| EMedia (m,el) ->
-		(EMedia m (List.map (check ctx) el), snd e)
+	| EMedia (l,el) ->
+		(EMedia (check_media ctx l) (List.map (check ctx) el), snd e)
 	| EInclude _ ->
 		e
 	| EImport s ->
@@ -719,7 +815,7 @@ function rec check(ctx,e) {
 			match path.ext {
 			| "hss"	->
 				var ch = try (IO.read_file path.full true) catch {
-				| err -> error("ERROR: " + (string err), p)
+				| _ -> error("file error: " + (Hss.Utils.path_str path), p)
 				}
 				var lex = Lexer.create Buffer.create();
 				Lexer.input lex path.full ch 1 0;
@@ -729,7 +825,7 @@ function rec check(ctx,e) {
 			| "css" ->
 				(EImport file, p)
 			| _ ->
-				error("UnSupported type (." + path.ext + ")", p)
+				error("UnSupported Type: " + "." + path.ext, p)
 			}
 		} else {
 			(ESub [], p) // duplicate, simply ignore it;
@@ -750,7 +846,7 @@ function rec check(ctx,e) {
 					match value {
 					| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> e
 					| _ ->
-						load_rules(ctx, name, value, p);
+						load_rules(get_rule ctx, name, value, p);
 						(EAttribute(name, expand_val value), p)
 					}
 				| _ -> error "Unexpected in '@keyframes'." p
