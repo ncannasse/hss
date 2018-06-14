@@ -173,7 +173,7 @@ function relative_path(full: string):string {
 	}
 }
 
-function path_make(s: string, def_ext: string):path {
+function path(s: string, def_ext: string, add: bool):path {
 	var last = (String.length s) - 1
 	var c1, c2 = (last_char s '/', last_char s '\\')
 	var dir, name = if c1 < c2 then
@@ -187,12 +187,14 @@ function path_make(s: string, def_ext: string):path {
 		(String.sub(name, cp + 1, (String.length name) - 1 - cp), String.sub(name, 0, cp))
 	else
 		(def_ext, name)
-	{
+	var ret = {
 		dir  = dir;
 		name = name;
 		ext  = ext;
 		full = file_full_path(if def_ext == "" then s else s + "." + def_ext);
 	}
+	if add then path_add ret;
+	ret;
 }
 
 var base64_encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

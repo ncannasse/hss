@@ -34,11 +34,12 @@ function warning(msg,p) {
 }
 
 function print_sep(str,f,ch,l) {
-	var first = &true;
-	List.iter (function(e) {
-		if *first then first := false else IO.write ch str;
+	match l {
+	| [] ->
+	| e::tl ->
 		f ch e;
-	}) l;
+		List.iter (function(e){IO.write ch str; f ch e}) tl
+	}
 }
 
 function rec print_value(ch,v) {
@@ -148,7 +149,7 @@ function rec print_media(ch, sp, e) {
 		print_media ch "" x;
 		List.iter (print_media ch " ") tl;
 		IO.write_char ch ')';
-	| _ ->
+	| MParent [] ->
 	}
 }
 
@@ -809,7 +810,7 @@ function rec check(ctx,e) {
 		var p = snd e;
 		var parent = Hss.Utils.path_find(Lexer.source p);
 		var file = if Hss.Utils.is_abs_path(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
-		var path = Hss.Utils.path_make(file, "hss");
+		var path = Hss.Utils.path(file, "hss", false);
 		if !Hss.Utils.path_duplicate(path) then {
 			Hss.Utils.path_add(path);
 			match path.ext {
@@ -882,9 +883,8 @@ try {
 	List.iter (function(file) {
 		// parse
 		var ch = IO.read_file file true;
-		var path = Hss.Utils.path_make(file, "");
-		Hss.Utils.path_add(path)
 		var lex = Lexer.create Buffer.create();
+		var path = Hss.Utils.path file "" true;
 		Lexer.input lex path.full ch 1 0;
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
