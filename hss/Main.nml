@@ -173,8 +173,15 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch " {\n";
 		List.iter (print_css ch (tabs+"\t")) el;
 		IO.printf ch "%s}\n" tabs;
-	| EUseBlock name ->
-		IO.printf ch "%s$%s;\n" (tabs,name);
+	| EUseBlock(name, pl) ->
+		match pl {
+		| [] ->
+			IO.printf ch "%s$%s;\n" (tabs,name)
+		| _ ->
+			IO.printf ch "%s$%s(" (tabs,name);
+			print_sep "; " (print_value) ch pl;
+			IO.write ch ");\n";
+		}
 	| ESub el ->
 		List.iter (print_css ch tabs) el
 	| EMedia (v,el) ->
@@ -372,8 +379,9 @@ function get_rule(ctx,name) {
 }
 
 function custom_calls(c, vl, p) {
+	function err(id, p) {error("Invalid Value for '" + id + "()'", p)}
 	function cint(i, p) { if (i < 0 || i > 255) then error("Unexpected " + i, p); i}
-	function mix(ds, dl, vl, p) {
+	function mix(ds, dl, vl, p, id) {
 		var r, g, b, i = (match vl {
 		| [(VHex h, p); (VUnit(i,"%"),_)] ->
 			var r, g, b = Hss.Utils.ofhex h p;
@@ -381,7 +389,7 @@ function custom_calls(c, vl, p) {
 		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_); (VUnit(i,"%"),_)] ->
 			(cint r rp, cint g gp, cint b bp, i)
 		| _ ->
-			error "Invalid Value" p
+			err id p
 		})
 		var h, s, l = Hss.Utils.rgb2hsl r g b
 		var r, g, b = Hss.Utils.hsl2rgb h (i * ds + s) (i * dl + l);
@@ -389,18 +397,23 @@ function custom_calls(c, vl, p) {
 	}
 	var id = match (fst c) {| VIdent s -> s | _ -> ""}
 	(match id {
-	| "lighten" ->    mix( 0.  ,  0.01, vl, p)
-	| "darken" ->     mix( 0.  , -0.01, vl, p)
-	| "saturate" ->   mix( 0.01,  0.  , vl, p)
-	| "desaturate" -> mix(-0.01,  0.  , vl, p)
+	| "lighten" ->    mix( 0.  ,  0.01, vl, p, id)
+	| "darken" ->     mix( 0.  , -0.01, vl, p, id)
+	| "saturate" ->   mix( 0.01,  0.  , vl, p, id)
+	| "desaturate" -> mix(-0.01,  0.  , vl, p, id)
 	| "invert" ->
 		var r, g, b = (match vl {
 		| [(VHex h, p)] -> Hss.Utils.ofhex h p
 		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_)] -> (cint r rp, cint g gp, cint b bp)
-		| _ -> error "Invalid Value" p
+		| _ -> err id p
 		})
 		var r, g, b = (255 - r, 255 - g, 255 - b);
 		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
+	| "int" ->
+		match vl {
+		| [(VFloat f, _)] -> VInt Math.floor(f)
+		| _ -> err id p
+		}
 	| _ -> VCall c vl
 	}, p)
 }
@@ -739,6 +752,31 @@ function check_media(ctx, l: media list) {
 	loop l state
 }
 
+function selfref_var(id, v) {
+	match fst v {
+	| VVar name when id == name -> error("Self referencing loop: " + id + " = $" + id, pos v)
+	| _ ->
+	}
+}
+
+function rec selfref_block(redef, id, l) {
+	match l {
+	| [] ->
+	| e::tl ->
+		match fst e {
+		| EUseBlock(name, _) ->
+			if name == id && (*redef) == false then error("Self referencing loop: " + "$" + id, pos e);
+		| EVarBlock(name, el) ->
+			var r = *redef; (selfref_block redef id el); redef := r;
+			if name == id && (*redef) == false then redef := true;
+		| EBlock(_,el) ->
+			var r = *redef; (selfref_block redef id el); redef := r;
+		| _ ->
+		}
+		selfref_block redef id tl;
+	}
+}
+
 function rec check(ctx,e) {
 	match fst e {
 	| EVar ("namespace",value) ->
@@ -748,9 +786,12 @@ function rec check(ctx,e) {
 		}
 		e
 	| EVar (name,value) ->
+		selfref_var name value;
 		ctx.vars := Map.add ctx.vars name value;
 		e
 	| EVarBlock (name,el) ->
+		var redef = &false;
+		selfref_block redef name el;
 		ctx.blocks := Map.add ctx.blocks name el;
 		e
 	| EBlock (classes,el) ->
@@ -796,9 +837,19 @@ function rec check(ctx,e) {
 			load_rules(get_rule ctx, name, value, pos e);
 			expand_hacks(name, value, pos e)
 		}
-	| EUseBlock name ->
+	| EUseBlock(name, pl) ->
 		var b = try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(e) };
+		var old = ctx.vars;
+		List.iter (function(v){
+			match fst v {
+			| VBind(name, value) ->
+				selfref_var name value;
+				ctx.vars := Map.add ctx.vars name value;
+			| _ ->
+			}
+		}) pl;
 		var b = try List.map (check ctx) b catch { Error l -> throw Error(("Included here ",snd e)::l) };
+		ctx.vars := old;
 		(ESub b, snd e)
 	| ESub el ->
 		(ESub (List.map (check ctx) el),snd e)
@@ -873,7 +924,7 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.5.1 - (c)2008-2013 Nicolas Cannasse\nUsage : hss [options] <file>";
+	var head = "HSS v1.5.2 - (c)2008-2013 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [

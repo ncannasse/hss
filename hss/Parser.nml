@@ -102,14 +102,35 @@ function rec keyframes(s) {
 	}
 }
 
+function rec block_params(s) {
+	match s {
+	| [< (Const (Ident i), p1); (Eq,_); v = value s; >] ->
+		var param = (VBind i v, punion p1 (pos v));
+		var tk = stream_token s 0;
+		match fst tk {
+		| Semicolon -> (stream_junk s 1); param :: (block_params s)
+		| ParentClose -> [param]
+		| t -> error(Unexpected t, snd tk)
+		}
+	| _ ->
+		var tk = stream_token s 0;
+		match fst tk {
+		| ParentClose -> []
+		| t -> error(Unexpected t, snd tk)
+		}
+	}
+}
+
 function rec expr_list(s) {
 	match s {
 	| [< (BraceClose,_) >] ->
 		[]
 	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon s >] ->
 		(EAttribute att v,p) :: expr_list s
+	| [< (Const (Val v),p); (ParentOpen,_); l = block_params s; (ParentClose,_); _ = semicolon s >] ->
+		(EUseBlock v l, p) :: expr_list s
 	| [< (Const (Val v),p); _ = semicolon s >] ->
-		(EUseBlock v,p) :: expr_list s
+		(EUseBlock v [],p) :: expr_list s
 	| [< e = expr s >] ->
 		e :: expr_list s
 	}

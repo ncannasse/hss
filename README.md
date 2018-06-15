@@ -65,6 +65,43 @@ pre {
 ```
 Block variables are very useful to share some "behaviors" between unrelated rules. They can be used to improve the way CSS files are organized and makes it much more easy to test style-changes.
 
+The Block Variables also has **function features**. Since 1.5.2. Note that it's uses **semicolon(`;`)** as the parameter separator.
+because the comma(`,`) is a valid CSS property value.
+
+```scss
+var nomargin = { margin : $margin; padding : $padding;}
+var pad-4 = 4px;
+pre {
+  $nomargin(margin = 16 + 2px; padding = -$pad-4); // (name = any css value; ...)
+  color : #FF0000;
+}
+```
+
+the output:
+
+```css
+pre {
+  margin: 18px;
+  padding: -4px;
+  color: #FF0000;
+}
+```
+
+Note that the "Block Variables" and "Property Variables" belong to different spaces.
+
+```scss
+var alpha = {                             // Definition a "Block Variables".
+  opacity: $alpha;                        // Reference to "Property Variables", NOT "Block Variables"
+  filter: alpha(opacity=int($alpha*100)); // atm `int(float)` is the only one of the hss function except the color functions.
+  line-height: 120 / 100.;                // `100.` is the float if you want to get a decimal value
+  // $alpha;                              // It's "Block Variables", but hss will report an error to avoid entering the dead loop.
+}
+
+.alpha-80 {
+  $alpha(alpha = 0.8);                    // the `$alpha` is "Block Variables" and `alpha=0.08` is "Property Variables"
+}
+```
+
 ### Nested Blocks
 One of the things that are the most annoying with CSS is when you want to avoid class-names clashing. For instance if you declare the following :
 ```
