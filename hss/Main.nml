@@ -276,7 +276,6 @@ function rec flatten(parents,e) {
 		}
 		[(EInclude s,snd e)]
 	| EImport _ | EKeyframes _ ->
-		if parents != [] then error("Nesting not allowed.", pos e);
 		[e]
 	}
 }
@@ -858,7 +857,8 @@ function rec check(ctx,e) {
 	| EInclude _ ->
 		e
 	| EImport s ->
-		var p = snd e;
+		var p = pos e;
+		if ctx.curblock != None then error("Only allowed on the top level: " + "@import", p)
 		var parent = Hss.Utils.path_find(Lexer.source p);
 		var file = if Hss.Utils.is_abs_path(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
 		var path = Hss.Utils.path(file, "hss", false);
@@ -883,10 +883,11 @@ function rec check(ctx,e) {
 			(ESub [], p) // duplicate, simply ignore it;
 		}
 	| EKeyframes (name, ks) ->
+		if ctx.curblock != None then error("Only allowed on the top level: " + "@keyframes", pos e)
 		var ks = List.map(function(k){
 			var v = fst k;
 			match fst v {
-			| VString s -> if (s != "from" && s != "to") then error("Unexpected " + s, pos v)
+			| VString s -> if !(s=="from" || s=="to") then error("Unexpected " + s, pos v)
 			| VUnit (f, u) -> if (f < 0. || f > 100.) then error("Unexpected " + f + u, pos v)
 			| _ ->
 			}
