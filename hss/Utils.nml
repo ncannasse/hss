@@ -183,15 +183,15 @@ function path(s: string, def_ext: string, add: bool):path {
 	else
 		("", s)
 	var cp = last_char name '.'
-	var ext, name = if cp != -1 then
-		(String.sub(name, cp + 1, (String.length name) - 1 - cp), String.sub(name, 0, cp))
+	var ext, name, s = if cp != -1 then
+		(String.sub(name, cp + 1, (String.length name) - 1 - cp), String.sub(name, 0, cp), s)
 	else
-		(def_ext, name)
+		(def_ext, name, s + "." + def_ext) // if s doesn't have an extension name
 	var ret = {
 		dir  = dir;
 		name = name;
 		ext  = ext;
-		full = file_full_path(if def_ext == "" then s else s + "." + def_ext);
+		full = file_full_path(s);
 	}
 	if add then path_add ret;
 	ret;
