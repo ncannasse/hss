@@ -135,9 +135,9 @@ type path {
 }
 var path_imports: path list ref = &[];
 
-function path_add(path) {
-	path_imports := path::(*path_imports);
-}
+function path_reset() path_imports := []
+
+function path_add(path) path_imports := path::(*path_imports)
 
 function path_find(full) {
 	function rec loop(l){

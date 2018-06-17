@@ -985,6 +985,7 @@ try {
 			List.iter (print_css ch "") el;
 			IO.close_out ch;
 		}
+		Hss.Utils.path_reset()
 	}) (*files);
 } catch {
 	// todo : fix a small bug in nekoml to have ctx.current not to lowercase
