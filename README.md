@@ -90,15 +90,48 @@ pre {
 Note that the "Block Variables" and "Property Variables" belong to different spaces.
 
 ```scss
-var alpha = {                             // Definition a "Block Variables".
-  opacity: $alpha;                        // Reference to "Property Variables", NOT "Block Variables"
-  filter: alpha(opacity=int($alpha*100)); // atm `int(float)` is the only one of the hss function except the color functions.
-  line-height: 120 / 100.;                // `100.` is the float if you want to get a decimal value
-  // $alpha;                              // It's "Block Variables", but hss will report an error to avoid entering the dead loop.
+var alpha = {            // Definition a "Block Variables".
+  opacity: $alpha;       // Reference to "Property Variables", NOT "Block Variables"
+  filter: alpha(opacity=int($alpha*100));  // IE filter and the "int(float)" is a hss function.
+  // $alpha;             // It's "Block Variables", but hss will report an error to avoid entering the dead loop.
 }
 
 .alpha-80 {
-  $alpha(alpha = 0.8);                    // the `$alpha` is "Block Variables" and `alpha=0.08` is "Property Variables"
+  $alpha(alpha = 0.8);   // use it.
+}
+
+var ref = $alpha;        // The right side of the expr will be parsed as "Property Var",
+                         // So you can't refer to "Block Variables"
+```
+
+#### the variables scope
+
+if the name of the "Block Variables" starts with `_` then the internal variables will be exported to the current scope.
+
+```scss
+var vars =  { var color = black;}
+.without {
+  var color = red;
+  $vars();
+  color: $color;
+}
+
+var _vars = { var color = black;}  // starts with "_"
+.with {
+  var color = red;
+  $_vars();
+  color: $color;
+}
+```
+
+output:
+
+```css
+.without {
+  color: red;
+}
+.with {
+  color: black;
 }
 ```
 
@@ -279,44 +312,60 @@ In that case, this will simply output the property in the CSS file without check
 
 ### Operations
 It is possible to perform some operations between values :
-```
+```scss
 var scale = 3;
 .big {
     width : 50px + 20px;
     height : 30px * $scale;
     color : #FF0000 * 0.7;
+    line-height: 120 / 100.; // Important: explicitly declare a float if you want to get a float value
 }
 ```
 Operations between two different units (for instance 50px + 3em) are not allowed.
 
 ### Hacks Support
-Some hacks has been added to support new CSS properties on most recent browsers.
 
- * `color : rgba(r,g,b,a); background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
- * `hss-width` and `hss-height` : will generate width and height from which will be subtracted the padding and border values declared in the current block.
- * You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
- * `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate imported files will be ignored.
- * Color functions: `darken, lighten, saturate, desaturate, invert` same as *sass/less*, but only accept `#RRGGBB` and `rgb(int,int,int)`
-   ```scss
-   body {
-     var gray = #999;
-     border-color: darken(rgb(255, 255, 255), 5%);
-     color: lighten(invert($gray * 0.5), 5%);
-   }
-   ```
- * `embed("path/to/image")`: for embedding small(less than 24KB) image(png/jpg/gif) as `data:image/png;base64`.
-   ```scss
-   .logo {
-     background-image: embed("logo.png"); // the png is relative to current .hss file.
-   }
-   ```
+* `color : rgba(r,g,b,a); background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
+
+* `hss-width` and `hss-height` : will generate width and height from which will be subtracted the padding and border values declared in the current block.
+
+* You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
+
+* `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate imported files will be ignored.
+
+  ```scss
+  @import("path/to/_vars") // if file name starts with "_" the variables of the file will be exported to current file.
+  @import("path/to/reset")
+  ```
+
+* hss functions:
+
+  `darken, lighten, saturate, desaturate, invert`: for color adjustment similar to *scss/less*, but only accept `#RRGGBB` and `rgb(int,int,int)`
+
+  ```scss
+  body {
+    var gray = #999;
+    border-color: darken(rgb(255, 255, 255), 5%);
+    color: lighten(invert($gray * 0.5), 5%);
+  }
+  ```
+
+  `int(float)`: convert float to int, you will rarely use it.
+
+
+* `embed("path/to/image")`: for embedding small(less than 24KB) image(png/jpg/gif) as `data:image/xxx;base64`.
+  ```scss
+  .logo {
+    background-image: embed("logo.png"); // the png is relative to current .hss file.
+  }
+  ```
 
 ### Notes
 
 * `@media`: HSS will try to detect if @media query is valid, but not all the syntax, so in some cases you should use **quotes** to skip detection
 
   ```scss
-  // Only supports using variables in value of the feature/attribute
+  // Only supports Property Variables in value of the feature/attribute
   var narrow_width = 767px;
   @media only screen and (max-width : $narrow_width) {}
 

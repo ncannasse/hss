@@ -837,8 +837,9 @@ function rec check(ctx,e) {
 			expand_hacks(name, value, pos e)
 		}
 	| EUseBlock(name, pl) ->
-		var b = try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(e) };
-		var old = ctx.vars;
+		var p = pos e;
+		var b = try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") p };
+		var old_ns, old_vars, old_blocks = (ctx.ns, ctx.vars, ctx.blocks);
 		List.iter (function(v){
 			match fst v {
 			| VBind(name, value) ->
@@ -847,9 +848,30 @@ function rec check(ctx,e) {
 			| _ ->
 			}
 		}) pl;
-		var b = try List.map (check ctx) b catch { Error l -> throw Error(("Included here ",snd e)::l) };
-		ctx.vars := old;
-		(ESub b, snd e)
+		var export = (String.get name 0) == '_';
+		try {
+			if !export then {
+				var b = List.map (check ctx) b;
+				ctx.ns := old_ns;
+				ctx.vars := old_vars;
+				ctx.blocks := old_blocks;
+				(ESub b, p)
+			} else {
+				var locals = &Map.empty();
+				var b = List.map (function(e){
+					match fst e {
+					| EVar (name,value) when name != "namespace" -> locals := Map.add (*locals) name value;
+					| _ ->
+					}
+					check ctx e;
+				}) b;
+				ctx.vars := old_vars;
+				Map.iter (function(name, value) ctx.vars := Map.add ctx.vars name value) (*locals);
+				(ESub b, p)
+			}
+		} catch {
+		| Error l -> throw Error(("Included here ",p)::l)
+		}
 	| ESub el ->
 		(ESub (List.map (check ctx) el),snd e)
 	| EMedia (l,el) ->
@@ -873,7 +895,15 @@ function rec check(ctx,e) {
 				Lexer.input lex path.full ch 1 0;
 				var el = Hss.Parser.parse lex;
 				IO.close_in ch;
-				(ESub (List.map (check ctx) el), p)
+				var export = (String.get path.name 0) == '_';
+				var old_ns, old_vars, old_blocks = (ctx.ns, ctx.vars, ctx.blocks)
+				var el = List.map (check ctx) el;
+				if !export then {
+					ctx.ns := old_ns;
+					ctx.vars := old_vars;
+					ctx.blocks := old_blocks;
+				}
+				(ESub el, p)
 			| "css" ->
 				(EImport file, p)
 			| _ ->
