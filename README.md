@@ -251,6 +251,59 @@ a:not([href]):nth-child(2n+1) {
 }
 ```
 
+### Condition
+
+Support a simple conditional statement that is to use `&&` and `||` to join exprs, and the left of the expr must be "Property Variable" or `-Dname[=value]`*(spaces are not allowed in the definetion)* from Console.
+
+```scss
+var polyfill = { background-color: blue; }
+var ie8 = 1;                      // define property var or you can pass "-Die8" from Console
+.one {
+  $ie8 && $polyfill;              // ifdef $ie8 then $polyfill
+}
+
+var alpha = {
+  opacity: $alpha / 100.;
+  filter: alpha(opacity = $alpha);
+}
+span {
+  $flag || $alpha(alpha = 80);    // if not def $flag then $alpha
+}
+```
+HSS will not detect the specific value of the left(Property) variable, only determine whether it is defined, and the right side can also be the following values:
+
+```scss
+$url && @import($url);   // @import, Note: @import only works in top level
+
+.two {
+  var blue = #00e;
+
+  $blue && color: $blue; // A CSS Attribute: Value;
+
+  $flags || {            // A Braces Block then all internal exprs will be moved to the current scope
+    var blue = #00f;
+    &:hover {
+      color: $blue;
+    }
+  }
+
+  $ie8 || $ie9 && {      // The left can be multiple conditions, but parentheses are not supported
+    border: 0;
+  }
+}
+```
+
+the output is:
+
+```css
+.two {
+  color: #00e;
+}
+.two:hover {
+  color: #00f;
+}
+```
+
 ### Comments
 There are two kind of comments possible in HSS, which are the same used in popular syntax such as C/Java. The `/* ... */` comment is a multiline comment which is already part of CSS and the `// ....` comment is used for single-line comment.
 ```scss
@@ -278,6 +331,29 @@ HSS also enforces some good CSS practices such as :
  * URLs must be quoted : don't do url(img.gif) but please use url('img.gif') instead.
  * the background property has a fixed order, which is the following :
  * background : [color] [url] [repeat] [scroll|fixed] [horiz.] [vert.]
+
+#### Notes
+
+* HSS does not support any ratio values such as `16px/1.2`, because it will be calculated and the result is not what you expect.
+
+* HSS will try to detect if `@media` query is valid, but not all the syntax, so in some cases you should use **quotes** to skip detection
+
+  ```scss
+  // Only supports Property Variables in value of the feature/attribute
+  var narrow_width = 767px;
+  @media only screen and (max-width : $narrow_width) {}
+
+  // Hss does not support any ratio value, so you need use quotes to skip detection in media query.
+  @media (min-aspect-ratio: "1/1") {}
+
+  // quotes for some deprecated type
+  @media "tv", "handheld" {}
+
+  // You can use quotes almost everywhere
+  @media "screen and (min-width: 30em) and (orientation: landscape)" {}
+  @media screen and (min-width: 30em) "and (orientation: landscape)" {}
+  @media screen "and (min-width: 30em)" and (orientation: landscape) {}
+  ```
 
 ### CSS Rules
 The whole CSS properties rules that are used to check the property value correctness are listed in the Rules.nml file of the HSS sources. You might want to modify them for your own needs.
@@ -358,27 +434,6 @@ Operations between two different units (for instance 50px + 3em) are not allowed
   .logo {
     background-image: embed("logo.png"); // the png is relative to current .hss file.
   }
-  ```
-
-### Notes
-
-* `@media`: HSS will try to detect if @media query is valid, but not all the syntax, so in some cases you should use **quotes** to skip detection
-
-  ```scss
-  // Only supports Property Variables in value of the feature/attribute
-  var narrow_width = 767px;
-  @media only screen and (max-width : $narrow_width) {}
-
-  // Hss does not support any ratio value, so you need use quotes to skip detection in media query.
-  @media (min-aspect-ratio: "1/1") {}
-
-  // quotes for some deprecated type
-  @media "tv", "handheld" {}
-
-  // You can use quotes almost everywhere.
-  @media "screen and (min-width: 30em) and (orientation: landscape)" {}
-  @media screen and (min-width: 30em) "and (orientation: landscape)" {}
-  @media screen "and (min-width: 30em)" and (orientation: landscape) {}
   ```
 
 ## Credits

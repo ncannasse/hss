@@ -35,6 +35,8 @@ type op {
 	And;
 	Or;
 	Xor;
+	BoolAnd;
+	BoolOr;
 }
 
 type token {
@@ -65,6 +67,9 @@ type token {
 	Tild;
 	Dollar;
 	Media;
+	Import;
+	Keyframes;
+	Include;
 }
 
 type expr;
@@ -142,11 +147,12 @@ type expr_decl {
 	EVarBlock : (string, expr list);
 	EAttribute : (string, value);
 	EUseBlock : (string, value list);
+	EIfDefine: ((string, bool), expr);
 	EBlock : (class list, expr list);
 	ESub : expr list;
 	EMedia : (media list, expr list);
 	EInclude : string;
-	EImport : string;
+	EImport : value;
 	EKeyframes: (string, (value, expr list) list);
 }
 
@@ -179,6 +185,8 @@ function s_op(o) {
 	| And -> "&"
 	| Or -> "|"
 	| Xor -> "^"
+	| BoolAnd -> "&&"
+	| BoolOr -> "||"
 	}
 }
 
@@ -211,6 +219,9 @@ function s_token(x) {
 	| Tild -> "~"
 	| Dollar -> "$"
 	| Media -> "@media"
+	| Import -> "@Import"
+	| Keyframes -> "@keyframes"
+	| Include -> "@Include"
 	}
 }
 

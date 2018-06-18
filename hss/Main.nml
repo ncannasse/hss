@@ -18,6 +18,7 @@ open Hss.Rules;
 exception Error : (string, pos) list;
 
 type context {
+	defines: (string, value) Map.t;
 	mutable vars : (string,value) Map.t;
 	mutable blocks : (string,expr list) Map.t;
 	mutable eval_rec : int;
@@ -182,6 +183,7 @@ function rec print_css(ch,tabs,e) {
 			print_sep "; " (print_value) ch pl;
 			IO.write ch ");\n";
 		}
+	| EIfDefine _ -> // no output
 	| ESub el ->
 		List.iter (print_css ch tabs) el
 	| EMedia (v,el) ->
@@ -198,12 +200,12 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch tabs;
 		IO.write ch s;
 		IO.write ch "\n";
-	| EImport s ->
-		try {
-			IO.write ch IO.file_contents(s)
-		} catch {
-		| _ -> error("file error: " + s, snd e)
+	| EImport v ->
+		var s = match fst v {
+		| VString s -> s
+		| _ -> error("String value require for " + "@import" + "("+ (s_value v) +")", pos v)
 		}
+		try IO.write ch IO.file_contents(s) catch { _ -> error("file error: " + s, snd e) }
 		IO.write ch "\n";
 	| EKeyframes (name, ks) ->
 		IO.printf ch "%s@keyframes %s {\n" (tabs,name);
@@ -250,7 +252,7 @@ function rec flatten_subs(acc,e) {
 
 function rec flatten(parents,e) {
 	match fst e {
-	| EVar _ | EAttribute _ | EUseBlock _ | EVarBlock _ -> []
+	| EVar _ | EAttribute _ | EUseBlock _ | EIfDefine _ | EVarBlock _ -> []
 	| ESub el ->
 		List.concat (List.map (flatten parents) el)
 	| EBlock (classes,el) ->
@@ -431,7 +433,7 @@ function rec eval(ctx,v) {
 	| VGroup vl ->
 		(VGroup (List.map (eval ctx) vl),snd v)
 	| VVar name ->
-		if ctx.eval_rec > 1000 then error "Invalid loop in variable expension" snd(v);
+		if ctx.eval_rec > 100 then error "Invalid loop in variable expension" snd(v);
 		var val = (try Map.find ctx.vars name catch { Not_found -> error ("Variable not declared '" + name + "'") snd(v) });
 		ctx.eval_rec := ctx.eval_rec + 1;
 		var r = eval ctx val;
@@ -455,7 +457,7 @@ function rec eval(ctx,v) {
 			| Sub -> x - y
 			| Mul -> x * y
 			| Div -> if y == 0. then error "Division by 0" snd(v) else x / y
-			| And | Or | Xor -> error "Not supported" snd(v)
+			| And | Or | Xor | BoolOr | BoolAnd -> error ("UnSupported "+"Op: "+s_op op) snd(v)
 			}
 		};
 		function rec loop(v1,v2) {
@@ -751,6 +753,7 @@ function check_media(ctx, l: media list) {
 	loop l state
 }
 
+// simple detection only, cannot detect circular references
 function selfref_var(id, v) {
 	match fst v {
 	| VVar name when id == name -> error("Self referencing loop: " + id + " = $" + id, pos v)
@@ -781,7 +784,7 @@ function rec check(ctx,e) {
 	| EVar ("namespace",value) ->
 		match fst value {
 		| VString s -> ctx.ns := Some s;
-		| _ -> error "String value require for namespace" snd(value);
+		| _ -> error ("String value require for " + "namespace") snd(value);
 		}
 		e
 	| EVar (name,value) ->
@@ -833,8 +836,9 @@ function rec check(ctx,e) {
 		match value {
 		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> e
 		| _ ->
-			load_rules(get_rule ctx, name, value, pos e);
-			expand_hacks(name, value, pos e)
+			var p = pos e;
+			load_rules(get_rule ctx, name, value, p);
+			expand_hacks(name, value, p)
 		}
 	| EUseBlock(name, pl) ->
 		var p = pos e;
@@ -848,9 +852,9 @@ function rec check(ctx,e) {
 			| _ ->
 			}
 		}) pl;
-		var export = (String.get name 0) == '_';
+		var no = (String.get name 0) != '_';
 		try {
-			if !export then {
+			if no then {
 				var b = List.map (check ctx) b;
 				ctx.ns := old_ns;
 				ctx.vars := old_vars;
@@ -860,7 +864,9 @@ function rec check(ctx,e) {
 				var locals = &Map.empty();
 				var b = List.map (function(e){
 					match fst e {
-					| EVar (name,value) when name != "namespace" -> locals := Map.add (*locals) name value;
+					| EVar (name,value) when name != "namespace" ->
+						selfref_var name value;
+						locals := Map.add (*locals) name value;
 					| _ ->
 					}
 					check ctx e;
@@ -872,15 +878,35 @@ function rec check(ctx,e) {
 		} catch {
 		| Error l -> throw Error(("Included here ",p)::l)
 		}
+	| EIfDefine((name, t), b) ->
+		function rec loop(name, t, b, pr, pt) {
+			var r = match (pr, pt) {
+			| (true, false) -> true  //  ( true, ||)
+			| (false, true) -> false //  (false, &&)
+			| _ -> Map.exists ctx.defines name || Map.exists ctx.vars name;
+			}
+			match fst b {
+			| EIfDefine ((name, t2), b) -> loop name t2 b r t
+			| _ ->
+				var next = if t then r else !r;
+				if next then check ctx b else (ESub [], pos b)
+			}
+		}
+		loop name t b true true;
 	| ESub el ->
 		(ESub (List.map (check ctx) el),snd e)
 	| EMedia (l,el) ->
 		(EMedia (check_media ctx l) (List.map (check ctx) el), snd e)
 	| EInclude _ ->
 		e
-	| EImport s ->
+	| EImport v ->
+		var ev = eval ctx v;
+		var s = match fst ev {
+		| VString s -> s
+		| _ -> error("String value require for " + "@import" + "("+ (s_value v) +")", pos v)
+		}
 		var p = pos e;
-		if ctx.curblock != None then error("Only allowed on the top level: " + "@import", p)
+		if ctx.curblock != None then error("only" + " allowed at the top level: " + "@import", p)
 		var parent = Hss.Utils.path_find(Lexer.source p);
 		var file = if Hss.Utils.is_abs_path(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
 		var path = Hss.Utils.path(file, "hss", false);
@@ -895,25 +921,25 @@ function rec check(ctx,e) {
 				Lexer.input lex path.full ch 1 0;
 				var el = Hss.Parser.parse lex;
 				IO.close_in ch;
-				var export = (String.get path.name 0) == '_';
+				var no = (String.get path.name 0) != '_';
 				var old_ns, old_vars, old_blocks = (ctx.ns, ctx.vars, ctx.blocks)
 				var el = List.map (check ctx) el;
-				if !export then {
+				if no then {
 					ctx.ns := old_ns;
 					ctx.vars := old_vars;
 					ctx.blocks := old_blocks;
 				}
 				(ESub el, p)
 			| "css" ->
-				(EImport file, p)
+				(EImport (VString file, pos v), p)
 			| _ ->
-				error("UnSupported Type: " + "." + path.ext, p)
+				error("UnSupported " + "Type: " + "." + path.ext, p)
 			}
 		} else {
 			(ESub [], p) // duplicate, simply ignore it;
 		}
 	| EKeyframes (name, ks) ->
-		if ctx.curblock != None then error("Only allowed on the top level: " + "@keyframes", pos e)
+		if ctx.curblock != None then error("only" + " allowed at the top level: " + "@keyframes", pos e)
 		var ks = List.map(function(k){
 			var v = fst k;
 			match fst v {
@@ -941,6 +967,25 @@ function rec check(ctx,e) {
 	}
 }
 
+function parse_defs(defs, arg) {
+	function ident(s) Regexp.find r_ident s 0 (String.length s);
+	var null_pos = Lexer.null_pos;
+	var a = String.split arg "=";
+	var name, value = match a {
+	| [i] when (ident i) -> (i, VString "1")
+	| [i; s] when (ident i) ->
+		(i, match (String.get s 0) {
+		| '#' ->
+			var r, g, b = HSS.Utils.ofhex String.sub(s, 1, (String.length s) - 1) null_pos;
+			VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
+		| '0' when (String.get s 1) == 'x' -> VInt int(s)
+		| _ ->  VString s
+		})
+	| _ -> error ("Unexpected " + "-D" + arg) null_pos
+	}
+	defs := Map.add (*defs) name (value, null_pos)
+}
+
 function display(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
@@ -955,13 +1000,21 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.5.2 - (c)2008-2013 Nicolas Cannasse\nUsage : hss [options] <file>";
+	var head = "HSS v1.5.3 - (c)2008-2013 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
+	var defs = &Map.empty();
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 	];
-	Args.parse head decl (function(file) files := file :: *files);
+	Args.parse head decl (function(file) {
+		var len = String.length file;
+		if len >= 2 && String.sub(file, 0, 2) == "-D" then {
+			parse_defs defs String.sub(file, 2, len-2)
+		} else {
+			files := file :: *files
+		}
+	});
 	List.iter (function(file) {
 		// parse
 		var ch = IO.read_file file true;
@@ -971,7 +1024,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; ns = None; curblock = None; };
+		var ctx = { defines = *defs; vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
