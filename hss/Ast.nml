@@ -219,9 +219,9 @@ function s_token(x) {
 	| Tild -> "~"
 	| Dollar -> "$"
 	| Media -> "@media"
-	| Import -> "@Import"
+	| Import -> "@import"
 	| Keyframes -> "@keyframes"
-	| Include -> "@Include"
+	| Include -> "@include"
 	}
 }
 
