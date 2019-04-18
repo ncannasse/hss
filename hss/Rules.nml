@@ -59,16 +59,7 @@ var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RU
 var runits = pct::rlength
 var len = ROr rlength
 var units = ROr runits
-var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"]
-var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"]
-var rflex_basis = List.append (ids ["auto";"content"]) runits
-var rflex = [
-	none;
-	RFloat;           // interpreted as "flex-grow"
-	ROr rflex_basis;  // interpreted as "flex-basis"
-	RGroup [RFloat; ROr rflex_basis];        // flex-shrink, flex-basis
-	RGroup [RFloat; RFloat; ROr rflex_basis] // flex-grow, flex-shrink, flex-basis
-]
+
 var max255 = RIntRange 0 255
 var alpha = RFloatRange 0. 1.
 var color = List.append [
@@ -114,12 +105,7 @@ var border = [
 	RGroup [ROr border_width;ROr bstyle;ROr trans_color];
 ]
 
-var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
-var font_family = RMany ROr([RIdent;RString;RGroup [RIdent;RIdent]]) // can be composed of up to 2 words
-var font_style = ids ["italic";"normal";"oblique"]
-var font_variant = ids ["normal";"small-caps"]
-var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
-
+// reference by Main.nml
 var font_face_src = RMany (ROr [url;RGroup [url;RCall RId("format") RList([RString])]])
 
 var pseudo_content = {
@@ -261,8 +247,13 @@ var rules = List.concat [[
 	("visibility",ids ["visible";"hidden"]);
 	("box-sizing", ids ["content-box"; "border-box"]);
 	// clip ?
-];[
-	// Fonts and texts
+]; {// Fonts and texts
+	var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
+	var font_family = RMany ROr([RIdent;RString;RGroup [RIdent;RIdent]]) // can be composed of up to 2 words
+	var font_style = ids ["italic";"normal";"oblique"]
+	var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
+	var font_variant = ids ["normal";"small-caps"];
+	[
 	("font",[
 		RGroupOpt [ROr font_style;ROr font_variant;ROr font_weight;font_family]; // no support for /line-height notation
 		ROr (ids ["caption";"icon";"menu";"message-box";"small-caption";"status-bar"]);
@@ -286,7 +277,8 @@ var rules = List.concat [[
 	("word-break", ids ["normal";"keep-all";"break-all"]);
 	("word-wrap", ids ["normal";"break-word"]);
 	("direction", ids ["ltr";"rtl"]);
-];[
+	]
+};[
 	// background
 	("background",[
 		none;
@@ -396,8 +388,18 @@ var rules = List.concat [[
 	// hss-specific
 	("hss-width",runits_auto);
 	("hss-height",runits_auto);
-];[
-	//flex
+]; {// flex
+	var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"]
+	var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"]
+	var rflex_basis = List.append (ids ["auto";"content"]) runits
+	var rflex = [
+		none;
+		RFloat;           // interpreted as "flex-grow"
+		ROr rflex_basis;  // interpreted as "flex-basis"
+		RGroup [RFloat; ROr rflex_basis];        // flex-shrink, flex-basis
+		RGroup [RFloat; RFloat; ROr rflex_basis] // flex-grow, flex-shrink, flex-basis
+	];
+	[
 	("flex", rflex);
 	("flex-direction",rflex_direction);
 	("flex-wrap", rflex_wrap);
@@ -414,7 +416,8 @@ var rules = List.concat [[
 	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"; RId "initial";]);
 	("align-self", [RId "auto"; RId "flex-start"; RId "flex-end"; RId "center"; RId "baseline"; RId "stretch"]);
 	("order", [RInt]);
-]; (function(){
+	]
+}; {// animations
 	var name = [RIdent]
 	var dir  = [RId "normal"; RId "reverse"; RId "alternate"; RId "alternate-reverse"]
 	var mode = [none; RId "forwards"; RId "backwards"; RId "both"]
@@ -430,8 +433,8 @@ var rules = List.concat [[
 	]
 	function many(r) {RMany (ROr r)}
 	function ors(li) {List.map(function(r){ROr r}, li)}
-	// animations
-	[("animation", [
+	[
+	("animation", [
 		none;
 		RGroupOpt (ors [name; duration; tween; delay; count; dir; mode; state]);
 		RGroupOpt (ors [duration; tween; delay; count; dir; mode; state; name]);
@@ -454,7 +457,8 @@ var rules = List.concat [[
 	("transition-duration", [many duration]);
 	("transition-property", [many name]);
 	("transition-timing-function", [many tween]);
-]})()
+	]
+}
 ];
 
 var media_rules = [
