@@ -252,7 +252,11 @@ var rules = List.concat [[
 	var font_family = RMany ROr([RIdent;RString;RGroup [RIdent;RIdent]]) // can be composed of up to 2 words
 	var font_style = ids ["italic";"normal";"oblique"]
 	var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
-	var font_variant = ids ["normal";"small-caps"];
+	var font_variant = ids ["normal";"small-caps"]
+	var text_decoration_style = ids ["solid";"double";"dotted";"dashed";"wavy"]
+	var rline = ROr (ids ["underline";"blink";"line-through";"overline"])
+	var text_decoration_line = [none; RGroupOpt [rline; rline; rline]]
+	var text_decoration = (RGroup [rline; ROr text_decoration_style; ROr color]) :: text_decoration_line;
 	[
 	("font",[
 		RGroupOpt [ROr font_style;ROr font_variant;ROr font_weight;font_family]; // no support for /line-height notation
@@ -263,7 +267,10 @@ var rules = List.concat [[
 	("font-variant",font_variant);
 	("font-weight",font_weight);
 	("text-align",ids ["center";"justify";"left";"right"]);
-	("text-decoration",ids ["none";"underline";"blink";"line-through";"overline"]);
+	("text-decoration-line", text_decoration_line);
+	("text-decoration-color", color);
+	("text-decoration-style",text_decoration_style);
+	("text-decoration", text_decoration);
 	("font-style",font_style);
 	("color",color);
 	("text-transform",ids ["capitalize";"lowercase";"none";"uppercase"]);
