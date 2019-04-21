@@ -55,7 +55,7 @@ var allow_duplicate_attributes = [
 ];
 var none = RId "none"
 var pct = RUnit "%"
-var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in";]
+var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in"; RUnit "vh"; RUnit "vw";]
 var runits = pct::rlength
 var len = ROr rlength
 var units = ROr runits
