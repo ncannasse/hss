@@ -242,7 +242,7 @@ var rules = List.concat [[
 	("overflow",ids ["auto";"hidden";"scroll";"visible"]);
     ("overflow-x",ids ["auto";"hidden";"scroll";"visible"]);
     ("overflow-y",ids ["auto";"hidden";"scroll";"visible"]);
-	("position",ids ["absolute";"fixed";"relative";"static"]);
+	("position",ids ["absolute";"fixed";"relative";"static"; "sticky"]);
 	("z-index",[RInt;RId "auto"]);
 	("visibility",ids ["visible";"hidden"]);
 	("box-sizing", ids ["content-box"; "border-box"]);
