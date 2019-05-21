@@ -133,6 +133,8 @@ var bgfilters =
 		RCall (RId "linear-gradient") RListCustom([(ROr List.concat([bgpos;angle]),OOpt); (ROr gradient_color, ONormal); (ROr gradient_color, ONormal); (ROr gradient_color, OMany)]);
 	]
 
+var layout_overflow = ids ["auto";"hidden";"scroll";"visible";"clip"]
+
 var transform_function = {
 	var num   = RFloat;
 	var trans = units;
@@ -239,9 +241,9 @@ var rules = List.concat [[
 	("display",ids ["block";"inline";"none";"inline-block";"table";"inline-table";"table-row";"table-row-group";"table-header-group";"table-footer-group";"table-column";"table-column-group";"table-cell";"table-caption";"flex";"inline-flex"]);
 	("float",ids ["left";"right";"none"]);
 	("clear",ids ["none";"left";"right";"both"]);
-	("overflow",ids ["auto";"hidden";"scroll";"visible"]);
-    ("overflow-x",ids ["auto";"hidden";"scroll";"visible"]);
-    ("overflow-y",ids ["auto";"hidden";"scroll";"visible"]);
+	("overflow", [ROr layout_overflow; RGroup [ROr layout_overflow; ROr layout_overflow]]);
+	("overflow-x", layout_overflow);
+	("overflow-y", layout_overflow);
 	("position",ids ["absolute";"fixed";"relative";"static"; "sticky"]);
 	("z-index",[RInt;RId "auto"]);
 	("visibility",ids ["visible";"hidden"]);
