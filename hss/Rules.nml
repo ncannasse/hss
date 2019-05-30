@@ -244,6 +244,7 @@ var rules = List.concat [[
 	("overflow", [ROr layout_overflow; RGroup [ROr layout_overflow; ROr layout_overflow]]);
 	("overflow-x", layout_overflow);
 	("overflow-y", layout_overflow);
+	("text-overflow", [RId "ellipsis"; RId "clip"]); // only basic
 	("position",ids ["absolute";"fixed";"relative";"static"; "sticky"]);
 	("z-index",[RInt;RId "auto"]);
 	("visibility",ids ["visible";"hidden"]);
