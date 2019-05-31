@@ -39,6 +39,7 @@ type rule {
 	RBind : (string, rule);
 	RGroupOpt : rule list;
 	RListCustom : (rule, rule_option) list;
+	RGroupCustom : (rule, rule_option) list;  // order independent
 }
 
 function ids(l) { List.map RId l }
@@ -102,7 +103,7 @@ var border_width = outline_width;
 var border = [
 	none;
 	ROr border_width;
-	RGroup [ROr border_width;ROr bstyle;ROr trans_color];
+	RGroupCustom [(ROr border_width, ONormal); (ROr bstyle, ONormal); (ROr trans_color, ONormal)];
 ]
 
 // reference by Main.nml

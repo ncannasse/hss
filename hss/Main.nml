@@ -315,6 +315,39 @@ function rec check_rule(r,v) {
 		} catch {
 			Exit -> false
 		}
+	| (RGroupCustom rl, VGroup vl) ->
+		var many = &[];
+		function rec loop(rl, vl) {
+			match vl {
+			| [] ->
+				List.none (function(r) match (snd r) {
+				| ONormal -> true
+				| OOpt -> false
+				| OMany -> List.none(function(x) x === r, *many) // not exists => true
+				}) rl
+			| v :: vl ->
+				var ok = &false;
+				function rec filter(rl, v) {
+					match rl {
+					| [] -> rl
+					| r :: rest ->
+						ok := check_rule (fst r) v;
+						if (*ok) then
+							match (snd r) {
+							| OMany -> (many := r :: *many); rl
+							| _ -> rest
+							}
+						else
+							r :: (filter rest v)
+					}
+				}
+				var rest = filter rl v;
+				if (*ok) then loop rest vl else false
+			}
+		}
+		loop rl vl
+	| (RGroupCustom _, VList _) -> false
+	| (RGroupCustom _, _) -> check_rule r (VGroup [v], snd v)
 	| (RListCustom rl, VList vl) ->
 		function rec loop(rl,vl) {
 			match (rl,vl) {
