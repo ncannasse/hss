@@ -81,7 +81,7 @@ function rec expr(s) {
 function rec media_list(s) {
 	match s {
 	| [< (Comma, p) >] -> (MComma,p)::(media_list s)
-	| [< (Const (String str),p) >] -> (MCSS str, p)::(media_list s)
+	| [< (Const (String str),p) >] -> (MQuotes str, p)::(media_list s)
 	| [< (Const (Ident id), p) >] ->
 		var id = String.lowercase id;
 		(match id {

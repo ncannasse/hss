@@ -136,12 +136,12 @@ function rec print_media(ch, sp, e) {
 	| MNot   -> IO.write ch "not"
 	| MOnly  -> IO.write ch "only"
 	| MAnd   -> IO.write ch "and"
-	| MType s | MCSS s -> IO.write ch s;
+	| MType s | MQuotes s -> IO.write ch s;
 	| MSigAttr s       -> IO.write_char ch '('; IO.write ch s; IO.write_char ch ')';
 	| MAttr(s, val)    -> IO.write_char ch '('; IO.write ch s; IO.write_char ch ':';
 		IO.write_char ch ' ';
 		match fst val {
-		| VString s | VIdent s -> IO.write ch s; // MCSS does not require quotes
+		| VString s | VIdent s -> IO.write ch s;
 		| _ -> print_value ch val;
 		}
 		IO.write_char ch ')';
@@ -694,40 +694,38 @@ var media_hrules = {
 	h
 }
 
-function check_media(ctx, l: media list) {
+function check_media(ctx, ml: media list) {
 	function err (s, p) { error ("Unexpected " + s) p}
 	// eval ,check rule, and check state in a loop
 	function rec loop(l: media list, state: int ref) {
 		var i = *state;
-		// 0: after MCSS          -> for ALL Types
-		// 1: after(BEGIN, MComma)-> MCSS, (MType, MAttr, MSigAttr, MParent), (MNot, MOnly)
-		// 2: after (MAnd)        -> MCSS, (MType, MAttr, MSigAttr, MParent)
-		// 3: after (MType, MAttr, MSigAttr, MParent) -> MCSS, (MComma, MAnd)
-		// 4: after (MNot, MOnly) -> MCSS, MType
+		// MQuotes         : 0, Accept: [ALL]
+		// MComma, (BEGIN) : 1, Accept: [3, 0]
+		// MAnd            : 2, Accept: [3, 0]
+		// MType           : 3, Accept: [NOT 3]
+		// MSigAttr        : 3, Accept: [2, 1, 0]
+		// MAttr           : 3, Accept: [2, 1, 0]
+        // MParent         : 3, Accept: [2, 1, 0]
+		// MNot, MOnly     : 4, Accept: [1, 0]
 		match l {
-		| [] as l -> l
+		| [] -> ml
 		| x :: tl ->
 			var p = pos x;
-			(match fst x {
+			match fst x {
 			| MComma ->
 				state := if (i == 3 || i == 0) then 1 else err(",", p);
-				x
 			| MAnd ->
 				state := if (i == 3 || i == 0) then 2 else err("and", p);
-				x
 			| MNot | MOnly ->
 				state := if i < 2 then 4 else err (if fst x == MNot then "not" else "only") p;
-				x
 			| MType s ->
-				state := if i != 3 then 3 else err(s, p);
-				x
+				state := if i !=3 then 3 else err(s, p);
 			| MSigAttr s ->
 				state := if i < 3 then 3 else err("("+ s + ")", p);
 				match s {
 				| "color" | "color-index" | "monochrome" -> ()
 				| _ -> err("("+ s + ")", p)
 				}
-				x
 			| MAttr(k, v) ->
 				state := if i < 3 then 3 else err("("+ k + ": " + (s_value v) + ")", p);
 				var v = eval ctx v;
@@ -735,22 +733,20 @@ function check_media(ctx, l: media list) {
 				| VString _ -> () // skip check rule
 				| _ -> load_rules(Hashtbl.find media_hrules, k, v, p)
 				}
-				(MAttr(k, v), p)
 			| MParent l ->
 				if l == [] then err("()", p)
 				var r = if i < 3 then 3 else err("(...)", p);
 				state := 1        // set begin
 				var x = (MParent (loop l state), p);
 				state := r;
-				x;
-			| MCSS _ ->
+			| MQuotes _ ->
 				state := 0;
-				x
-			}) :: (loop tl state)
+			}
+			loop tl state
 		}
 	}
 	var state = &1;
-	loop l state
+	loop ml state;
 }
 
 // simple detection only, cannot detect circular references

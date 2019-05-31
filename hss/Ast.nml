@@ -137,7 +137,7 @@ type media_decl {
 	MType: string;          // screen, all, print, speech
 	MAttr: (string, value); // (attr: value)
 	MSigAttr: string;       // (attr)
-	MCSS: string;           // "string"
+	MQuotes: string;        // "string"
 	MParent: media list;    // ()
 }
 type media = (media_decl, pos)
