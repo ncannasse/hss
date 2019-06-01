@@ -317,6 +317,16 @@ function rec check_rule(r,v) {
 		}
 	| (RGroupCustom rl, VGroup vl) ->
 		var many = &[];
+		function rec lcat(lf, n) {
+			if n == 0 then
+				[]
+			else match (*lf) {
+				| [] -> invalid_arg()
+				| x :: tl ->
+					lf := tl;
+					x :: lcat(lf, n -1)
+			}
+		}
 		function rec loop(rl, vl) {
 			match vl {
 			| [] ->
@@ -327,22 +337,36 @@ function rec check_rule(r,v) {
 				}) rl
 			| v :: vl ->
 				var ok = &false;
+				var prev = &vl;
+				var curr = &vl;
 				function rec filter(rl, v) {
 					match rl {
 					| [] -> rl
 					| r :: rest ->
-						ok := check_rule (fst r) v;
+						var x = fst r;
+						ok := match x {
+						| RGroup g -> // if RGroup in RGroupCustom and RGroup must be the immediate children
+							var len = List.length(g);
+							if len > 1 && (List.length(*curr) + 1) >= len then {
+								var b = check_rule x (VGroup (v :: lcat(curr, len - 1)), snd v); // TODO: punion
+								if b then prev := *curr else curr := *prev;
+								b
+							} else
+								false
+						| _ -> check_rule x v;
+						}
 						if (*ok) then
 							match (snd r) {
 							| OMany -> (many := r :: *many); rl
 							| _ -> rest
 							}
-						else
+						else {
 							r :: (filter rest v)
+						}
 					}
 				}
-				var rest = filter rl v;
-				if (*ok) then loop rest vl else false
+				var rl = filter rl v;
+				if (*ok) then loop rl (*curr) else false
 			}
 		}
 		loop rl vl
