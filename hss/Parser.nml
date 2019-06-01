@@ -390,22 +390,24 @@ function rec class(s,first) {
 			loop (i+1)
 		}
 	}
-
-	var opt = (stream_token s 0);
 	c.operator := match s {
 	| [< (Gt,_) >] -> OpChild
 	| [< (Tild,_) >] -> OpPreceding false
 	| [< (Op Add,_) >] -> OpPreceding true
 	| [< (Op And,p) >] ->
-		match fst (stream_token s 0) {
-		| Dot | Selector _ | DoubleDotx2 | BracketOpen | SelectorCall _ -> OpJoint
-		| _ -> error Unexpected(Op And) p
+		var nxt = stream_token s 0;
+		match (fst nxt) {
+		| Gt     -> stream_junk s 1; OpChild
+		| Tild   -> stream_junk s 1; OpPreceding false
+		| Op Add -> stream_junk s 1; OpPreceding true
+		| _ ->
+			var p2 = snd nxt;
+			if (p.pline == p2.pline && p.pmax == p2.pmin) then OpJoint else OpDefault
 		}
 	| [< >] -> OpDefault
 	}
 	var n = loop 0;
 	if n == 0 && c.attributes == [] then {
-		if c.operator != OpDefault then error Unexpected(fst opt) (snd opt);
 		error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos)
 	}
 	c.attributes := List.rev c.attributes;
