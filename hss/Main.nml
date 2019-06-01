@@ -316,7 +316,6 @@ function rec check_rule(r,v) {
 			Exit -> false
 		}
 	| (RGroupCustom rl, VGroup vl) ->
-		var many = &[];
 		function rec lcat(lf, n) {
 			if n == 0 then
 				[]
@@ -332,8 +331,7 @@ function rec check_rule(r,v) {
 			| [] ->
 				List.none (function(r) match (snd r) {
 				| ONormal -> true
-				| OOpt -> false
-				| OMany -> List.none(function(x) x === r, *many) // not exists => true
+				| _ -> false
 				}) rl
 			| v :: vl ->
 				var ok = &false;
@@ -355,14 +353,12 @@ function rec check_rule(r,v) {
 								false
 						| _ -> check_rule x v;
 						}
-						if (*ok) then
-							match (snd r) {
-							| OMany -> (many := r :: *many); rl
+						if (*ok) then match (snd r) {
+							| OMany -> rl
 							| _ -> rest
 							}
-						else {
+						else
 							r :: (filter rest v)
-						}
 					}
 				}
 				var rl = filter rl v;
