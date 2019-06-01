@@ -316,6 +316,7 @@ function rec check_rule(r,v) {
 			Exit -> false
 		}
 	| (RGroupCustom rl, VGroup vl) ->
+		var used = &[]
 		function rec lcat(lf, n) {
 			if n == 0 then
 				[]
@@ -353,12 +354,12 @@ function rec check_rule(r,v) {
 								false
 						| _ -> check_rule x v;
 						}
-						if (*ok) then match (snd r) {
-							| OMany -> rl
-							| _ -> rest
-							}
-						else
-							r :: (filter rest v)
+						match (*ok, snd r) {
+						| (true, OMany) -> (used := r :: *used); rl
+						| (true, _) -> rest
+						| (_, OMany) when List.exists(function(x) x === r,*used) -> (filter rest v)
+						| _ -> r :: (filter rest v)
+						}
 					}
 				}
 				var rl = filter rl v;
