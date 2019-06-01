@@ -2,10 +2,8 @@
 
 ## Usage
 
-First you should compile them, it depends on Neko, but if you already have the [haxe](https://haxe.org/), then you will no longer need to download [Neko](http://nekovm.org/).
+First you have to build it by `make` or `build.bat`(*if Windows*), it's depends on [Neko](http://nekovm.org/) or [Haxe](https://haxe.org/)
 
-> If you are on Windows platform and don't have the `gun make`, just run `build.bat`
->
 > Or Download HSS and put it in some place where it can be run from the commandline :
 >* Windows version : <http://ncannasse.fr/file/hss-1.3-win.zip>
 >* OSX version : <http://ncannasse.fr/file/hss-1.3-osx.gz>
@@ -329,12 +327,10 @@ HSS also enforces some good CSS practices such as :
 
  * properties declarations must always end with a semicolon (;)
  * URLs must be quoted : don't do url(img.gif) but please use url('img.gif') instead.
- * the background property has a fixed order, which is the following :
- * background : [color] [url] [repeat] [scroll|fixed] [horiz.] [vert.]
 
 #### Notes
 
-* HSS does not support any ratio values such as `16px/1.2`, because it will be calculated and the result is not what you expect.
+* HSS does not support any ratio values such as `16px/1.2`
 
 * HSS will try to detect if `@media` query is valid, but not all the syntax, so in some cases you should use **quotes** to skip detection
 

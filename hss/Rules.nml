@@ -39,6 +39,7 @@ type rule {
 	RBind : (string, rule);
 	RGroupOpt : rule list;
 	RListCustom : (rule, rule_option) list;
+	RGroupCustom : (rule, rule_option) list; // order independent
 }
 
 function ids(l) { List.map RId l }
@@ -59,33 +60,31 @@ var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RU
 var runits = pct::rlength
 var len = ROr rlength
 var units = ROr runits
-
-var max255 = RIntRange 0 255
-var alpha = RFloatRange 0. 1.
-var color = List.append [
-	RHex 6; RHex 3;
-	RCall (RId "rgba") (RList [max255;max255;max255; alpha]);
-	RCall (RId "rgb") (RList [max255;max255;max255]);
-	RCall (RId "rgba") (RList [RHex 6; alpha]);
-	RCall (RId "rgba") (RList [RHex 3; alpha]);
-	RCall (RId "rgba") (RList [pct;pct;pct; alpha]);
-	RCall (RId "rgb") (RList [pct;pct;pct]);
-] (ids ["aqua";"black";"blue";"fuchsia";"gray";"grey";"green";"lime";"maroon";"navy";"olive";"orange";"purple";"red";"silver";"teal";"white";"yellow"])
-
+var color = {
+	var max255 = RIntRange 0 255
+	var alpha = RFloatRange 0. 1.;
+	List.append [
+		RHex 6;
+		RHex 3;
+		RCall (RId "rgba") (RList [max255;max255;max255; alpha]);
+		RCall (RId "rgb") (RList [max255;max255;max255]);
+		RCall (RId "rgba") (RList [RHex 6; alpha]);
+		RCall (RId "rgba") (RList [RHex 3; alpha]);
+		RCall (RId "rgba") (RList [pct;pct;pct; alpha]);
+		RCall (RId "rgb") (RList [pct;pct;pct]);
+	] (ids ["aqua";"black";"blue";"fuchsia";"gray";"grey";"green";"lime";"maroon";"navy";"olive";"orange";"purple";"red";"silver";"teal";"white";"yellow"])
+}
 var trans_color = RId "transparent" :: color
 
-var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"]
-
 var url = RCall RId("url") RList([RString])
-var url_or_embed = ROr [url; RCall RId("embed") RList([RString])]
 
 var inherit = RId "inherit"
 
 var lst = ids ["none"; "circle";"disc";"square";"decimal";"lower-alpha";"lower-roman";"upper-alpha";"upper-roman"]
 var lsp = ids ["inside";"outside"]
 
-var horiz = ids ["left";"right";"center"]
-var vert = ids ["top";"bottom";"center"]
+var horiz = ids ["center";"left";"right"]
+var vert = ids ["center";"top";"bottom"]
 
 var runits_auto = RId "auto" :: runits
 var units_auto = ROr runits_auto
@@ -93,45 +92,42 @@ var units_auto = ROr runits_auto
 var hunits = ROr (List.append horiz runits)
 var vunits = ROr (List.append vert runits)
 
-var bgpos = [hunits; RGroup [hunits;vunits];RGroup [ROr vert;ROr horiz];]
-var bgrepeat = ids ["repeat";"repeat-x";"repeat-y";"no-repeat"]
-var bgattach = ids ["scroll";"fixed"]
-
-var outline_width = List.append (ids ["thin";"medium";"thick"]) rlength
-var border_width = outline_width;
-var border = [
-	none;
-	ROr border_width;
-	RGroup [ROr border_width;ROr bstyle;ROr trans_color];
-]
-
 // reference by Main.nml
 var font_face_src = RMany (ROr [url;RGroup [url;RCall RId("format") RList([RString])]])
 
-var pseudo_content = {
-	var c = ROr [
+var pseudo_content = ROr [
+	ROr ([none; RId "normal"]);
+	RGroupCustom [(ROr [
 		ROr (ids ["open-quote"; "close-quote"; "no-open-quote"; "no-close-quote"]);
 		url;
 		RString;
 		RCall(RId "attr", RList [RIdent]);
 		RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
 		RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
-	];
-	ROr [
-		ROr ([none; RId "normal"]);
-		RGroupOpt [c; c; c; c; c] // repeatable
-	]
-}
+	], OMany)]
+]
 
 var angle = [RUnit "deg";RUnit "rad";RUnit "grad";RUnit "turn"]
-var gradient_color = [ROr color; RGroup [ROr color; RUnit "%"]]
 
-var bgcolor = trans_color
-
-var bgfilters =
-	[
-		RCall (RId "linear-gradient") RListCustom([(ROr List.concat([bgpos;angle]),OOpt); (ROr gradient_color, ONormal); (ROr gradient_color, ONormal); (ROr gradient_color, OMany)]);
+var image = {
+	var to = RId "to"
+	var h = ROr (ids ["left"; "right"])
+	var v = ROr (ids ["top"; "bottom"])
+	var side = [
+		RGroup [to; h];
+		RGroup [to; h; v];
+		RGroup [to; v];
+		RGroup [to; v; h];
 	]
+	var side_or_corner = List.append side angle
+	var gradient_color = ROr [ROr color; RGroup [ROr color; units]]
+	var linear_gradient = RCall (RId "linear-gradient") RListCustom([(ROr side_or_corner, OOpt); (gradient_color, ONormal); (gradient_color, ONormal); (gradient_color, OMany)]);
+	[
+		url;
+		linear_gradient;
+		RCall (RId "embed") RList([RString]) // a HSS function for embedding local png/jpg/gif as base64
+	]
+}
 
 var layout_overflow = ids ["auto";"hidden";"scroll";"visible";"clip"]
 
@@ -169,7 +165,7 @@ var transform_function = {
 		RCall (RId "rotateZ") r_angle;
 		RCall (RId "perspective") r_len;
 	];
-	[RGroupOpt [c; c; c; c; c]]  // repeatable
+	[RGroupCustom [(c,OMany)]]
 }
 
 var filter_function = {
@@ -179,8 +175,7 @@ var filter_function = {
 	var gt_0 = RIntRange 1 999;  // Integer greater than 0.
 	var dir = RIntRange 0 360;
 	var r_numpct = RList [ROr [RFloat; RUnit "%"]];
-	function b(s, r) {(RBind(s, r), OOpt)}
-	var c = ROr [ // css3 filter
+	var css3_filter = ROr [
 		url; // url to SVG filter
 		RCall (RId "blur") (RList [len]);
 		RCall (RId "brightness") r_numpct;
@@ -192,11 +187,12 @@ var filter_function = {
 		RCall (RId "sepia") r_numpct;
 		RCall (RId "hue-rotate") (RList [ROr angle]);
 		RCall (RId "drop-shadow") (RListCustom [(len, ONormal); (len, ONormal); (len, OOpt); (color, OOpt)]);
-	];
+	]
+	function b(s, r) {(RBind(s, r), OOpt)}
 	[
 		none;
-		RGroupOpt [c; c; c; c; c]; // css3 filters, repeatable
-		ROr [                      // old IE filters
+		RGroupCustom [(css3_filter,OMany)];
+		ROr [ // old IE filters
 			RId "xray"; RId "invert"; RId "gray"; RId "fliph"; RId "flipv";
 			RCall (RId "alpha") (RListCustom [
 				b("opacity", i100);
@@ -225,7 +221,7 @@ var rules = List.concat [[
 	("margin-right",runits_auto);
 	("margin-top",runits);
 	("margin-bottom",runits);
-	("margin",[RGroup [units_auto;units_auto;units_auto;units_auto]; units_auto; RGroup [units_auto;units_auto]; RGroup [units_auto;units_auto;units_auto]]);
+	("margin",[RGroupOpt [units_auto; units_auto; units_auto; units_auto]]);
 	("padding-left",runits);
 	("padding-right",runits);
 	("padding-top",runits);
@@ -235,13 +231,13 @@ var rules = List.concat [[
 	("max-width",none :: runits);
 	("max-height",none :: runits);
 	("line-height",RFloat :: runits);
-	("padding", [units; RGroup [units;units]; RGroup [units;units;units;units]; RGroup [units;units;units]]);
+	("padding",[RGroupOpt [units; units; units; units]]);
 ];[
 	// layout
 	("display",ids ["block";"inline";"none";"inline-block";"table";"inline-table";"table-row";"table-row-group";"table-header-group";"table-footer-group";"table-column";"table-column-group";"table-cell";"table-caption";"flex";"inline-flex"]);
 	("float",ids ["left";"right";"none"]);
 	("clear",ids ["none";"left";"right";"both"]);
-	("overflow", [ROr layout_overflow; RGroup [ROr layout_overflow; ROr layout_overflow]]);
+	("overflow", [RGroupOpt [ROr layout_overflow; ROr layout_overflow]]);
 	("overflow-x", layout_overflow);
 	("overflow-y", layout_overflow);
 	("text-overflow", [RId "ellipsis"; RId "clip"]); // only basic
@@ -257,12 +253,11 @@ var rules = List.concat [[
 	var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
 	var font_variant = ids ["normal";"small-caps"]
 	var text_decoration_style = ids ["solid";"double";"dotted";"dashed";"wavy"]
-	var rline = ROr (ids ["underline";"blink";"line-through";"overline"])
-	var text_decoration_line = [none; RGroupOpt [rline; rline; rline]]
-	var text_decoration = (RGroup [rline; ROr text_decoration_style; ROr color]) :: text_decoration_line;
+	var text_decoration_line = ids ["underline";"blink";"line-through";"overline"]
+	var text_decoration = [none; RGroupCustom [(ROr text_decoration_line,OMany); (ROr text_decoration_style,OOpt); (ROr color,OOpt)]];
 	[
-	("font",[
-		RGroupOpt [ROr font_style;ROr font_variant;ROr font_weight;font_family]; // no support for /line-height notation
+	("font",[ // no support for /line-height notation
+		RGroupCustom [(ROr font_size,ONormal); (ROr font_style,OOpt); (ROr font_variant,OOpt); (ROr font_weight,OOpt); (ROr [RString;RIdent],ONormal)];
 		ROr (ids ["caption";"icon";"menu";"message-box";"small-caption";"status-bar"]);
 	]);
 	("font-family",[font_family]);
@@ -270,7 +265,7 @@ var rules = List.concat [[
 	("font-variant",font_variant);
 	("font-weight",font_weight);
 	("text-align",ids ["center";"justify";"left";"right"]);
-	("text-decoration-line", text_decoration_line);
+	("text-decoration-line", [none; RGroupCustom [(ROr text_decoration_line,OMany)]]);
 	("text-decoration-color", color);
 	("text-decoration-style",text_decoration_style);
 	("text-decoration", text_decoration);
@@ -288,31 +283,63 @@ var rules = List.concat [[
 	("word-wrap", ids ["normal";"break-word"]);
 	("direction", ids ["ltr";"rtl"]);
 	]
-};[
-	// background
-	("background",[
+}; { // background
+	var h = ROr (List.tl horiz) // remove center
+	var v = ROr (List.tl vert)
+	var position = ROr [
+		RGroupCustom [(hunits,OOpt); (vunits,OOpt)];
+		RGroupCustom [(RGroup [v;units],OOpt); (RGroup [h;units],OOpt)];
+		RGroupCustom [(RGroup [v;units],OOpt); (ROr horiz,OOpt)];
+		RGroupCustom [(RGroup [h;units],OOpt); (ROr vert, OOpt)];
+	]
+	var repeat = ROr (ids ["repeat";"no-repeat";"round";"space"])
+	var repeat = ROr [RId "repeat-x"; RId "repeat-y"; RGroupOpt [repeat; repeat]]
+	var size   = ROr [RId "cover"; RId "contain"; RGroupOpt [units_auto; units_auto]]
+	var color  = trans_color
+	var clip   = ids ["text";"border-box";"padding-box";"content-box"]
+	var origin = ROr (List.tl clip) // no "text"
+	var clip   = ROr clip
+	var attachment = ROr (ids ["scroll";"fixed";"local"]);
+	// no support for "/background-size" notation
+	// (repeat,OOpt): can only detect single value
+	// The <background-color> value may only be included in the last layer specified.
+	var background_base = [(ROr color,OOpt); (ROr image,OOpt); (attachment,OOpt); (origin,OOpt); (clip,OOpt); (repeat,OOpt)]
+	var background = ROr [
 		none;
-		RGroupOpt [ROr bgcolor;url_or_embed;ROr bgrepeat;ROr bgattach;vunits;hunits];
-		RGroupOpt [ROr bgcolor;url_or_embed;ROr bgrepeat;ROr bgattach;hunits;vunits];
-		ROr bgfilters;
-	]);
-	("background-color",bgcolor);
-	("background-image",[url_or_embed; none]);
-	("background-position",bgpos);
-	("background-repeat",bgrepeat);
-	("background-attachment",bgattach);
-	("background-clip",ids ["border-box"; "padding-box"; "content-box"]);
-	("background-origin",ids ["border-box"; "padding-box"; "content-box"]);
-	("background-size",[ROr(ids ["cover"; "contain"]); units_auto; RGroup [units_auto; units_auto]]);
-];[
-	// borders
+		RGroupCustom ((hunits,OOpt) :: (vunits,OOpt) :: background_base);
+		RGroupCustom ((RGroup [v;units],OOpt) :: (RGroup [h;units],OOpt) :: background_base);
+		RGroupCustom ((RGroup [v;units],OOpt) :: (ROr horiz,OOpt) :: background_base);
+		RGroupCustom ((RGroup [h;units],OOpt) :: (ROr vert, OOpt) :: background_base);
+	];
+	[
+	("background",           [RMany background]);
+	("background-color",color);
+	("background-image",     [RMany (ROr (none :: image))]);
+	("background-position",  [RMany position]);
+	("background-repeat",    [RMany repeat]);
+	("background-attachment",[RMany attachment]);
+	("background-clip",      [RMany clip]);
+	("background-origin",    [RMany origin]);
+	("background-size",      [RMany size]);
+	]
+}; { // borders
+	var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"; "groove"; "ridge"; "inset"; "outset"]
+	var border_width = List.append (ids ["thin";"medium";"thick"]) rlength
+	var r_bstyle = ROr bstyle
+	var r_border_width = ROr border_width
+	var r_trans_color = ROr trans_color
+	var border = [
+		none;
+		RGroupCustom [(r_border_width,OOpt); (r_trans_color,OOpt); (ROr List.tl(bstyle),OOpt)]; // remove "none" from bstyle
+	];
+	[
 	("border",border);
-	("border-style",bstyle);
+	("border-style",[RGroupOpt [r_bstyle; r_bstyle; r_bstyle; r_bstyle]]);
 	("border-top",border);
 	("border-left",border);
 	("border-right",border);
 	("border-bottom",border);
-	("border-width",[RGroupOpt [ROr border_width;ROr border_width;ROr border_width; ROr border_width]]);
+	("border-width",[RGroupOpt [r_border_width; r_border_width; r_border_width; r_border_width]]);
 	("border-top-width",border_width);
 	("border-left-width",border_width);
 	("border-right-width",border_width);
@@ -326,20 +353,21 @@ var rules = List.concat [[
 	("border-top-style",bstyle);
 	("border-bottom-style",bstyle);
 	("border-bottom",border);
-	("border-color",[RGroupOpt [ROr trans_color; ROr trans_color; ROr trans_color; ROr trans_color]]);
-	("outline",[none; RIntRange 0 0; RGroup [ROr outline_width; ROr bstyle; ROr color]]);
+	("border-color",[RGroupOpt [r_trans_color; r_trans_color; r_trans_color; r_trans_color]]);
+	("outline",border);
 	("outline-style",bstyle);
-	("outline-width",outline_width);
-	("outline-color",color);
+	("outline-width",border_width);
+	("outline-color",trans_color);
 	("outline-offset",runits);
-];[
+	]
+};[
 	// others
 	("cursor", ids ["auto";"hand";"crosshair";"default";"e-resize";"help";"move";"n-rsize";"ne-resize";"nw-resize";"pointer";"progress";"s-resize";"se-resize";"sw-resize";"text";"w-resize";"wait"]);
-	("opacity", [alpha]);
-	("list-style", [none; RGroupOpt [ROr (List.tl lst); ROr lsp; url_or_embed]]); // remove "none" from lst
+	("opacity", [RFloatRange 0. 1.]);
+	("list-style", [none; RGroupCustom [(ROr (List.tl lst),OOpt); (ROr lsp,OOpt); (ROr image,OOpt)]]); // remove "none" from lst
 	("list-style-type", lst);
 	("list-style-position", lsp);
-	("list-style-image", [url_or_embed; none]);
+	("list-style-image", none :: image);
 	("table-layout", ids ["auto";"fixed"]);
 	("empty-cells", ids ["show"; "hide"]);
 	("border-collapse",ids ["collapse";"separate"]);
@@ -347,30 +375,28 @@ var rules = List.concat [[
 	("caption-side", ids ["bottom";"top"]);
 	("user-select", ids ["all";"none";"text"]);
 	("resize", ids ["none";"both";"horizontal";"vertical"]);
-	("counter-reset", [none; RIdent; RGroup[RIdent; RIdent]; RGroup[RIdent; RInt]; RGroup[RIdent; RInt; RIdent];]);
-	("counter-increment", [none; RIdent; RGroup[RIdent; RIdent]; RGroup[RIdent; RInt]; RGroup[RIdent; RInt; RIdent];]);
-	("quotes", [none; RGroup[RString; RString]; RGroup[RString; RString; RString; RString];]);
+	("counter-reset",     [none; RGroupCustom [(RGroup [RIdent;RInt], OMany); (RIdent, OMany)]]);
+	("counter-increment", [none; RGroupCustom [(RGroup [RIdent;RInt], OMany); (RIdent, OMany)]]);
+	("quotes", [none; RGroupCustom [(RGroup[RString; RString], OMany)]]);
 	("pointer-events", ids ["auto";"none";"all";"fill";"stroke";"painted";"visible";"visiblePainted";"visibleFill";"visibleStroke"]);
 	("appearance", ids ["none";"button";"checkbox";"listbox";"radio";"textfield";]); // partial
 	("filter", filter_function);
 ];[
 	// transforms
 	("transform", transform_function);
-	("transform-origin", [RGroupOpt [
-		hunits; // x-offset
-		vunits; // y-offset
-		units;  // z-offset
-	]]);
-	("perspective-origin", [RGroupOpt [
-		hunits;
-		vunits;
-	]]);
+	("transform-origin", [RGroupOpt [hunits;vunits;units]; RGroupOpt [vunits;hunits;units]]);
+	("perspective-origin", [RGroupOpt [hunits;vunits]; RGroupOpt [vunits;hunits]]);
 	("transform-style", ids ["flat";"preserve-3d"]);
 	("perspective", [none; units]);
 	("backface-visible", ids ["visible";"hidden"]);
-];[
-	// effects (partial browser support)
-	("border-radius",[units; RGroup [units;units]; RGroup [units;units;units;units]; RGroup [units;units;units]]);
+]; { // effects (partial browser support)
+	var len2 = [len; len]
+	var len3 = len :: len2
+	var len4 = len :: len3
+	var opt_color = (ROr color,OOpt)
+	var opt_inset = (RId "inset",OOpt);
+	[
+	("border-radius",[RGroupOpt [units;units;units;units]]);
 	("border-top-right-radius",runits);
 	("border-top-left-radius",runits);
 	("border-bottom-right-radius",runits);
@@ -378,95 +404,73 @@ var rules = List.concat [[
 	("text-shadow",[
 		none;
 		RMany (ROr [
-			RGroup [len; len; ROr color];
-			RGroup [ROr color; len; len];
-			RGroup [len; len; len; ROr color];
-			RGroup [ROr color; len; len; len];
+			RGroupCustom [(RGroup len3,ONormal); opt_color];
+			RGroupCustom [(RGroup len2,ONormal); opt_color];
 		])
 	]);
 	("box-shadow",[
 		none;
 		RMany (ROr [
-			RGroup [len; len; ROr color];
-			RGroup [len; len; len; ROr color];
-			RGroup [len; len; len; len; ROr color];
-			RGroup [RId "inset"; len; len; ROr color];
-			RGroup [RId "inset"; len; len; len; ROr color];
-			RGroup [RId "inset"; len; len; len; len; ROr color];
+			RGroupCustom [(RGroup len4,ONormal); opt_color; opt_inset];
+			RGroupCustom [(RGroup len3,ONormal); opt_color; opt_inset];
+			RGroupCustom [(RGroup len2,ONormal); opt_color; opt_inset];
 		])
 	]);
 	// hss-specific
 	("hss-width",runits_auto);
 	("hss-height",runits_auto);
-]; {// flex
-	var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"; RId "initial"]
-	var rflex_wrap = [ RId "wrap"; RId "nowrap"; RId "wrap-reverse"; RId "initial"]
-	var rflex_basis = List.append (ids ["auto";"content"]) runits
-	var rflex = [
-		none;
-		RFloat;           // interpreted as "flex-grow"
-		ROr rflex_basis;  // interpreted as "flex-basis"
-		RGroup [RFloat; ROr rflex_basis];        // flex-shrink, flex-basis
-		RGroup [RFloat; RFloat; ROr rflex_basis] // flex-grow, flex-shrink, flex-basis
-	];
+	]
+}; {// flex
+	var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"]
+	var rflex_wrap = [RId "wrap"; RId "nowrap"; RId "wrap-reverse"]
+	var rflex_basis = runits_auto;
 	[
-	("flex", rflex);
+	("flex", [
+		none;
+		RGroupCustom [(RGroup[RFloat; RFloat],OOpt); (ROr rflex_basis,OOpt)];
+		RGroupCustom [(RFloat, OOpt); (ROr rflex_basis,OOpt)]
+	]);
 	("flex-direction",rflex_direction);
 	("flex-wrap", rflex_wrap);
-	("flex-flow", [
-			ROr rflex_direction;
-			ROr rflex_wrap;
-			RGroup [ROr rflex_direction; ROr rflex_wrap];
-			RId "initial";
-		]);
-	("flex-grow", [RFloat; RId "initial"]);
-	("flex-shrink", [RFloat; RId "initial"]);
+	("flex-flow", [RGroupCustom [(ROr rflex_direction,OOpt); (ROr rflex_wrap,OOpt)]]);
+	("flex-grow", [RFloat]);
+	("flex-shrink", [RFloat]);
 	("flex-basis", rflex_basis);
-	("align-items", [RId "stretch"; RId "center"; RId "flex-start"; RId "flex-end"; RId "baseline"; RId "initial";]);
-	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"; RId "initial";]);
+	("align-items", [RId "stretch"; RId "center"; RId "flex-start"; RId "flex-end"; RId "baseline"]);
+	("justify-content", [RId "space-between"; RId "space-around"; RId "center"; RId "flex-start"; RId "flex-end"]);
 	("align-self", [RId "auto"; RId "flex-start"; RId "flex-end"; RId "center"; RId "baseline"; RId "stretch"]);
 	("order", [RInt]);
 	]
 }; {// animations
-	var name = [RIdent]
-	var dir  = [RId "normal"; RId "reverse"; RId "alternate"; RId "alternate-reverse"]
-	var mode = [none; RId "forwards"; RId "backwards"; RId "both"]
-	var delay = [RUnit "s"; RUnit "ms";]
-	var count = [RId "infinite"; RInt; RFloat]
-	var state = [RId "running"; RId "paused"]
-	var duration = delay;
-	var tween = [
+	var name  = ROr [RIdent]
+	var dir   = ROr [RId "normal"; RId "reverse"; RId "alternate"; RId "alternate-reverse"]
+	var mode  = ROr [none; RId "forwards"; RId "backwards"; RId "both"]
+	var delay = ROr [RUnit "s"; RUnit "ms";]
+	var count = ROr [RId "infinite"; RInt; RFloat]
+	var state = ROr [RId "running"; RId "paused"]
+	var tween = ROr [
 		RId "ease"; RId "linear";RId "ease-in"; RId "ease-out"; RId "ease-in-out"; RId "step-start"; RId "step-end";
 		RCall (RId "frames") (RList [RInt]);
 		RCall (RId "cubic-bezier") (RList [RFloat; RFloat; RFloat; RFloat]);
 		RCall (RId "steps") (RListCustom [(RInt, ONormal); (ROr [RId "start"; RId "end"], OOpt)]);
 	]
-	function many(r) {RMany (ROr r)}
-	function ors(li) {List.map(function(r){ROr r}, li)}
+	var duration = delay;
 	[
-	("animation", [
-		none;
-		RGroupOpt (ors [name; duration; tween; delay; count; dir; mode; state]);
-		RGroupOpt (ors [duration; tween; delay; count; dir; mode; state; name]);
-	]);
-	("animation-delay", [many delay]);
-	("animation-direction", [many dir]);
-	("animation-duration", [many duration]);
-	("animation-fill-mode", [many mode]);
-	("animation-iteration-count", [many count]);
-	("animation-name", [many name]);
-	("animation-play-state", [many state]);
-	("animation-timing-function", [many tween]);
+	("animation", [RMany (RGroupCustom [(name,OOpt); (duration,OOpt); (delay,OOpt); (tween,OOpt); (count,OOpt); (dir,OOpt); (mode,OOpt); (state,OOpt)])]);
+	("animation-delay", [RMany delay]);
+	("animation-direction", [RMany dir]);
+	("animation-duration", [RMany duration]);
+	("animation-fill-mode", [RMany mode]);
+	("animation-iteration-count", [RMany count]);
+	("animation-name", [RMany name]);
+	("animation-play-state", [RMany state]);
+	("animation-timing-function", [RMany tween]);
 	// transition
-	("transition", [many([
-		RGroup ors([name; duration;]);
-		RGroup ors([name; duration; tween;]);
-		RGroup ors([name; duration; tween; delay;]);
-	])]);
-	("transition-delay", [many delay]);
-	("transition-duration", [many duration]);
-	("transition-property", [many name]);
-	("transition-timing-function", [many tween]);
+	("transition", [RMany (RGroupCustom [(name,OOpt); (duration,OOpt); (delay,OOpt); (tween,OOpt);])]);
+	("transition-delay", [RMany delay]);
+	("transition-duration", [RMany duration]);
+	("transition-property", [RMany name]);
+	("transition-timing-function", [RMany tween]);
 	]
 }
 ];
@@ -488,15 +492,15 @@ var media_rules = [
 	("update", [none; RId "slow"; RId "fast"]);
 	("overflow-block", [none; RId "scroll"; RId "paged"; RId "optional-paged"]);
 	("overflow-inline", [none; RId "scroll"]);
-	("color", [RInt]);       // can be empty
+	("color", [RInt]);
 	("min-color", [RInt]);
 	("max-color", [RInt]);
-	("color-index", [RInt]); // can be empty
+	("color-index", [RInt]);
 	("min-color-index", [RInt]);
 	("max-color-index", [RInt]);
 	("color-gamut", [RId "srgb"; RId "p3"; RId "rec2020"]);
 	("display-mode", [RId "fullscreen"; RId "standalone"; RId "minimal-ui"; RId "browser"]);
-	("monochrome", [RInt]);  // can be empty
+	("monochrome", [RInt]);
 	("min-monochrome", [RInt]);
 	("max-monochrome", [RInt]);
 	("inverted-colors", [none; RId "inverted"]);
