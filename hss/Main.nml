@@ -282,6 +282,13 @@ function rec flatten(parents,e) {
 	}
 }
 
+function rec check_inherit(v) {
+	match (fst v) {
+	| VIdent n -> n == "inhert" || n == "initial" || n == "unset"
+	| _ -> false
+	}
+}
+
 function rec check_rule(r, v) { check_rule_inner(&[], r, v) }
 
 function rec check_rule_inner(rest, r, v) {
@@ -405,7 +412,7 @@ var hrules = {
 
 function get_rule(ctx,name) {
 	try
-		Hss.Rules.inherit :: (Hashtbl.find hrules name)
+		Hashtbl.find hrules name
 	catch {
 	| Not_found ->
 		match (name,ctx.curblock) {
@@ -716,7 +723,7 @@ function rec find_subclass(c: class) {
 function load_rules(find, name, value, p) {
 	try {
 		var rules = find name
-		if !(List.exists (function(r) check_rule r value) rules) then {
+		if !(List.exists (function(r) check_rule r value) rules) && !(check_inherit value) then {
 			var buf, str = IO.write_string();
 			print_value buf value;
 			error ("Invalid '"+name+"' value '"+str()+"'") p;

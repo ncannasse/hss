@@ -78,8 +78,6 @@ var trans_color = RId "transparent" :: color
 
 var url = RCall RId("url") RList([RString])
 
-var inherit = RId "inherit"
-
 var lst = ids ["none"; "circle";"disc";"square";"decimal";"lower-alpha";"lower-roman";"upper-alpha";"upper-roman"]
 var lsp = ids ["inside";"outside"]
 
@@ -238,6 +236,7 @@ var rules = List.concat [[
 	("z-index",[RInt;RId "auto"]);
 	("visibility",ids ["visible";"hidden"; "collapse"]);
 	("box-sizing", ids ["content-box"; "border-box"]);
+	("zoom", [RFloat; pct; RId "normal"]);
 	// clip ?
 ]; {// Fonts and texts
 	var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
