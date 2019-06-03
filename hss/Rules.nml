@@ -110,16 +110,9 @@ var pseudo_content = [
 var angle = [RUnit "deg";RUnit "rad";RUnit "grad";RUnit "turn"]
 
 var image = {
-	var to = RId "to"
 	var h = ROr (ids ["left"; "right"])
 	var v = ROr (ids ["top"; "bottom"])
-	var side = [
-		RGroup [to; h];
-		RGroup [to; h; v];
-		RGroup [to; v];
-		RGroup [to; v; h];
-	]
-	var side_or_corner = List.append side angle
+	var side_or_corner = (RGroup [RId "to"; RGroupCustom [(h,OOpt); (v,OOpt)]]) :: angle
 	var gradient_color = ROr [ROr color; RGroup [ROr color; units]]
 	var linear_gradient = RCall (RId "linear-gradient") RListCustom([(ROr side_or_corner, OOpt); (gradient_color, ONormal); (gradient_color, ONormal); (gradient_color, OMany)]);
 	[
@@ -302,7 +295,6 @@ var rules = List.concat [[
 	var clip   = ROr clip
 	var attachment = ROr (ids ["scroll";"fixed";"local"]);
 	// no support for "/background-size" notation
-	// (repeat,OOpt): can only detect single value
 	// The <background-color> value may only be included in the last layer specified.
 	var background_base = [(ROr color,OOpt); (ROr image,OOpt); (attachment,OOpt); (origin,OOpt); (clip,OOpt); (repeat,OOpt)]
 	var background = ROr [
@@ -390,38 +382,19 @@ var rules = List.concat [[
 	("transform-style", ids ["flat";"preserve-3d"]);
 	("perspective", [none; units]);
 	("backface-visible", ids ["visible";"hidden"]);
-]; { // effects (partial browser support)
-	var len2 = [len; len]
-	var len3 = len :: len2
-	var len4 = len :: len3
-	var opt_color = (ROr color,OOpt)
-	var opt_inset = (RId "inset",OOpt);
-	[
+]; [
+	// effects (partial browser support)
 	("border-radius",[RGroupOpt [units;units;units;units]]);
 	("border-top-right-radius",runits);
 	("border-top-left-radius",runits);
 	("border-bottom-right-radius",runits);
 	("border-bottom-left-radius",runits);
-	("text-shadow",[
-		none;
-		RMany (ROr [
-			RGroupCustom [(RGroup len3,ONormal); opt_color];
-			RGroupCustom [(RGroup len2,ONormal); opt_color];
-		])
-	]);
-	("box-shadow",[
-		none;
-		RMany (ROr [
-			RGroupCustom [(RGroup len4,ONormal); opt_color; opt_inset];
-			RGroupCustom [(RGroup len3,ONormal); opt_color; opt_inset];
-			RGroupCustom [(RGroup len2,ONormal); opt_color; opt_inset];
-		])
-	]);
+	("text-shadow",[none; RMany (RGroupCustom [(RGroup [len; RGroupOpt [len; len     ]],ONormal); (ROr color,OOpt)])]);
+	("box-shadow", [none; RMany (RGroupCustom [(RGroup [len; RGroupOpt [len; len; len]],ONormal); (ROr color,OOpt); (RId "inset",OOpt)])]);
 	// hss-specific
 	("hss-width",runits_auto);
 	("hss-height",runits_auto);
-	]
-}; {// flex
+]; {// flex
 	var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"]
 	var rflex_wrap = [RId "wrap"; RId "nowrap"; RId "wrap-reverse"]
 	var rflex_basis = runits_auto
@@ -435,11 +408,7 @@ var rules = List.concat [[
 	var align_items   = [RId "normal"; RId "stretch"; over(self_position); baseline]
 	var justify_items = RId "left" :: RId "right" :: align_items;
 	[
-	("flex", [
-		none;
-		RGroupCustom [(RGroup[RFloat; RFloat],OOpt); (ROr rflex_basis,OOpt)];
-		RGroupCustom [(RFloat, OOpt); (ROr rflex_basis,OOpt)]
-	]);
+	("flex", [ none; RGroupCustom [(RGroupOpt[RFloat; RFloat],OOpt); (ROr rflex_basis,OOpt)]]);
 	("flex-direction",rflex_direction);
 	("flex-wrap", rflex_wrap);
 	("flex-flow", [RGroupCustom [(ROr rflex_direction,OOpt); (ROr rflex_wrap,OOpt)]]);
