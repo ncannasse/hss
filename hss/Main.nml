@@ -282,93 +282,94 @@ function rec flatten(parents,e) {
 	}
 }
 
-function rec check_rule(r,v) {
+function rec check_rule(r, v) { check_rule_inner(&[], r, v) }
+
+function rec check_rule_inner(rest, r, v) {
+	function rec check_rule(r,v) {check_rule_inner rest r v}
 	match (r, fst v) {
 	| (RId s, VIdent n) -> s == n
 	| (RHex n, VHex s) -> String.length s == n
 	| (RUnit s, VUnit(_,n)) -> s == n
-	| (RCall(r,p), VCall (c,vl)) ->
-		check_rule r c && check_rule p (VList vl,snd v)
+	| (RCall(r,p), VCall (c,vl)) -> check_rule r c && check_rule p (VList vl,snd v)
 	| (RFloat, VInt _) | (RFloat, VFloat _) -> true
 	| (RInt, VInt _) -> true
 	| (RFloatRange(min,max), VInt n) -> n * 1.0 >= min && n * 1.0 <= max
 	| (RFloatRange(min,max), VFloat n) -> n >= min && n <= max
 	| (RIntRange(min,max), VInt n) -> n >= min && n <= max
-	| (ROr rl,_) ->
-		List.exists (function(r) check_rule r v) rl
+	| (ROr rl,_) -> List.exists (function(r) check_rule r v) rl
 	| (RIdent, VIdent _) -> true
 	| (RString, VString _) -> true
 	| (_,VLabel (_,v)) -> check_rule r v
 	| (RMany r, VList vl) -> List.all (check_rule r) vl
 	| (RMany r, _) -> check_rule r v
-	| (RGroup rl, VGroup vl) when List.length rl == List.length vl ->
-		try {
-			List.iter2 (function(r,v) if !(check_rule r v) then throw Exit) rl vl;
-			true
-		} catch {
-			Exit -> false
+	| (RGroup rl, _) ->
+		function rec loop(rl, vl) match (rl, vl) {
+		| ([], _) -> true
+		| (r :: rl, v :: vl) ->
+			rest := vl;
+			if (check_rule r v) then loop rl (*rest) else false
+		| _ -> false
 		}
-	| (RList rl, VList vl) when List.length rl == List.length vl ->
-		try {
-			List.iter2 (function(r,v) if !(check_rule r v) then throw Exit) rl vl;
-			true
-		} catch {
-			Exit -> false
+		match (fst v) {
+		| VGroup vl -> (loop rl vl) && (*rest == [])
+		| VList _ -> false
+		| _ -> loop rl (v::*rest)
 		}
-	| (RGroupCustom rl, VGroup vl) ->
-		var used = &[]
-		function rec lcat(lf, n) {
-			if n == 0 then
-				[]
-			else match (*lf) {
-				| [] -> invalid_arg()
-				| x :: tl ->
-					lf := tl;
-					x :: lcat(lf, n -1)
-			}
+	| (RGroupOpt rl, _) ->
+		function rec loop(rl, vl) match (rl, vl) {
+		| ([], _) | (_ ,[]) -> true
+		| (r :: rl, v :: vl) ->
+			rest := vl;
+			if !(check_rule r v) then rest := v :: vl;
+			loop rl (*rest)
+		| _ -> false
 		}
-		function rec loop(rl, vl) {
-			match vl {
-			| [] ->
-				List.none (function(r) match (snd r) {
-				| ONormal -> true
-				| _ -> false
-				}) rl
-			| v :: vl ->
-				var ok = &false;
-				var prev = &vl;
-				var curr = &vl;
-				function rec filter(rl, v) {
-					match rl {
-					| [] -> rl
-					| r :: rest ->
-						var x = fst r;
-						ok := match x {
-						| RGroup g -> // if RGroup in RGroupCustom and RGroup must be the immediate children
-							var len = List.length(g);
-							if len > 1 && (List.length(*curr) + 1) >= len then {
-								var b = check_rule x (VGroup (v :: lcat(curr, len - 1)), snd v); // TODO: punion
-								if b then prev := *curr else curr := *prev;
-								b
-							} else
-								false
-						| _ -> check_rule x v;
-						}
-						match (*ok, snd r) {
-						| (true, OMany) -> (used := r :: *used); rl
-						| (true, _) -> rest
-						| (_, OMany) when List.exists(function(x) x === r,*used) -> (filter rest v)
-						| _ -> r :: (filter rest v)
-						}
+		match (fst v) {
+		| VGroup vl -> (loop rl vl) && (*rest == [])
+		| VList _ -> false
+		| _ -> loop(rl, v::*rest) && (*rest == [] || v != List.hd(*rest)) // Match at least one value
+		}
+	| (RGroupCustom rl, _) ->
+		var used = &[];
+		function rec loop(rl, vl) match vl {
+		| [] -> List.none (function(r) match (snd r) {| ONormal -> true | _ -> false}) rl
+		| v :: vl ->
+			rest := vl
+			var ok = &false
+			var prev = &vl
+			function rec filter(rl, v) match rl {
+			| [] -> rl
+			| r :: rl ->
+				ok := check_rule (fst r) v
+				if (*ok) then {
+					prev := *rest;
+					match (snd r) {
+					| OMany -> (used := r :: *used); r :: rl
+					| _ -> rl
+					}
+				} else {
+					rest := *prev;
+					match (snd r) {
+					| OMany when List.exists(function(x) x === r, *used) -> (filter rl v)
+					| _ -> r :: (filter rl v)
 					}
 				}
-				var rl = filter rl v;
-				if (*ok) then loop rl (*curr) else false
 			}
+			var rl = filter rl v;
+			if (*ok) then loop rl (*rest) else false
+		}
+		match (fst v) {
+		| VGroup vl -> (loop rl vl) && (*rest == [])
+		| VList _ -> false
+		| _ -> loop(rl, v::*rest) && (*rest == [] || v != List.hd(*rest))
+		}
+	| (RList rl, VList vl) ->
+		function rec loop(rl, vl) match(rl, vl) {
+		| ([], []) -> true
+		| (r :: rl, v :: vl) -> (check_rule r v) && (loop rl vl)
+		| _ -> false
 		}
 		loop rl vl
-	| (RGroupCustom _, VList _) -> false
-	| (RGroupCustom _, _) -> check_rule r (VGroup [v], snd v)
 	| (RListCustom rl, VList vl) ->
 		function rec loop(rl,vl) {
 			match (rl,vl) {
@@ -390,23 +391,6 @@ function rec check_rule(r,v) {
 			}
 		}
 		loop rl vl
-	| (RGroupOpt rl, VGroup vl) ->
-		function rec loop(rl,vl) {
-			match (rl,vl) {
-			| (r :: rl, v :: vl) ->
-				if check_rule r v then
-					loop rl vl
-				else
-					loop rl (v :: vl)
-			| (_,[]) ->
-				true
-			| _ ->
-				false
-			}
-		}
-		loop rl vl
-	| (RGroupOpt rl, _) ->
-		List.exists (function(r) check_rule r v) rl
 	| (RBind (s,r), VBind (n,v)) when s == n ->
 		check_rule r v
 	| _ -> false
