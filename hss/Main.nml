@@ -427,7 +427,7 @@ function get_rule(ctx,name) {
 		match (name,ctx.curblock) {
 		| ("src",Some { node = Some "@font-face" }) -> [Hss.Rules.font_face_src]
 		| ("content", Some {selector = (PSelector s)::_}) | ("content", Some {selector = (PSelector2 s) ::_})
-			when s == "before" || s == "after" -> [Hss.Rules.pseudo_content]
+			when s == "before" || s == "after" -> Hss.Rules.pseudo_content
 		| _ -> throw Not_found
 		}
 	}
