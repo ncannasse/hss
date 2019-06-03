@@ -327,7 +327,7 @@ function rec check_rule_inner(rest, r, v) {
 		match (fst v) {
 		| VGroup vl -> (loop rl vl) && (*rest == [])
 		| VList _ -> false
-		| _ -> loop(rl, v::*rest) && (*rest == [] || v != List.hd(*rest)) // Match at least one value
+		| _ -> loop(rl, v::*rest) && (*rest == [] || v !== List.hd(*rest)) // Match at least one value
 		}
 	| (RGroupCustom rl, _) ->
 		var used = &[];
@@ -356,12 +356,12 @@ function rec check_rule_inner(rest, r, v) {
 				}
 			}
 			var rl = filter rl v;
-			if (*ok) then loop rl (*rest) else false
+			if (*ok) then loop rl (*rest) else {rest := v::*rest; loop rl []} // goto List.none
 		}
 		match (fst v) {
 		| VGroup vl -> (loop rl vl) && (*rest == [])
 		| VList _ -> false
-		| _ -> loop(rl, v::*rest) && (*rest == [] || v != List.hd(*rest))
+		| _ -> loop(rl, v::*rest) && (*rest == [] || v !== List.hd(*rest))
 		}
 	| (RList rl, VList vl) ->
 		function rec loop(rl, vl) match(rl, vl) {
