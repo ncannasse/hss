@@ -446,7 +446,8 @@ function get_rule(ctx,name) {
 function custom_calls(c, vl, p) {
 	function err(id, p) {error("Invalid Value for '" + id + "()'", p)}
 	function cint(i, p) { if (i < 0 || i > 255) then error("Unexpected " + i, p); i}
-	function mix(ds, dl, vl, p, id) {
+	var id = match (fst c) {| VIdent s -> s | _ -> ""}
+	function mix(ds, dl) {
 		var r, g, b, i = (match vl {
 		| [(VHex h, p); (VUnit(i,"%"),_)] ->
 			var r, g, b = Hss.Utils.ofhex h p;
@@ -460,12 +461,11 @@ function custom_calls(c, vl, p) {
 		var r, g, b = Hss.Utils.hsl2rgb h (i * ds + s) (i * dl + l);
 		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
 	}
-	var id = match (fst c) {| VIdent s -> s | _ -> ""}
 	(match id {
-	| "lighten" ->    mix( 0.  ,  0.01, vl, p, id)
-	| "darken" ->     mix( 0.  , -0.01, vl, p, id)
-	| "saturate" ->   mix( 0.01,  0.  , vl, p, id)
-	| "desaturate" -> mix(-0.01,  0.  , vl, p, id)
+	| "lighten" ->    mix( 0.  ,  0.01)
+	| "darken" ->     mix( 0.  , -0.01)
+	| "saturate" ->   mix( 0.01,  0.  )
+	| "desaturate" -> mix(-0.01,  0.  )
 	| "invert" ->
 		var r, g, b = (match vl {
 		| [(VHex h, p)] -> Hss.Utils.ofhex h p
@@ -520,18 +520,20 @@ function rec eval(ctx,v) {
 	| VOp (op,v1,v2) ->
 		var v1 = eval ctx v1;
 		var v2 = eval ctx v2;
-		var fop = function(x:float,y:float) {
+		function fop (x:float,y:float) {
 			match op {
 			| Add -> x + y
 			| Sub -> x - y
 			| Mul -> x * y
-			| Div -> if y == 0. then error "Division by 0" snd(v) else Math.fround(x / y * 100.) / 100.
+			| Div -> if y == 0. then error "Division by 0" snd(v) else x / y
 			| And | Or | Xor | BoolOr | BoolAnd -> error ("UnSupported "+"Op: "+s_op op) snd(v)
 			}
 		};
 		function rec loop(v1,v2) {
 			match (fst v1,fst v2) {
-			| (VInt x, VInt y) -> VInt Math.round(fop (x * 1.0) (y * 1.0))
+			| (VInt x, VInt y) ->
+				var f = fop(x * 1.0, y * 1.0);
+				if (Math.abs f) % 1 < 0.001 then VInt (Math.floor f) else VFloat ( Math.fround(f * 1000.) / 1000. )
 			| (VInt x, VFloat y) -> VFloat (fop (x * 1.0) y)
 			| (VFloat x, VInt y) -> VFloat (fop x (y * 1.0))
 			| (VFloat x, VFloat y) -> VFloat (fop x y)

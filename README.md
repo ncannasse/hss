@@ -261,7 +261,7 @@ var ie8 = 1;                      // define property var or you can pass "-Die8"
 }
 
 var alpha = {
-  opacity: ($alpha / 100.);       // division only works with "()"
+  opacity: ($alpha / 100);        // division only works with "()"
   filter: alpha(opacity = $alpha);
 }
 span {
@@ -395,7 +395,7 @@ var scale = 3;
     width : 50px + 20px;
     height : 30px * $scale;
     color : #FF0000 * 0.7;
-    line-height: (120 / 100.); // explicitly float value if you want to get a float result.
+    line-height: (120 / 100);
 }
 ```
 Operations between two different units (for instance 50px + 3em) are not allowed.
