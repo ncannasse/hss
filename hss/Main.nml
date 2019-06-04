@@ -284,7 +284,8 @@ function rec flatten(parents,e) {
 
 function rec check_inherit(v) {
 	match (fst v) {
-	| VIdent n -> n == "inhert" || n == "initial" || n == "unset"
+	| VLabel (_,v) -> check_inherit v
+	| VIdent n -> n == "inherit" || n == "initial" || n == "unset"
 	| _ -> false
 	}
 }
