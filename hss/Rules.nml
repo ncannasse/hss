@@ -33,6 +33,7 @@ type rule {
 	RIdent;
 	RString;
 	ROr : rule list;
+	ROp : (string, rule, rule); // normal: a/b/c/d => (((a/b)/c)/d), grid: 1/2/3/4/... => ROp("/", rule, RMany(dummy))
 	RMany : rule;
 	RList : rule list; // comma-separated (calls, etc.)
 	RGroup : rule list; // no comma
@@ -240,7 +241,8 @@ var rules = List.concat [[
 	// clip ?
 ]; {// Fonts and texts
 	var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
-	var font_family = RMany ROr([RIdent;RString;RGroup [RIdent;RIdent]]) // can be composed of up to 2 words
+	var size_ratio = ROr [ROp("/",ROr font_size,ROr (RFloat :: runits)); ROr font_size]
+	var font_family = ROr [RIdent;RString;RGroup [RIdent;RIdent]] // can be composed of up to 2 words
 	var font_style = ids ["italic";"normal";"oblique"]
 	var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
 	var font_variant = ids ["normal";"small-caps"]
@@ -248,11 +250,11 @@ var rules = List.concat [[
 	var text_decoration_line = ids ["underline";"blink";"line-through";"overline"]
 	var text_decoration = [none; RGroupCustom [(ROr text_decoration_line,OMany); (ROr text_decoration_style,OOpt); (ROr color,OOpt)]];
 	[
-	("font",[ // no support for /line-height notation
-		RGroupCustom [(ROr font_size,ONormal); (ROr font_style,OOpt); (ROr font_variant,OOpt); (ROr font_weight,OOpt); (ROr [RString;RIdent],ONormal)];
+	("font",[
+		RGroupCustom [(size_ratio,ONormal); (ROr font_style,OOpt); (ROr font_variant,OOpt); (ROr font_weight,OOpt); (font_family,ONormal)];
 		ROr (ids ["caption";"icon";"menu";"message-box";"small-caption";"status-bar"]);
 	]);
-	("font-family",[font_family]);
+	("font-family",[RMany font_family]);
 	("font-size",font_size);
 	("font-variant",font_variant);
 	("font-weight",font_weight);
@@ -279,7 +281,7 @@ var rules = List.concat [[
 }; { // background
 	var h = ROr (List.tl horiz) // remove center
 	var v = ROr (List.tl vert)
-	var position = ROr [
+	var position = [
 		RGroupCustom [(hunits,OOpt); (vunits,OOpt)];
 		RGroupCustom [(RGroup [v;units],OOpt); (RGroup [h;units],OOpt)];
 		RGroupCustom [(RGroup [v;units],OOpt); (ROr horiz,OOpt)];
@@ -295,19 +297,13 @@ var rules = List.concat [[
 	var attachment = ROr (ids ["scroll";"fixed";"local"]);
 	// no support for "/background-size" notation
 	// The <background-color> value may only be included in the last layer specified.
-	var background_base = [(ROr color,OOpt); (ROr image,OOpt); (attachment,OOpt); (origin,OOpt); (clip,OOpt); (repeat,OOpt)]
-	var background = ROr [
-		none;
-		RGroupCustom ((hunits,OOpt) :: (vunits,OOpt) :: background_base);
-		RGroupCustom ((RGroup [v;units],OOpt) :: (RGroup [h;units],OOpt) :: background_base);
-		RGroupCustom ((RGroup [v;units],OOpt) :: (ROr horiz,OOpt) :: background_base);
-		RGroupCustom ((RGroup [h;units],OOpt) :: (ROr vert, OOpt) :: background_base);
-	];
+	var base = [(ROr color,OOpt); (ROr image,OOpt); (attachment,OOpt); (origin,OOpt); (clip,OOpt); (repeat,OOpt)]
+	var background = ROr (none :: List.map(function(r) RGroupCustom ((r,OOpt) :: base), position)); // mix
 	[
 	("background",           [RMany background]);
 	("background-color",color);
 	("background-image",     [RMany (ROr (none :: image))]);
-	("background-position",  [RMany position]);
+	("background-position",  [RMany (ROr position)]);
 	("background-repeat",    [RMany repeat]);
 	("background-attachment",[RMany attachment]);
 	("background-clip",      [RMany clip]);
@@ -456,34 +452,40 @@ var rules = List.concat [[
 }
 ];
 
-var media_rules = [
+var media_rules = {
+	var rint = [RInt]
+	var aspect_ratio = [(ROp "/" RInt RInt)]
+	var resolution = [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"];
+	[
 	("width",rlength);
 	("min-width",rlength);
 	("max-width",rlength);
 	("height",rlength);
 	("min-height",rlength);
 	("max-height",rlength);
-	//("aspect-ratio", ratio(1/2)); // not support
+	("aspect-ratio",     aspect_ratio);
+	("min-aspect-ratio", aspect_ratio);
+	("max-aspect-ratio", aspect_ratio);
 	("orientation", [RId "portrait"; RId "landscape"]);
-	("resolution", [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"]);
-	("min-resolution", [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"]);
-	("max-resolution", [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"]);
+	("resolution",     resolution);
+	("min-resolution", resolution);
+	("max-resolution", resolution);
 	("scan", [RId "interlace"; RId "progressive"]);
 	("grid", [RIntRange 0 1]);
 	("update", [none; RId "slow"; RId "fast"]);
 	("overflow-block", [none; RId "scroll"; RId "paged"; RId "optional-paged"]);
 	("overflow-inline", [none; RId "scroll"]);
-	("color", [RInt]);
-	("min-color", [RInt]);
-	("max-color", [RInt]);
-	("color-index", [RInt]);
-	("min-color-index", [RInt]);
-	("max-color-index", [RInt]);
+	("color",     rint);
+	("min-color", rint);
+	("max-color", rint);
+	("color-index",     rint);
+	("min-color-index", rint);
+	("max-color-index", rint);
 	("color-gamut", [RId "srgb"; RId "p3"; RId "rec2020"]);
 	("display-mode", [RId "fullscreen"; RId "standalone"; RId "minimal-ui"; RId "browser"]);
-	("monochrome", [RInt]);
-	("min-monochrome", [RInt]);
-	("max-monochrome", [RInt]);
+	("monochrome",     rint);
+	("min-monochrome", rint);
+	("max-monochrome", rint);
 	("inverted-colors", [none; RId "inverted"]);
 	("pointer", [none; RId "coarse"; RId "fine"]);
 	("any-pointer", [none; RId "coarse"; RId "fine"]);
@@ -491,4 +493,5 @@ var media_rules = [
 	("any-hover", [none; RId "hover"]);
 	("light-level", [RId "dim"; RId "normal"; RId "washed"]);
 	("scripting", [none; RId "initial-only"; RId "enabled"]);
-]
+	]
+}

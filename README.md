@@ -46,7 +46,7 @@ var myfont = "Trebuchet MS", Arial, sans-serif;
 
 body {
     color : $mycolor;
-    font : $myfont;
+    font-family : $myfont;
 }
 ```
 Variables are a very good way to avoid replacing everything in a CSS file every time you want to change a single color value. It also helps designers to remember and easily locate the main colors that are used in a given website.
@@ -261,7 +261,7 @@ var ie8 = 1;                      // define property var or you can pass "-Die8"
 }
 
 var alpha = {
-  opacity: $alpha / 100.;
+  opacity: ($alpha / 100.);       // division only works with "()"
   filter: alpha(opacity = $alpha);
 }
 span {
@@ -330,26 +330,28 @@ HSS also enforces some good CSS practices such as :
 
 #### Notes
 
-* HSS does not support any ratio values such as `16px/1.2`
-
-* HSS will try to detect if `@media` query is valid, but not all the syntax, so in some cases you should use **quotes** to skip detection
+* HSS will try to detect if `@media` query is valid, but not all the syntax
 
   ```scss
-  // Only supports Property Variables in value of the feature/attribute
-  var narrow_width = 767px;
-  @media only screen and (max-width : $narrow_width) {}
+  // you could use quotes to skip detection in media query.
+  @media (some-css3-media: "unknown") {}
 
-  // Hss does not support any ratio value, so you need use quotes to skip detection in media query.
-  @media (min-aspect-ratio: "1/1") {}
-
-  // quotes for some deprecated type
+  // quotes for media type
   @media "tv", "handheld" {}
 
-  // You can use quotes almost everywhere
+  // quotes almost everywhere
   @media "screen and (min-width: 30em) and (orientation: landscape)" {}
   @media screen and (min-width: 30em) "and (orientation: landscape)" {}
   @media screen "and (min-width: 30em)" and (orientation: landscape) {}
+
+  // Note: Only supports Property Variables in value of the feature/attribute
+  var narrow_width = 767px;
+  @media only screen and (max-width : $narrow_width) {}
   ```
+
+* CSS rule limit:
+  - `font:` only accept single font-family value
+  - `background:` no support for `/background-size` notation
 
 ### CSS Rules
 The whole CSS properties rules that are used to check the property value correctness are listed in the Rules.nml file of the HSS sources. You might want to modify them for your own needs.
@@ -384,13 +386,16 @@ In that case, this will simply output the property in the CSS file without check
 
 ### Operations
 It is possible to perform some operations between values :
+
+* NOTE: **division**: (`/`) only works with `()`
+
 ```scss
 var scale = 3;
 .big {
     width : 50px + 20px;
     height : 30px * $scale;
     color : #FF0000 * 0.7;
-    line-height: 120 / 100.; // Important: explicitly declare a float if you want to get a float value
+    line-height: (120 / 100.); // explicitly float value if you want to get a float result.
 }
 ```
 Operations between two different units (for instance 50px + 3em) are not allowed.

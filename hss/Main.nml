@@ -22,6 +22,7 @@ type context {
 	mutable vars : (string,value) Map.t;
 	mutable blocks : (string,expr list) Map.t;
 	mutable eval_rec : int;
+	mutable eval_div: bool;
 	mutable ns : string option;
 	mutable curblock : class option;
 }
@@ -74,8 +75,14 @@ function rec print_value(ch,v) {
 	| VLabel (l,v) ->
 		print_value ch v;
 		IO.printf ch " !%s" l;
-	| VOp _ | VParentheses _ ->
-		assert()
+	| VParentheses v ->
+		IO.write ch "(";
+		print_value ch v;
+		IO.write ch ")";
+	| VOp (op,v1,v2) ->
+		print_value ch v1;
+		IO.printf ch " %s " (Hss.Ast.s_op op);
+		print_value ch v2;
 	}
 }
 
@@ -399,6 +406,17 @@ function rec check_rule_inner(rest, r, v) {
 			}
 		}
 		loop rl vl
+	| (ROp (s,r1,r2), VOp(o,v1,v2)) ->
+		match r2 {
+		| RMany _ -> // future for grid attributes, e.g: grid-area: 2 / 1 / 2 / 4;
+			function rec loop(o, v1, v2) match (fst v1) {
+			| VOp(o2,v21,v22) -> (loop o2 v21 v22) && s == (Hss.Ast.s_op o) && (check_rule r1 v2)
+			| _ -> s == (Hss.Ast.s_op o) && (check_rule r1 v1) && (check_rule r1 v2)
+			}
+			loop o v1 v2
+		| _ ->
+			(check_rule r1 v1) && s == (Hss.Ast.s_op o) && (check_rule r2 v2)
+		}
 	| (RBind (s,r), VBind (n,v)) when s == n ->
 		check_rule r v
 	| _ -> false
@@ -493,7 +511,12 @@ function rec eval(ctx,v) {
 		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->
 		(VBind name (eval ctx v1), snd v)
-	| VParentheses v -> eval ctx v
+	| VParentheses v ->
+		var prev = ctx.eval_div;
+		ctx.eval_div := true;
+		var r = eval ctx v;
+		ctx.eval_div := prev;
+		r
 	| VOp (op,v1,v2) ->
 		var v1 = eval ctx v1;
 		var v2 = eval ctx v2;
@@ -502,7 +525,7 @@ function rec eval(ctx,v) {
 			| Add -> x + y
 			| Sub -> x - y
 			| Mul -> x * y
-			| Div -> if y == 0. then error "Division by 0" snd(v) else x / y
+			| Div -> if y == 0. then error "Division by 0" snd(v) else Math.fround(x / y * 100.) / 100.
 			| And | Or | Xor | BoolOr | BoolAnd -> error ("UnSupported "+"Op: "+s_op op) snd(v)
 			}
 		};
@@ -532,7 +555,10 @@ function rec eval(ctx,v) {
 				error ("'" + (s_value v) + "' are not allowed") snd(v)
 			}
 		}
-		(loop v1 v2,snd v)
+		match op {
+		| Div when (!ctx.eval_div) -> (VOp op v1 v2,snd v)
+		| _ -> (loop v1 v2,snd v)
+		}
 	}
 }
 
@@ -1066,7 +1092,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { defines = *defs; vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; ns = None; curblock = None; };
+		var ctx = { defines = *defs; vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; eval_div = false; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
