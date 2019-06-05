@@ -22,7 +22,7 @@ type context {
 	mutable vars : (string,value) Map.t;
 	mutable blocks : (string,expr list) Map.t;
 	mutable eval_rec : int;
-	mutable eval_div: bool;
+	mutable skip_calc: int; // 0: no skip, 1: skip "/", 2 : skip ALL
 	mutable ns : string option;
 	mutable curblock : class option;
 }
@@ -406,16 +406,16 @@ function rec check_rule_inner(rest, r, v) {
 			}
 		}
 		loop rl vl
-	| (ROp (s,r1,r2), VOp(o,v1,v2)) ->
-		match r2 {
-		| RMany _ -> // future for grid attributes, e.g: grid-area: 2 / 1 / 2 / 4;
-			function rec loop(o, v1, v2) match (fst v1) {
-			| VOp(o2,v21,v22) -> (loop o2 v21 v22) && s == (Hss.Ast.s_op o) && (check_rule r1 v2)
-			| _ -> s == (Hss.Ast.s_op o) && (check_rule r1 v1) && (check_rule r1 v2)
+	| (ROp ((s,r1,r2)::_,m), VOp(o,v1,v2)) ->
+		match m {
+		| ONormal -> // ratio: e.g: font: 16px/1.2 consolas
+			function rec loop(r, v) match (fst v) {
+			| VOp _ -> false
+			| _ -> check_rule r v
 			}
-			loop o v1 v2
-		| _ ->
-			(check_rule r1 v1) && s == (Hss.Ast.s_op o) && (check_rule r2 v2)
+			Hss.Ast.s_op o == s && loop r1 v1 && loop r2 v2
+		| _  -> true // TODO: for "grid-area", the Parser cannot correctly recognize the value such as "span 2 / span 3"
+		             // TODO: "calc(expr)" is hard to check
 		}
 	| (RBind (s,r), VBind (n,v)) when s == n ->
 		check_rule r v
@@ -443,10 +443,9 @@ function get_rule(ctx,name) {
 	}
 }
 
-function custom_calls(c, vl, p) {
-	function err(id, p) {error("Invalid Value for '" + id + "()'", p)}
-	function cint(i, p) { if (i < 0 || i > 255) then error("Unexpected " + i, p); i}
-	var id = match (fst c) {| VIdent s -> s | _ -> ""}
+function custom_calls(id, vl, p, vcall) {
+	function err(id, p) { error("Invalid Value for '" + id + "()'", p) }
+	function cint(i, p) { if (i < 0 || i > 255) then error("Unexpected " + i, p); i }
 	function mix(ds, dl) {
 		var r, g, b, i = (match vl {
 		| [(VHex h, p); (VUnit(i,"%"),_)] ->
@@ -479,7 +478,7 @@ function custom_calls(c, vl, p) {
 		| [(VFloat f, _)] -> VInt Math.floor(f)
 		| _ -> err id p
 		}
-	| _ -> VCall c vl
+	| _ -> vcall
 	}, p)
 }
 
@@ -505,18 +504,26 @@ function rec eval(ctx,v) {
 		r
 	| VCall(i,vl) ->
 		var i = eval ctx i;
+		var id = match (fst i) { | VIdent n -> n | _ -> "" }
+		var prev = ctx.skip_calc;
+		ctx.skip_calc := if (id == "calc") then 2 else 0;
 		var vl = List.map (eval ctx) vl;
-		custom_calls i vl (pos v)
+		ctx.skip_calc := prev;
+		custom_calls id vl (pos v) (VCall i vl)
 	| VLabel (l,v1) ->
 		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->
 		(VBind name (eval ctx v1), snd v)
-	| VParentheses v ->
-		var prev = ctx.eval_div;
-		ctx.eval_div := true;
-		var r = eval ctx v;
-		ctx.eval_div := prev;
-		r
+	| VParentheses e ->
+		if ctx.skip_calc == 2 then // keep "()" for CSS "calc(expr)"
+			(VParentheses (eval ctx e), snd v)
+		else {
+			var prev = ctx.skip_calc;
+			ctx.skip_calc := 0;
+			var v = eval ctx e;
+			ctx.skip_calc := prev;
+			v
+		}
 	| VOp (op,v1,v2) ->
 		var v1 = eval ctx v1;
 		var v2 = eval ctx v2;
@@ -557,10 +564,10 @@ function rec eval(ctx,v) {
 				error ("'" + (s_value v) + "' are not allowed") snd(v)
 			}
 		}
-		match op {
-		| Div when (!ctx.eval_div) -> (VOp op v1 v2,snd v)
-		| _ -> (loop v1 v2,snd v)
-		}
+		if (op == Div && ctx.skip_calc == 1) || ctx.skip_calc == 2 then
+			(VOp op v1 v2,snd v)
+		else
+			(loop v1 v2,snd v)
 	}
 }
 
@@ -1094,7 +1101,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { defines = *defs; vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; eval_div = false; ns = None; curblock = None; };
+		var ctx = { defines = *defs; vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);

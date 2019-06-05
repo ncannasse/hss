@@ -33,7 +33,7 @@ type rule {
 	RIdent;
 	RString;
 	ROr : rule list;
-	ROp : (string, rule, rule); // normal: a/b/c/d => (((a/b)/c)/d), grid: 1/2/3/4/... => ROp("/", rule, RMany(dummy))
+	ROp : ((string,rule,rule) list, rule_option); // ONormal for Ratio,
 	RMany : rule;
 	RList : rule list; // comma-separated (calls, etc.)
 	RGroup : rule list; // no comma
@@ -44,6 +44,8 @@ type rule {
 }
 
 function ids(l) { List.map RId l }
+
+function ratio(r1:rule, r2:rule) { ROp [("/",r1,r2)] ONormal }
 
 var selectors = [
 	"first-child";"link";"visited";"active";"hover";"focus";"first-letter";"first-line";"before";"after"; // CSS 2.1
@@ -56,8 +58,9 @@ var allow_duplicate_attributes = [
 	"src"; // @font-face
 ];
 var none = RId "none"
+var calc = RCall (RId "calc") (RList [ROp([("0",none,none)], OMany)]) // dummy
 var pct = RUnit "%"
-var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in"; RUnit "vh"; RUnit "vw";]
+var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in"; RUnit "vh"; RUnit "vw"; calc]
 var runits = pct::rlength
 var len = ROr rlength
 var units = ROr runits
@@ -241,7 +244,7 @@ var rules = List.concat [[
 	// clip ?
 ]; {// Fonts and texts
 	var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
-	var size_ratio = ROr [ROp("/",ROr font_size,ROr (RFloat :: runits)); ROr font_size]
+	var size_ratio = ROr [ratio(ROr font_size, ROr (RFloat :: runits)); ROr font_size]
 	var font_family = ROr [RIdent;RString;RGroup [RIdent;RIdent]] // can be composed of up to 2 words
 	var font_style = ids ["italic";"normal";"oblique"]
 	var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
@@ -454,7 +457,7 @@ var rules = List.concat [[
 
 var media_rules = {
 	var rint = [RInt]
-	var aspect_ratio = [(ROp "/" RInt RInt)]
+	var aspect_ratio = [ratio(RInt, RInt)]
 	var resolution = [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"];
 	[
 	("width",rlength);
