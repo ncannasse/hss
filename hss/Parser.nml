@@ -219,19 +219,15 @@ function rec value_next(v,s) {
 		(VLabel i v,punion p1 p2)
 	| [< (Op o,_); v2 = value s >] ->
 		function rec loop(o, v, v2) {
-			var p = punion (pos v) (pos v2);
-			match fst v2 {
-			| VOp(o2, v1, v2) when (o2 == Add || o2 == Sub || o == Mul || o == Div) ->
-				(VOp o2 (loop o v v1) v2, p)
-			| _ ->
-				(VOp o v v2, p)
-			}
+			(match (fst v2) {
+			| VGroup (v2 :: l) -> VGroup (loop o v v2 :: l)
+			| VList  (v2 :: l) -> VList  (loop o v v2 :: l)
+			| VLabel (l,v2)    -> VLabel l (loop o v v2)
+			| VOp(o2, v1, v2) when (o2 == Add || o2 == Sub || o == Mul || o == Div) -> VOp o2 (loop o v v1) v2
+			| _ -> VOp o v v2
+			}, punion (pos v) (pos v2))
 		}
-		match fst v2 {
-		| VList (v2 :: l) -> (VList  ((loop o v v2) :: l), punion (pos v) (pos v2))
-		| VGroup(v2 :: l) -> (VGroup ((loop o v v2) :: l), punion (pos v) (pos v2))
-		| _-> loop o v v2
-		}
+		loop o v v2
 	| [< (Comma,_); v2 = value s >] ->
 		function rec loop(v2) {
 			var p = punion (pos v) (pos v2);
