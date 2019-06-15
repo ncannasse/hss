@@ -274,7 +274,13 @@ function rec flatten(parents,e) {
 		| _ -> (EBlock classes attribs,snd e) :: el
 		}
 	| EMedia (str,el) ->
-		[(EMedia(str, List.concat (List.map (flatten parents) el)),snd e)]
+		var attribs = List.rev (List.fold flatten_subs [] el);
+		var el = List.concat (List.map (flatten parents) el);
+		var el = match (parents,attribs) {
+		| (_::_, _::_) -> (EBlock parents attribs,snd e) :: el
+		| _ -> el
+		}
+		[(EMedia(str, el),snd e)]
 	| EInclude s ->
 		var s = match parents {
 			| [] -> s
@@ -476,6 +482,7 @@ function custom_calls(id, vl, p, vcall) {
 	| "int" ->
 		match vl {
 		| [(VFloat f, _)] -> VInt Math.floor(f)
+		| [(VUnit (f,u), _)] -> VUnit Math.ffloor(f) u
 		| _ -> err id p
 		}
 	| _ -> vcall
