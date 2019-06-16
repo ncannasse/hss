@@ -503,7 +503,16 @@ function rec eval(ctx,v) {
 	| VFloat _
 	| VHex _ -> v
 	| VList vl ->
-		(VList (List.map (eval ctx) vl),snd v)
+		function rec loop(vl) match vl {
+		| [] -> vl
+		| v :: tl ->
+			var v = eval ctx v;
+			match fst v {
+			| VList l -> List.append (loop l) (loop tl)
+			| _ -> v :: loop tl
+			}
+		}
+		(VList (loop vl),snd v)
 	| VGroup vl ->
 		(VGroup (List.map (eval ctx) vl),snd v)
 	| VVar name ->
