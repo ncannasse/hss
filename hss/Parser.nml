@@ -207,14 +207,26 @@ function rec value_unit(f,v,s) {
 	value_next v s
 }
 
+function rec value_join(v,v2) (
+	match fst v2 {
+	| VGroup l      -> VGroup (v :: l)
+	| VList (v2::l) -> VList ((value_join v v2) :: l)
+	| VLabel (l,v2) -> VLabel l (value_join v v2)
+	| _  -> VGroup [v;v2]
+	},
+	punion(pos v, pos v2)
+)
+
 function rec value_next(v,s) {
 	match s {
-	| [< (ParentOpen,_); p = value s; (ParentClose,p2) >] ->
-		var args = match p {
-		| (VList l,_) -> l
-		| _ -> [p]
+	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] ->
+		match p {
+		| (VList l,_) -> value_next (VCall v l, punion (pos v) p2) s
+		| _ -> match v {
+			| (VIdent _,p0) when p0.pline == p1.pline && p0.pmax == p1.pmin -> value_next (VCall v [p], punion p0 p2) s
+			| _ -> value_join v (value_next (VParentheses p,punion p1 p2) s)
+			}
 		}
-		value_next (VCall v args, punion (pos v) p2) s
 	| [< (Exclamation,p1); (Const (Ident i),p2) >] ->
 		(VLabel i v,punion p1 p2)
 	| [< (Op o,_); v2 = value s >] ->
@@ -239,16 +251,7 @@ function rec value_next(v,s) {
 		}
 		loop v2
 	| [< v2 = value s >] ->
-		function rec loop(v2) {
-			var p = punion (pos v) (pos v2);
-			match fst v2 {
-			| VGroup l -> (VGroup (v :: l), p)
-			| VList (v2 :: l) -> (VList (loop v2 :: l), p)
-			| VLabel (l,v2) -> (VLabel l (loop v2), p)
-			| _ -> (VGroup [v;v2], p)
-			}
-		}
-		loop v2
+		value_join v v2
 	| [< >] ->
 		v
 	}
