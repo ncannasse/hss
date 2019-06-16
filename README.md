@@ -90,7 +90,7 @@ Note that the "Block Variables" and "Property Variables" belong to different spa
 ```scss
 var alpha = {            // Definition a "Block Variables".
   opacity: $alpha;       // Reference to "Property Variables", NOT "Block Variables"
-  filter: alpha(opacity=int($alpha*100));  // IE filter and the "int(float)" is a hss function.
+  filter: alpha(opacity=$alpha*100);  // IE8 filter
   // $alpha;             // It's "Block Variables", but hss will report an error to avoid entering the dead loop.
 }
 

@@ -362,7 +362,7 @@ var rules = List.concat [[
 	("table-layout", ids ["auto";"fixed"]);
 	("empty-cells", ids ["show"; "hide"]);
 	("border-collapse",ids ["collapse";"separate"]);
-	("border-spacing",runits); // not supported on IE
+	("border-spacing", [RGroupOpt [units;units]]); // IE8+
 	("caption-side", ids ["bottom";"top"]);
 	("user-select", ids ["all";"none";"text"]);
 	("resize", ids ["none";"both";"horizontal";"vertical"]);
