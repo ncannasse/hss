@@ -205,13 +205,12 @@ function rec print_css(ch,tabs,e) {
 		IO.write ch tabs;
 		IO.write ch s;
 		IO.write ch "\n";
-	| EImport v ->
-		var s = match fst v {
-		| VString s -> s
-		| _ -> error("String value require for " + "@import" + "("+ (s_value v) +")", pos v)
+	| EImport v -> match fst v {
+		| VString s ->
+			try IO.write ch IO.file_contents(s) catch { _ -> error("file error: " + s, snd e) }
+			IO.write ch "\n"
+		| _ ->
 		}
-		try IO.write ch IO.file_contents(s) catch { _ -> error("file error: " + s, snd e) }
-		IO.write ch "\n";
 	| EKeyframes (name, ks) ->
 		IO.printf ch "%s@keyframes %s {\n" (tabs,name);
 		List.iter (print_keyframe ch (tabs+"\t")) ks;
@@ -1002,13 +1001,12 @@ function rec check(ctx,e) {
 	| EInclude _ ->
 		e
 	| EImport v ->
-		var ev = eval ctx v;
-		var s = match fst ev {
-		| VString s -> s
-		| _ -> error("String value require for " + "@import" + "("+ (s_value v) +")", pos v)
-		}
 		var p = pos e;
-		if ctx.curblock != None then error("only" + " allowed at the top level: " + "@import", p)
+		if ctx.curblock != None then error("Unexpected " + "@import" + " here", p)
+		var s = match eval ctx v {
+		| (VString s,_) when s != "" -> s
+		| v -> error("Unexpected " + "@import" + "("+ (s_value v) +")", p)
+		}
 		var parent = Hss.Utils.path_find(Lexer.source p);
 		var file = if Hss.Utils.is_abs_path(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
 		var path = Hss.Utils.path(file, "hss", false);
@@ -1041,7 +1039,7 @@ function rec check(ctx,e) {
 			(ESub [], p) // duplicate, simply ignore it;
 		}
 	| EKeyframes (name, sl) ->
-		if ctx.curblock != None then error("only" + " allowed at the top level: " + "@keyframes", pos e)
+		if ctx.curblock != None then error("Unexpected " + "@keyframes" + " here", pos e)
 		function rec loop(l) match l {
 		| [] -> l
 		| seg :: l -> match fst seg {

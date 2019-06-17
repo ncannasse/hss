@@ -64,15 +64,14 @@ function rec program(s) {
 
 function rec expr(s) {
 	match s {
-	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_) >] ->
-		match s {
+	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_) >] -> match s {
 		| [< (BraceOpen,p2); l = expr_list s >] -> (EVarBlock i l, punion p1 p2)
 		| [< v = value s; p2 = semicolon s >] -> (EVar i v, punion p1 p2)
 		}
-	| [< (Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = opt_semicolon s >] -> (EInclude css, punion p1 p2)
-	| [< (Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = opt_semicolon s >] -> (EImport v, p)
-	| [< (Keyframes,p1); (Const (Ident n),p2); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, punion p1 p2)
-	| [< (Media,p); v = media_list s; (BraceOpen,_); l = expr_list s; >] -> (EMedia v l, p)
+	| [< (Keyword Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = opt_semicolon s >] -> (EInclude css, punion p1 p2)
+	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = opt_semicolon s >] -> (EImport v, p)
+	| [< (Keyword Keyframes,p1); (Const (Ident n),p2); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, punion p1 p2)
+	| [< (Keyword Media,p); v = media_list s; (BraceOpen,_); l = expr_list s; >] -> (EMedia v l, p)
 	| [< (Const (Val v),p) >] -> expr_dollar v p s
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
 	}
@@ -149,7 +148,7 @@ function rec expr_dollar_next(s) {
 		| [< (tk, p) >] -> error (Expected_semicolon tk) p
 		}
 	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon s >] -> (EAttribute att v,p)
-	| [< (Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = opt_semicolon s >] -> (EImport v, p)
+	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = opt_semicolon s >] -> (EImport v, p)
 	| [< (BraceOpen, p); l = expr_list s >] -> (ESub l, p)
 	| [< (tk, p) >] -> error(Unexpected tk, p)
 	}

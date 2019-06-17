@@ -25,6 +25,10 @@ type constant {
 
 type keyword {
 	Var;
+	Media;
+	Import;
+	Keyframes;
+	Include;
 }
 
 type op {
@@ -66,10 +70,6 @@ type token {
 	Op : op;
 	Tild;
 	Dollar;
-	Media;
-	Import;
-	Keyframes;
-	Include;
 }
 
 type expr;
@@ -173,6 +173,10 @@ function s_constant(x) {
 function s_keyword(x) {
 	match x {
 	| Var -> "var"
+	| Media -> "@media"
+	| Import -> "@import"
+	| Keyframes -> "@keyframes"
+	| Include -> "@include"
 	}
 }
 
@@ -218,10 +222,6 @@ function s_token(x) {
 	| Op o -> s_op o
 	| Tild -> "~"
 	| Dollar -> "$"
-	| Media -> "@media"
-	| Import -> "@import"
-	| Keyframes -> "@keyframes"
-	| Include -> "@include"
 	}
 }
 
