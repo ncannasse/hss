@@ -63,8 +63,6 @@ function rec print_value(ch,v) {
 		IO.printf ch "url(\"%s\")" (String.unescape url)
 	| VVar s ->
 		IO.printf ch "$%s" s
-	| VCall ((VIdent "CSS",_),[(VString str,_)]) ->
-		IO.printf ch "%s" str
 	| VCall (v,vl) ->
 		print_value ch v;
 		IO.write ch "(";
@@ -909,7 +907,7 @@ function rec check(ctx,e) {
 			match fst e {
 			| EAttribute(name,v) ->
 				match fst v {
-				| VCall ((VIdent "CSS",_),_) | VLabel ("dup",_) ->
+				| VLabel ("dup",_) ->
 					acc
 				| _ ->
 					try {
@@ -931,13 +929,19 @@ function rec check(ctx,e) {
 		(EBlock classes el,snd e)
 	| EAttribute (name,value) ->
 		var value = eval ctx value;
-		match value {
-		| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> e
+		var p = pos e;
+		var value = match value {
+		| (VCall ((VIdent "CSS",_),vl),_) -> var value = match vl { // strip CSS
+			| [(VString s, p)] -> (VIdent s, p) // strip quotes
+			| [value] -> value
+			| _ -> (VList vl,p)
+			}
+			(VLabel "dup" value, p) // allow duplicate
 		| _ ->
-			var p = pos e;
 			load_rules(get_rule ctx, name, value, p);
-			expand_hacks(name, value, p)
+			value;
 		}
+		expand_hacks(name, value, p)
 	| EUseBlock(name, pl) ->
 		var p = pos e;
 		var b = try Map.find ctx.blocks name catch { Not_found -> error ("Variable not declared '" + name + "'") p };

@@ -369,20 +369,13 @@ E#myid : supported
 E:first-child, E:link, E:hover and other CSS2 and 3 pseudo-classes selectors are supported
 E[foo], E[foo=value], E[foo|=value], E[foo~=value], E[foo^=value], E[foo$=value], E[foo*=value] : supported
 ```
-[supported pseudo-classes selectors](hss/Rules.nml#L46-L51), Other selectors maybe not supported, but can be used with the CSS function :
-```
+[supported pseudo-classes selectors](hss/Rules.nml#L46-L51), and other unsupported pseudo-selectors can use `CSS()` hack :
+```css
+/* Here CSS() only accepts string as argument */
 .page CSS("h1:placeholder") {
     color : red
 }
 ```
-### IE hacks
-It's sometimes useful to use non-standard CSS properties, in particular for various IE-specific things. HSS adds a specific command for doing that. Here's a small example how it can be used :
-```
-.image {
-    my-special-property : CSS("some specific value");
-}
-```
-In that case, this will simply output the property in the CSS file without checking that it's defined in the CSS standard or that the value is correct.
 
 ### Operations
 It is possible to perform some operations between values :
@@ -401,6 +394,16 @@ var scale = 3;
 Operations between two different units (for instance 50px + 3em) are not allowed.
 
 ### Hacks Support
+
+* `CSS(values)`: will simply output the values without rule checking which is sometimes useful for non-standard CSS properties:
+
+  ```css
+  .image {
+    my-special-property : CSS("some specific value"); /* NOTE: The outer quotes will be strip if only single string */
+    my-special-property : CSS(some specific value);   /* In most cases, quotes are not required, New in 1.6 */
+    filter: CSS( "progid:DXImageTransform.Microsoft.DropShadow"(color=#88FF0000,offx=8,offy="8") ); /* Old IE filter */
+  }
+  ```
 
 * `color : rgba(r,g,b,a); background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
 
