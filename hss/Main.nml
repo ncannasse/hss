@@ -523,7 +523,7 @@ function rec eval(ctx,v) {
 		ctx.eval_rec := ctx.eval_rec - 1;
 		r
 	| VCall(i,vl) ->
-		var i = eval ctx i;
+		var i = match eval ctx i { | (VString s,p)->(VIdent s,p) | i->i }; // strip quotes
 		var id = match (fst i) { | VIdent n -> n | _ -> "" }
 		var prev = ctx.skip_calc;
 		ctx.skip_calc := if (id == "calc") then 2 else 0;

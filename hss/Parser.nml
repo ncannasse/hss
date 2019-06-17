@@ -219,8 +219,8 @@ function rec value_next(v,s) {
 	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] ->
 		match p {
 		| (VList l,_) -> value_next (VCall v l, punion (pos v) p2) s
-		| _ -> match v {
-			| (VIdent _,p0) when p0.pline == p1.pline && p0.pmax == p1.pmin -> value_next (VCall v [p], punion p0 p2) s
+		| _ -> match (pos v).pmax == p1.pmin && (pos v).pline == p1.pline {
+			| true -> value_next (VCall v [p], punion (pos v) p2) s
 			| _ -> value_join v (value_next (VParentheses p,punion p1 p2) s)
 			}
 		}
