@@ -101,11 +101,8 @@ function rec media_list(s) {
 function rec keyframes(s) {
 	match s {
 	| [< (BraceClose,_) >] -> []
-	| [< (Const (Ident str), p1); (BraceOpen,_); >] ->
-		((VString str, p1), expr_list s) :: keyframes s
-	| [< (Const (Int i), p1); (Percent, p2); (BraceOpen,_); >] ->
-		((VUnit(1.0 * i, "%"), punion p1 p2), expr_list s) :: keyframes s
-	| [< (Keyword Var,p); >] -> error Message("'" + (s_keyword Var) + "' are not allowed")  p
+	| [< (Const (Ident i),p1);(BraceOpen,_) >] -> ((VIdent i,p1), expr_list s) :: keyframes s
+	| [< (Const (Int i),p1);(Percent,p2);(BraceOpen,_) >] -> ((VUnit(1.0 * i,"%"), punion p1 p2), expr_list s) :: keyframes s
 	| [< (v, p) >] -> error(Unexpected v, p)
 	}
 }

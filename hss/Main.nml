@@ -224,7 +224,7 @@ function rec print_css(ch,tabs,e) {
 function rec print_keyframe(ch, tabs, k) {
 	IO.write ch tabs;
 	match fst (fst k) {
-	| VString str -> IO.write ch str;
+	| VIdent i -> IO.write ch i;
 	| VUnit(f, _) -> IO.write ch (f + "%")
 	| _->
 	}
@@ -1036,32 +1036,19 @@ function rec check(ctx,e) {
 		} else {
 			(ESub [], p) // duplicate, simply ignore it;
 		}
-	| EKeyframes (name, ks) ->
+	| EKeyframes (name, sl) ->
 		if ctx.curblock != None then error("only" + " allowed at the top level: " + "@keyframes", pos e)
-		var ks = List.map(function(k){
-			var v = fst k;
-			match fst v {
-			| VString s -> if !(s=="from" || s=="to") then error("Unexpected " + s, pos v)
-			| VUnit (f, u) -> if (f < 0. || f > 100.) then error("Unexpected " + f + u, pos v)
-			| _ ->
+		function rec loop(l) match l {
+		| [] -> l
+		| seg :: l -> match fst seg {
+			| (VIdent i,p) -> if !(i == "from" || i == "to") then error("Unexpected " + i, p)
+			| (VUnit (f, u),p) -> if (f < 0. || f > 100.) then error("Unexpected " + f + u, p)
+			| _ -> // never run to here since Parser
 			}
-			var el = List.map(function(e){
-				var p = pos e;
-				match fst e {
-				| EAttribute(name,value) ->
-					var value = eval ctx value;
-					match value {
-					| (VCall ((VIdent "CSS",_),[(VString _,_)]),_) -> e
-					| _ ->
-						load_rules(get_rule ctx, name, value, p);
-						(EAttribute(name, expand_val value), p)
-					}
-				| _ -> error("Unexpected " + "expr in " + "@keyframes", p)
-				}
-			}, snd k);
-			(v, el)
-		}, ks);
-		(EKeyframes(name, ks), pos e)
+			var attribs = List.rev List.fold(flatten_subs, [], snd seg); // only attributes
+			(fst seg, List.map(check ctx, attribs)) :: loop l
+		}
+		(EKeyframes(name, loop sl), pos e)
 	}
 }
 
