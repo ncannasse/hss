@@ -59,7 +59,7 @@ function mk_ident(l) {
 	var s = Lexer.current l;
 	mk l (match neko("$sget(s,0)") {
 	| '@' -> try Keyword (Hashtbl.find keywords s) catch { Not_found -> Const (Ident s) }
-	| _ -> if s != "var" then Const (Ident s) else Keyword Var
+	| _ -> Const (Ident s)
 	})
 }
 
@@ -109,7 +109,10 @@ expr := Lexer.build (List.concat [[
 	("-?[1-9][0-9]*", mk_int);
 	("-?[0-9]+.[0-9]*", mk_float);
 	("-?.[0-9]+", mk_float);
-	(ident, function(l) { mk_ident l });
+	(ident, function(l) {
+		var s = Lexer.current l;
+		mk l (if s != "var" then Const (Ident s) else Keyword Var)
+	});
 	("[-@][-a-zA-Z_][-a-zA-Z0-9_]*", function(l) { mk_ident l });
 	("$"+ident, function(l) {
 		var i = Lexer.current(l);
