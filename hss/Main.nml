@@ -454,7 +454,7 @@ function get_rule(ctx,name) {
 }
 
 function custom_calls(id, vl, p, vcall) {
-	function err(id, p) { error("Invalid Value for '" + id + "()'", p) }
+	function exit() { throw Exit }
 	function cint(i, p) { if (i < 0 || i > 255) then error("Unexpected " + i, p); i }
 	function mix(ds, dl) {
 		var r, g, b, i = (match vl {
@@ -464,7 +464,7 @@ function custom_calls(id, vl, p, vcall) {
 		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_); (VUnit(i,"%"),_)] ->
 			(cint r rp, cint g gp, cint b bp, i)
 		| _ ->
-			err id p
+			exit()
 		})
 		var h, s, l = Hss.Utils.rgb2hsl r g b
 		var r, g, b = Hss.Utils.hsl2rgb h (i * ds + s) (i * dl + l);
@@ -479,7 +479,7 @@ function custom_calls(id, vl, p, vcall) {
 		var r, g, b = (match vl {
 		| [(VHex h, p)] -> Hss.Utils.ofhex h p
 		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_)] -> (cint r rp, cint g gp, cint b bp)
-		| _ -> err id p
+		| _ -> exit()
 		})
 		var r, g, b = (255 - r, 255 - g, 255 - b);
 		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
@@ -487,7 +487,7 @@ function custom_calls(id, vl, p, vcall) {
 		match vl {
 		| [(VFloat f, _)] -> VInt Math.floor(f)
 		| [(VUnit (f,u), _)] -> VUnit Math.ffloor(f) u
-		| _ -> err id p
+		| _ -> exit()
 		}
 	| _ -> vcall
 	}, p)
@@ -529,7 +529,8 @@ function rec eval(ctx,v) {
 		ctx.skip_calc := if (id == "calc") then 2 else 0;
 		var vl = List.map (eval ctx) vl;
 		ctx.skip_calc := prev;
-		custom_calls id vl (pos v) (VCall i vl)
+		var vcall = VCall i vl;
+		try custom_calls(id, vl, pos v, vcall) catch { Exit -> (vcall, pos v) }
 	| VLabel (l,v1) ->
 		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->

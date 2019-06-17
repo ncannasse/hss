@@ -170,7 +170,7 @@ var filter_function = {
 	var gt_0 = RIntRange 1 999;  // Integer greater than 0.
 	var dir = RIntRange 0 360;
 	var r_numpct = RList [ROr [RFloat; RUnit "%"]];
-	var css3_filter = ROr [
+	var wd_filter = ROr [        // Working Draft
 		url; // url to SVG filter
 		RCall (RId "blur") (RList [len]);
 		RCall (RId "brightness") r_numpct;
@@ -181,12 +181,12 @@ var filter_function = {
 		RCall (RId "saturate") r_numpct;
 		RCall (RId "sepia") r_numpct;
 		RCall (RId "hue-rotate") (RList [ROr angle]);
-		RCall (RId "drop-shadow") (RListCustom [(len, ONormal); (len, ONormal); (len, OOpt); (color, OOpt)]);
+		RCall (RId "drop-shadow") (RList [ROr [RGroup [len;len]; RGroup[len;len;RGroupOpt [len; color]]]]);
 	]
 	function b(s, r) {(RBind(s, r), OOpt)}
 	[
 		none;
-		RGroupCustom [(css3_filter,OMany)];
+		RGroupCustom [(wd_filter,OMany)];
 		ROr [ // old IE filters
 			RId "xray"; RId "invert"; RId "gray"; RId "fliph"; RId "flipv";
 			RCall (RId "alpha") (RListCustom [
