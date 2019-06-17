@@ -939,7 +939,7 @@ function rec check(ctx,e) {
 			(VLabel "dup" value, p) // allow duplicate
 		| _ ->
 			load_rules(get_rule ctx, name, value, p);
-			value;
+			value
 		}
 		expand_hacks(name, value, p)
 	| EUseBlock(name, pl) ->
