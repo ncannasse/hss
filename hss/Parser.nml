@@ -37,10 +37,6 @@ function error(m,p) {
 	throw Error(m,p)
 }
 
-function mk(t,p) {
-	(t,p)
-}
-
 function semicolon(s) {
 	match s {
 	| [< (Semicolon,p) >] -> p
@@ -102,34 +98,25 @@ function rec keyframes(s) {
 	| [< (BraceClose,_) >] -> []
 	| [< (Const (Ident i),p1);(BraceOpen,_) >] -> ((VIdent i,p1), expr_list s) :: keyframes s
 	| [< (Const (Int i),p1);(Percent,p2);(BraceOpen,_) >] -> ((VUnit(1.0 * i,"%"), punion p1 p2), expr_list s) :: keyframes s
-	| [< (v, p) >] -> error(Unexpected v, p)
 	}
 }
 
-function rec block_params(s) {
+function rec block_args(s) {
 	match s {
 	| [< (Const (Ident i), p1); (Eq,_); v = value s; >] ->
-		var param = (VBind i v, punion p1 (pos v));
-		var tk = stream_token s 0;
-		match fst tk {
-		| Semicolon -> (stream_junk s 1); param :: (block_params s)
-		| ParentClose -> [param]
-		| t -> error(Unexpected t, snd tk)
+		var a1 = (VBind i v, punion p1 (pos v));
+		match s {
+		| [< (Semicolon,_); a2 = block_args s >] -> a1 :: a2
+		| [< >] -> [a1]
 		}
-	| _ ->
-		var tk = stream_token s 0;
-		match fst tk {
-		| ParentClose -> []
-		| t -> error(Unexpected t, snd tk)
-		}
+	| [< >] -> []
 	}
 }
 
 function rec expr_list(s) {
 	match s {
 	| [< (BraceClose,_) >] -> []
-	| [< >] ->
-		(match s {
+	| [< >] -> (match s {
 		| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon s >] -> (EAttribute att v,p)
 		| [< (Const (Val v),p) >] -> expr_dollar v p s
 		| [< e = expr s >] -> e
@@ -139,24 +126,16 @@ function rec expr_list(s) {
 
 function rec expr_dollar_next(s) {
 	match s {
-	| [< (Const (Val v),p) >] ->
-		match s {
-		| [< (ParentOpen,_); l = block_params s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p)
-		| [< (Semicolon, _); >] -> (EUseBlock v [], p)
-		| [< (Op BoolAnd,_); b = expr_dollar_next s; >] -> (EIfDefine (v, true) b, p)
-		| [< (Op BoolOr ,_); b = expr_dollar_next s; >] -> (EIfDefine (v, false) b, p)
-		| [< (tk, p) >] -> error (Expected_semicolon tk) p
-		}
+	| [< (Const (Val v),p); >] -> expr_dollar v p s
 	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon s >] -> (EAttribute att v,p)
 	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = opt_semicolon s >] -> (EImport v, p)
 	| [< (BraceOpen, p); l = expr_list s >] -> (ESub l, p)
-	| [< (tk, p) >] -> error(Unexpected tk, p)
 	}
 }
 
 function rec expr_dollar(v: string, p: pos, s) {
 	match s {
-	| [< (ParentOpen,_); l = block_params s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p)
+	| [< (ParentOpen,_); l = block_args s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p)
 	| [< (Op BoolAnd,_); b = expr_dollar_next s; >] -> (EIfDefine (v, true) b, p)
 	| [< (Op BoolOr ,_); b = expr_dollar_next s; >] -> (EIfDefine (v, false) b, p)
 	| [< _ = semicolon s >] -> (EUseBlock v [],p)
@@ -273,12 +252,22 @@ function rec parse_attr_value(s) {
 function rec parse_attribute(s) {
 	match s {
 	| [< (BracketClose,p) >] -> (p, AExists)
-	| [< (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, AEqual v)
-	| [< (Tild,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, AContain v)
-	| [< (Op Or,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, ADash v)
-	| [< (Op Xor,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, ABegin v)
-	| [< (Dollar,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, AEnd v)
-	| [< (Op Mul,_); (Eq,_); v = parse_attr_value s; (BracketClose,p) >] -> (p, ASubstr v)
+	| [< >] ->
+		var tk, p = stream_token s 0;
+		var at = match tk {
+		| Eq -> AEqual
+		| Tild -> AContain
+		| Op Or -> ADash
+		| Op Xor -> ABegin
+		| Dollar -> AEnd
+		| Op Mul -> ASubstr
+		| _ -> error Unexpected(tk) p
+		}
+		var pmax = if tk == Eq then p.pmin else {stream_junk s 1; p.pmax}
+		match s {
+		| [< (Eq,p2); v = parse_attr_value s; (BracketClose,p3) >] ->
+			if pmax == p2.pmin && p.pline == p2.pline then (punion p p3, at v) else error Unexpected(Eq) p2
+		}
 	}
 }
 
@@ -316,7 +305,6 @@ function rec parse_cond_macro(s) {
 	| [< (Exclamation,p1); v = parse_cond_macro s; >] -> (VLabel "!" v, punion p1 (pos v))
 	| [< (ParentOpen,p1); v = cond_macro_next (parse_cond_macro s) s; (ParentClose,p2) >] -> (VParentheses v, punion p1 p2)
 	| [< (Const (Ident i),p)>] -> (VIdent i,p)
-	| [< (t,p)>] -> error(Unexpected t, p)
 	}
 }
 
