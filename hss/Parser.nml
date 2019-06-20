@@ -311,6 +311,30 @@ function rec value_hex(p,s) {
 	(VHex (*str), punion p (*pos))
 }
 
+function rec parse_cond_macro(s) {
+	match s {
+	| [< (Exclamation,p1); v = parse_cond_macro s; >] -> (VLabel "!" v, punion p1 (pos v))
+	| [< (ParentOpen,p1); v = cond_macro_next (parse_cond_macro s) s; (ParentClose,p2) >] -> (VParentheses v, punion p1 p2)
+	| [< (Const (Ident i),p)>] -> (VIdent i,p)
+	| [< (t,p)>] -> error(Unexpected t, p)
+	}
+}
+
+function rec cond_macro_next(v, s) {
+	match s {
+	| [< (Op o,_); v2 = parse_cond_macro s >] ->
+		function rec loop(o, v, v2) {
+			(match (fst v2) {
+			| VOp(o2, v1, v2) when (o2 == BoolOr || o == BoolAnd) -> VOp o2 (loop o v v1) v2
+			| _ -> VOp o v v2
+			}, punion (pos v) (pos v2))
+		}
+		(loop o v v2)
+	| [< >] ->
+		v
+	}
+}
+
 function rec class(s,first) {
 	var c = { node = None; id = None; classes = []; sub = None; selector = []; attributes = []; operator = OpDefault; };
 	var pos = &null_pos;
@@ -414,21 +438,82 @@ function rec class(s,first) {
 	c
 }
 
+var defines = &Set.empty();
+
+function add_defines(s) defines := Set.add(*defines, s)
+
+function rec eval(v) {
+	match fst v {
+	| VIdent i -> Set.exists (*defines) i
+	| VLabel(_, v) -> !(eval v)
+	| VParentheses v -> eval v
+	| VOp(BoolAnd, v1, v2) -> (eval v1) && eval(v2)
+	| VOp(BoolOr, v1, v2) -> (eval v1) || eval(v2)
+	| _ -> error Message("Invalid condition expression " + (s_value v)) (pos v)
+	}
+}
+
 function parse(lexer) {
-	var last = &(Eof,null_pos);
+	var mstack = &[]
+	var s = &neko("null")
 	function rec next_token() {
-		var t = Lexer.token lexer (*Hss.Lexer.expr);
-		match fst t {
-		| Comment s | CommentLine s ->
-			next_token()
+		process_token(Lexer.token lexer (*Hss.Lexer.expr))
+	}
+	function rec skip_tokens() {
+		var h = List.hd(*mstack);
+		var t = &next_token();
+		while (*mstack) != [] && h === List.hd(*mstack) {
+			if fst(*t) == Eof then error Message("UnClosed @if/@else") pos(*t);
+			t := next_token();
+		}
+		*t
+	}
+	function rec cond_macro(k, t) {
+		match k {
+		| PrIf ->
+			var stub = &false;
+			mstack := stub :: (*mstack);
+			match eval parse_cond_macro(*s) {
+			| true -> stub := true; next_token()
+			| _ -> skip_tokens()
+			}
+		| PrEnd when (*mstack != []) ->
+			mstack := List.tl(*mstack);
+			match (*mstack) {
+			| [] -> next_token()
+			| x::_ when (*x) -> next_token()
+			| _ -> skip_tokens()
+			}
+		| PrElse | PrElseIf when (*mstack != []) ->
+			if (*List.hd(*mstack)) then {
+				skip_tokens()
+			} else if k == PrElse then {
+				mstack := (&true) :: List.tl(*mstack);
+				next_token()
+			} else {
+				mstack := List.tl(*mstack);
+				cond_macro PrIf t
+			}
 		| _ ->
-			last := t;
 			t
 		}
 	}
+	function rec process_token(t) {
+		match fst t {
+		| Comment s | CommentLine s -> next_token()
+		| Keyword k -> match *mstack {
+			| _::x::_ when !(*x) && k != PrEnd -> skip_tokens() // when parent condition is false
+			| _ -> cond_macro k t
+			}
+		| _ -> t
+		}
+	}
+	s := stream next_token;
 	try {
-		program (stream next_token)
+		program (*s)
 	} catch {
-		Stream_error -> error Unexpected(fst(*last)) snd(*last)
+	| Stream_error ->
+		var tk,p = neko("s[0].cache[$asize(s[0].cache)-1]"); // get last from stream
+		error Unexpected(tk) p
 	}
 }

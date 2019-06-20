@@ -251,54 +251,44 @@ a:not([href]):nth-child(2n+1) {
 
 ### Condition
 
-Support a simple conditional statement that is to use `&&` and `||` to join exprs, and the left of the expr must be "Property Variable" or `-Dname[=value]`*(spaces are not allowed in the definetion)* from Console.
+#### macro
+
+The condition value will be passed by using `-D flag` on the command line.
+
+  > since `#` is a valid css query value, so here uses `@` as the macro prefix.
+
+```less
+div {
+@if flag1
+  color: #f00;
+@elseif (firefox || !edge) // if "&&" or "||" then "()" is required.
+  color: #0f0;
+@else
+  color: @if blue #00f @else #000 @end ;
+@end
+}
+```
+
+#### expr
+
+Just simple Uses `&&` and `||` to join expr, and the left of the expr must be "Property Variable"
 
 ```scss
 var polyfill = { background-color: blue; }
-var ie8 = 1;                      // define property var or you can pass "-Die8" from Console
+var ie8 = 1;
 .one {
-  $ie8 && $polyfill;              // ifdef $ie8 then $polyfill
+  $ie8 && $polyfill;    // if property varialbe $ie8 then $polyfill
 }
-
-var alpha = {
-  opacity: ($alpha / 100);        // division only works with "()"
-  filter: alpha(opacity = $alpha);
-}
-span {
-  $flag || $alpha(alpha = 80);    // if not def $flag then $alpha
-}
-```
-HSS will not detect the specific value of the left(Property) variable, only determine whether it is defined, and the right side can also be the following values:
-
-```scss
-$url && @import($url);   // @import, Note: @import only works in top level
+/* The right side of expr can also be the following values: */
+$url && @import($url);  // @import, Note: @import only works in top level
 
 .two {
-  var blue = #00e;
-
-  $blue && color: $blue; // A CSS Attribute: Value;
-
-  $flags || {            // A Braces Block then all internal exprs will be moved to the current scope
+  $blue || color: #00f; // Attribute: Value;
+  $blue || {            // A Braces Block then all internal exprs will be moved to the current scope
     var blue = #00f;
-    &:hover {
-      color: $blue;
-    }
   }
-
-  $ie8 || $ie9 && {      // The left can be multiple conditions, but parentheses are not supported
-    border: 0;
+  $var1 || $var2 && {   // The left can be multiple property varialbe, but parentheses are not supported
   }
-}
-```
-
-the output is:
-
-```css
-.two {
-  color: #00e;
-}
-.two:hover {
-  color: #00f;
 }
 ```
 

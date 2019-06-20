@@ -18,7 +18,6 @@ open Hss.Rules;
 exception Error : (string, pos) list;
 
 type context {
-	defines: (string, value) Map.t;
 	mutable vars : (string,value) Map.t;
 	mutable blocks : (string,expr list) Map.t;
 	mutable eval_rec : int;
@@ -984,7 +983,7 @@ function rec check(ctx,e) {
 			var r = match (pr, pt) {
 			| (true, false) -> true  //  ( true, ||)
 			| (false, true) -> false //  (false, &&)
-			| _ -> Map.exists ctx.defines name || Map.exists ctx.vars name;
+			| _ -> Map.exists ctx.vars name;
 			}
 			match fst b {
 			| EIfDefine ((name, t2), b) -> loop name t2 b r t
@@ -1054,25 +1053,6 @@ function rec check(ctx,e) {
 	}
 }
 
-function parse_defs(defs, arg) {
-	function ident(s) Regexp.find r_ident s 0 (String.length s);
-	var null_pos = Lexer.null_pos;
-	var a = String.split arg "=";
-	var name, value = match a {
-	| [i] when (ident i) -> (i, VString "1")
-	| [i; s] when (ident i) ->
-		(i, match (String.get s 0) {
-		| '#' ->
-			var r, g, b = HSS.Utils.ofhex String.sub(s, 1, (String.length s) - 1) null_pos;
-			VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
-		| '0' when (String.get s 1) == 'x' -> VInt int(s)
-		| _ ->  VString s
-		})
-	| _ -> error ("Unexpected " + "-D" + arg) null_pos
-	}
-	defs := Map.add (*defs) name (value, null_pos)
-}
-
 function display(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
@@ -1090,18 +1070,11 @@ try {
 	var head = "HSS v1.6 - (c)2008-2019 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
-	var defs = &Map.empty();
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
+		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
 	];
-	Args.parse head decl (function(file) {
-		var len = String.length file;
-		if len >= 2 && String.sub(file, 0, 2) == "-D" then {
-			parse_defs defs String.sub(file, 2, len-2)
-		} else {
-			files := file :: *files
-		}
-	});
+	Args.parse head decl (function(file) files := file :: *files);
 	List.iter (function(file) {
 		// parse
 		var ch = IO.read_file file true;
@@ -1111,7 +1084,7 @@ try {
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
-		var ctx = { defines = *defs; vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };
+		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
 		// flatten
 		var el = List.concat (List.map flatten([]) el);

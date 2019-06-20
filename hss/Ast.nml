@@ -29,6 +29,10 @@ type keyword {
 	Import;
 	Keyframes;
 	Include;
+	PrIf;
+	PrElse;
+	PrElseIf;
+	PrEnd;
 }
 
 type op {
@@ -177,6 +181,10 @@ function s_keyword(x) {
 	| Import -> "@import"
 	| Keyframes -> "@keyframes"
 	| Include -> "@include"
+	| PrIf -> "@if"
+	| PrElse -> "@else"
+	| PrElseIf -> "@elseif"
+	| PrEnd -> "@end"
 	}
 }
 

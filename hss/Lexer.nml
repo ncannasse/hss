@@ -39,7 +39,7 @@ function error(l,msg) {
 
 var keywords = {
 	var h = Hashtbl.create();
-	List.iter (function(k) { Hashtbl.add h (s_keyword k) k }) [Var;Media;Import;Keyframes;Include];
+	List.iter (function(k) { Hashtbl.add h (s_keyword k) k }) [Var;Media;Import;Keyframes;Include;PrIf;PrElse;PrElseIf;PrEnd];
 	h
 }
 
@@ -53,14 +53,6 @@ function mk_int(l) {
 
 function mk_float(l) {
 	mk l Const(Float(float (Lexer.current l)))
-}
-
-function mk_ident(l) {
-	var s = Lexer.current l;
-	mk l (match neko("$sget(s,0)") {
-	| '@' -> try Keyword (Hashtbl.find keywords s) catch { Not_found -> Const (Ident s) }
-	| _ -> Const (Ident s)
-	})
 }
 
 var ident = "[a-zA-Z_][-a-zA-Z0-9_]*";
@@ -113,7 +105,13 @@ expr := Lexer.build (List.concat [[
 		var s = Lexer.current l;
 		mk l (if s != "var" then Const (Ident s) else Keyword Var)
 	});
-	("[-@][-a-zA-Z_][-a-zA-Z0-9_]*", function(l) { mk_ident l });
+	("[-@][-a-zA-Z_][-a-zA-Z0-9_]*", function(l) {
+		var s = Lexer.current l;
+		mk l (match neko("$sget(s,0)") {
+		| '@' -> try Keyword (Hashtbl.find keywords s) catch { Not_found -> Const (Ident s) }
+		| _ -> Const (Ident s)
+		})
+	});
 	("$"+ident, function(l) {
 		var i = Lexer.current(l);
 		mk l Const(Val (String.sub i 1 (String.length i - 1)))
@@ -178,14 +176,16 @@ expr := Lexer.build (List.concat [[
 		| None -> mk l Eof
 		| Some c -> error l (Invalid_character c)
 		}
-	});
+	})
 ;
+
+function exit(l) {throw Exit}
 
 ecomment := Lexer.build [
 	("\\*/", function(l) { });
 	("\\*", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); comment l });
 	("[^*]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); comment l });
-] (function(l) { throw Exit });
+] exit;
 
 estring := Lexer.build [
 	("\\\\\"", function(l) {
@@ -216,7 +216,7 @@ estring := Lexer.build [
 	("\\\\" , function(l) { error l Invalid_escape });
 	("\"" , function(l) { });
 	("[^\\\\\"]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
-] (function(l) { throw Exit });
+] exit;
 
 eqstring := Lexer.build [
 	("\\\\'", function(l) {
@@ -247,4 +247,4 @@ eqstring := Lexer.build [
 	("\\\\" , function(l) { error l Invalid_escape });
 	("'" , function(l) { });
 	("[^\\\\']+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
-] (function(l) { throw Exit });
+] exit;
