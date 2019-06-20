@@ -480,9 +480,8 @@ function parse(lexer) {
 		| PrEnd when (*mstack != []) ->
 			mstack := List.tl(*mstack);
 			match (*mstack) {
-			| [] -> next_token()
-			| x::_ when (*x) -> next_token()
-			| _ -> skip_tokens()
+			| x::_ when !(*x) -> skip_tokens()
+			| _ -> next_token()
 			}
 		| PrElse | PrElseIf when (*mstack != []) ->
 			if (*List.hd(*mstack)) then {
