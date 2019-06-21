@@ -253,7 +253,7 @@ a:not([href]):nth-child(2n+1) {
 
 #### macro
 
-The condition value will be passed by using `-D flag` on the command line.
+New in `1.7`, The condition value should be passed by using `-D flag` on the command line.
 
   > since `#` is a valid css query value, so here uses `@` as the macro prefix.
 

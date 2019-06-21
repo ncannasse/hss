@@ -1,3 +1,4 @@
+:: 1.7
 @echo off
 set TOP=%~dp0
 set SRC=%TOP%hss\
