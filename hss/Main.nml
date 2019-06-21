@@ -1007,21 +1007,19 @@ function rec check(ctx,e) {
 		| v -> error("Unexpected " + "@import" + "("+ (s_value v) +")", p)
 		}
 		var parent = Hss.Utils.path_find(Lexer.source p);
-		var file = if Hss.Utils.is_abs_path(s) then s else (if parent.dir == "" then s else parent.dir + "/" + s);
-		var path = Hss.Utils.path(file, "hss", false);
-		if !Hss.Utils.path_duplicate(path) then {
-			Hss.Utils.path_add(path);
-			match path.ext {
+		var file = if parent.dir == "" || Hss.Utils.is_abs_path(s) then s else parent.dir + "/" + s;
+		var path, added = Hss.Utils.path(file, "hss");
+		if added then match path.ext {
 			| "hss"	->
-				var ch = try (IO.read_file path.full true) catch {
-				| _ -> error("file error: " + (Hss.Utils.path_str path), p)
-				}
+				var ch = try (IO.read_file path.full true) catch { _ -> error("file error: " + path.str, p) }
 				var lex = Lexer.create Buffer.create();
-				Lexer.input lex path.full ch 1 0;
+				Lexer.input lex (path.str) ch 1 0;
 				var el = Hss.Parser.parse lex;
 				IO.close_in ch;
 				var no = (String.get path.name 0) != '_';
-				var old_ns, old_vars, old_blocks = (ctx.ns, ctx.vars, ctx.blocks)
+				var old_ns = ctx.ns;
+				var old_vars = ctx.vars;
+				var old_blocks = ctx.blocks;
 				var el = List.map (check ctx) el;
 				if no then {
 					ctx.ns := old_ns;
@@ -1034,9 +1032,8 @@ function rec check(ctx,e) {
 			| _ ->
 				error("UnSupported " + "Type: " + "." + path.ext, p)
 			}
-		} else {
+		else
 			(ESub [], p) // duplicate, simply ignore it;
-		}
 	| EKeyframes (name, sl) ->
 		if ctx.curblock != None then error("Unexpected " + "@keyframes" + " here", pos e)
 		function rec loop(l) match l {
@@ -1058,7 +1055,7 @@ function display(msg,p) {
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
 	} else
-	IO.printf IO.stderr "%s:%d: %s\n" (Hss.Utils.relative_path(Lexer.source p),Lexer.line p,msg);
+	IO.printf IO.stderr "%s:%d: %s\n" ((Lexer.source p),Lexer.line p,msg);
 }
 
 function report(msg,p) {
@@ -1076,11 +1073,11 @@ try {
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	List.iter (function(file) {
+		var path,_ = Hss.Utils.path file "";
 		// parse
-		var ch = IO.read_file file true;
+		var ch = IO.read_file (path.str) true;
 		var lex = Lexer.create Buffer.create();
-		var path = Hss.Utils.path file "" true;
-		Lexer.input lex path.full ch 1 0;
+		Lexer.input lex (path.str) ch 1 0;
 		var el = Hss.Parser.parse lex;
 		IO.close_in ch;
 		// check + replace vars
