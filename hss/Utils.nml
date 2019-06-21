@@ -190,8 +190,10 @@ function img_to_base64(path: string, p: Lexer.pos): string {
 	| 0xD8FF -> "jpg"
 	| 0x5089 -> "png"
 	| 0x4947 -> "gif"
-	| 0x733C -> "svg+xml" // '<s'
-	| _ -> throw Error("UnSupported " + "Type: " + path, p)
+	| _ -> match (Sys.extension path) {
+		| "svg" -> "svg+xml"
+		| _ -> throw Error("UnSupported " + "Type: " + path, p)
+		}
 	}
 	var prefix = "data:image/" + ext + ";base64,"
 	var prefix_len = String.length prefix
