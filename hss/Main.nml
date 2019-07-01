@@ -1089,7 +1089,13 @@ try {
 		var el = List.map eval_block(ctx) el;
 		// write
 		var file2 = Sys.without_extension file + ".css";
-		var file2 = match *output { None -> file2 | Some dir -> dir + Sys.without_dir file2 };
+		var file2 = match *output {
+			| None ->
+				file2
+			| Some dir ->
+				var slash = String.get dir ((String.length dir) - 1);
+				(if slash == '/' || slash == '\\' then dir else dir + "/") + Sys.without_dir file2
+		};
 		if file != file2 then {
 			var ch = IO.write_file file2 true;
 			List.iter (print_css ch "") el;
