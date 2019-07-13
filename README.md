@@ -249,9 +249,7 @@ a:not([href]):nth-child(2n+1) {
 }
 ```
 
-### Condition
-
-#### macro
+### Macro Condition
 
 New in `1.7`, The condition value should be passed by using `-D flag` on the command line.
 
@@ -266,29 +264,6 @@ div {
 @else
   color: @if blue #00f @else #000 @end ;
 @end
-}
-```
-
-#### expr
-
-Just simple Uses `&&` and `||` to join expr, and the left of the expr must be "Property Variable"
-
-```scss
-var polyfill = { background-color: blue; }
-var ie8 = 1;
-.one {
-  $ie8 && $polyfill;    // if property varialbe $ie8 then $polyfill
-}
-/* The right side of expr can also be the following values: */
-$url && @import($url);  // @import, Note: @import only works in top level
-
-.two {
-  $blue || color: #00f; // Attribute: Value;
-  $blue || {            // A Braces Block then all internal exprs will be moved to the current scope
-    var blue = #00f;
-  }
-  $var1 || $var2 && {   // The left can be multiple property varialbe, but parentheses are not supported
-  }
 }
 ```
 
