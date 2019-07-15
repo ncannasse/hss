@@ -298,18 +298,11 @@ HSS also enforces some good CSS practices such as :
 * HSS will try to detect if `@media` query is valid, but not all the syntax
 
   ```scss
-  // you could use quotes to skip detection in media query.
+  // you could use quotes to skip detection for "media type" or "media feature".
+  @media "tv", "handheld" {}
   @media (some-css3-media: "unknown") {}
 
-  // quotes for media type
-  @media "tv", "handheld" {}
-
-  // quotes almost everywhere
-  @media "screen and (min-width: 30em) and (orientation: landscape)" {}
-  @media screen and (min-width: 30em) "and (orientation: landscape)" {}
-  @media screen "and (min-width: 30em)" and (orientation: landscape) {}
-
-  // Note: Only supports Property Variables in value of the feature/attribute
+  // Note: Only supports Property Variables in value of the "media feature"
   var narrow_width = 767px;
   @media only screen and (max-width : $narrow_width) {}
   ```

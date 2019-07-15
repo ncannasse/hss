@@ -455,6 +455,7 @@ var rules = List.concat [[
 }
 ];
 
+var media_types = ["all";"screen";"print";"speech"] // deprecated types: ["tty"; "tv"; "projection"; "handheld"; "braille"; "embossed"; "aural"]
 var media_rules = {
 	var rint = [RInt]
 	var aspect_ratio = [ratio(RInt, RInt)]

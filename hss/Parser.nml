@@ -67,29 +67,56 @@ function rec expr(s) {
 	| [< (Keyword Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = opt_semicolon s >] -> (EInclude css, punion p1 p2)
 	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = opt_semicolon s >] -> (EImport v, p)
 	| [< (Keyword Keyframes,p1); (Const (Ident n),p2); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, punion p1 p2)
-	| [< (Keyword Media,p); v = media_list s; (BraceOpen,_); l = expr_list s; >] -> (EMedia v l, p)
+	| [< (Keyword Media,p); m = media s; (BraceOpen,_); l = expr_list s; >] -> (EMedia m l, p)
 	| [< (Const (Val v),p) >] -> expr_dollar v p s
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
 	}
 }
 
-function rec media_list(s) {
+function rec media(s) {
+	var m = match s {
+	| [< (Const (Ident id),p) >] ->
+		var op = String.lowercase id;
+		if (op == "only" || op == "not") then (match s {
+			| [< (Const (Ident ts),p2) >] -> (MType(ts, Some id), punion p p2)
+			| [< (Const (String str),p2) >] -> (MQuotes (id + " " + str), punion p p2) // HACK
+		}) else
+			(MType(id, None), p)
+	| [< m = media_feature s >] -> m
+	}
+	media_next s m
+}
+
+function rec media_feature(s) {
 	match s {
-	| [< (Comma, p) >] -> (MComma,p)::(media_list s)
-	| [< (Const (String str),p) >] -> (MQuotes str, p)::(media_list s)
-	| [< (Const (Ident id), p) >] ->
-		var id = String.lowercase id;
-		(match id {
-		| "not" -> (MNot, p)
-		| "only" -> (MOnly, p)
-		| "and" -> (MAnd, p)
-		| "all" | "screen" | "print" | "speech" -> (MType id, p)
-		| _ -> error Unexpected(Const (Ident id)) p
-		})::(media_list s)
-	| [< (ParentOpen,_); (Const (Ident id),p); (ParentClose,_) >] -> (MSigAttr id, p)::(media_list s)
-	| [< (ParentOpen,_); (Const (Ident id),p); (DoubleDot,_); v = value s; (ParentClose,_)>] -> (MAttr id v, p)::(media_list s)
-	| [< (ParentOpen,p1); l = media_list s; (ParentClose,p2) >] -> (MParent l, punion p1 p2)::(media_list s)
-	| [< >] -> []
+	| [< (Const (String str),p) >] -> (MQuotes str, p) // HACK
+	| [< (ParentOpen,_); (Const (Ident id),p); (ParentClose,_) >] -> (MFeature(id, None), p)
+	| [< (ParentOpen,_); (Const (Ident id),p); (DoubleDot,_); v = value s; (ParentClose,_) >] -> (MFeature(id, Some v), p)
+	}
+}
+
+function rec media_next(s, m) {
+	match s {
+	| [< (Comma,p); m2 = media s >] ->
+		function rec loop(m2) {
+			var p = punion (pos m) (pos m2);
+			match fst m2 {
+			| MList l -> (MList (m :: l), p)
+			| _ -> (MList [m;m2], p)
+			}
+		}
+		loop m2
+	| [< (Const (Ident op),p); m2 = media_feature s >] when String.lowercase op == "and" ->
+		function rec loop(m2) {
+			var p = punion (pos m) (pos m2);
+			match fst m2 {
+			| MList x::l -> (MList ((MAnd(m, x), punion(pos m, pos x)) :: l), p)
+			| _ -> (MAnd(m, m2), p)
+			}
+		}
+		loop (media_next s m2)
+	| [< >] ->
+		m
 	}
 }
 

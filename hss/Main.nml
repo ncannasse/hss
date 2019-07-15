@@ -132,29 +132,21 @@ function rec print_class(first,ch,c) {
 	}
 }
 
-function rec print_media(ch, sp, e) {
-	var t = fst e;
-	if t != MComma then IO.write ch sp;
-	match t {
-	| MComma -> IO.write_char ch ',';
-	| MNot   -> IO.write ch "not"
-	| MOnly  -> IO.write ch "only"
-	| MAnd   -> IO.write ch "and"
-	| MType s | MQuotes s -> IO.write ch s;
-	| MSigAttr s       -> IO.write_char ch '('; IO.write ch s; IO.write_char ch ')';
-	| MAttr(s, val)    -> IO.write_char ch '('; IO.write ch s; IO.write_char ch ':';
-		IO.write_char ch ' ';
-		match fst val {
-		| VString s | VIdent s -> IO.write ch s;
-		| _ -> print_value ch val;
+function rec print_media(ch, m) {
+	match fst m {
+	| MAnd(m1, m2) -> print_media ch m1; IO.write ch (" " + "and" + " "); print_media ch m2
+	| MType(s, None) -> IO.write ch s;
+	| MType(s, Some op) -> IO.write ch (op + " " + s);
+	| MFeature(s, None) -> IO.write ch ("(" + s + ")")
+	| MFeature(s, Some v) ->
+		IO.write ch ("(" + s + ": ")
+		match fst v {
+		| VString s -> IO.write ch s;
+		| _ -> print_value ch v;
 		}
-		IO.write_char ch ')';
-	| MParent x::tl ->
-		IO.write_char ch '(';
-		print_media ch "" x;
-		List.iter (print_media ch " ") tl;
-		IO.write_char ch ')';
-	| MParent [] ->
+		IO.write_char ch ')'
+	| MQuotes s -> IO.write ch s;
+	| MList l -> print_sep ", " print_media ch l
 	}
 }
 
@@ -195,7 +187,8 @@ function rec print_css(ch,tabs,e) {
 		| [] ->
 		| _ ->
 			IO.write ch "@media";
-			List.iter (print_media ch " ") v;
+			IO.write_char ch ' ';
+			print_media ch v;
 			IO.write ch " {\n";
 			List.iter (print_css ch (tabs+"\t")) el;
 			IO.printf ch "%s}\n" tabs;
@@ -792,59 +785,32 @@ var media_hrules = {
 	h
 }
 
-function check_media(ctx, ml: media list) {
-	function err (s, p) { error ("Unexpected " + s) p}
-	// eval ,check rule, and check state in a loop
-	function rec loop(l: media list, state: int) {
-		// states:
-		// MQuotes         : 0, Accept: [ALL]
-		// MComma, (BEGIN) : 1, Accept: [3, 0]
-		// MAnd            : 2, Accept: [3, 0]
-		// MType           : 3, Accept: [NOT 3]
-		// MSigAttr        : 3, Accept: [2, 1, 0]
-		// MAttr           : 3, Accept: [2, 1, 0]
-		// MParent         : 3, Accept: [2, 1, 0]
-		// MNot, MOnly     : 4, Accept: [1, 0]
-		match l {
-		| [] -> l
-		| (m,p) :: tl ->
-			var state = match m {
-			| MComma ->
-				if (state == 3 || state == 0) then 1 else err(",", p);
-			| MAnd ->
-				if tl != [] && (state == 3 || state == 0) then 2 else err("and", p);
-			| MNot | MOnly ->
-				if tl != [] && state < 2 then 4 else err (if m == MNot then "not" else "only") p;
-			| MType s ->
-				if state !=3 then 3 else err(s, p);
-			| MSigAttr s ->
-				var b = match s {
-				| "color" | "color-index" | "monochrome" -> true
-				| _ -> false
-				}
-				if state < 3 && b then 3 else err("("+ s + ")", p);
-			| MAttr(k, v) ->
-				if state < 3 then 3 else err("("+ k + ": " + (s_value v) + ")", p);
-			| MParent l ->
-				if state < 3 && l != [] then 3 else err("(...)", p);
-			| MQuotes _ ->
-				0;
-			}
-			var mp = match m {
-			| MAttr(k, v) ->
-				var v = eval ctx v;
-				match fst v {
-				| VString _ -> () // skip check rule
-				| _ -> load_rules(Hashtbl.find media_hrules, k, v, p)
-				}
-				(MAttr(k, v), p)
-			| MParent l -> (MParent (loop l 1), p);
-			| _ -> List.hd l      // (m,p)
-			}
-			mp :: (loop tl state)
+function rec check_media(ctx, m: media) {
+	var p = pos m;
+	function err(s) error ("Invalid '" + s + "'") p
+	match fst m {
+	| MAnd(m1, m2) ->
+		(MAnd(check_media ctx m1, check_media ctx m2), p);
+	| MType(s, _) ->
+		if (!(List.mem(String.lowercase s, HSS.Rules.media_types))) then err s;
+		m;
+	| MFeature(s, None) ->
+		var k = String.lowercase s;
+		var h = String.sub k 0 4; // "min-"
+		if (h == "min"+"-" || h == "max"+"-" || !Hashtbl.exists(media_hrules,"min"+"-"+k) ) then err s;
+		m
+	| MFeature(s, Some v) ->
+		var v = eval ctx v;
+		match fst v {
+		| VString _ -> () // skip
+		| _ -> load_rules(Hashtbl.find media_hrules, String.lowercase s, v, p)
 		}
+		(MFeature(s, Some v), p)
+	| MQuotes _ ->
+		m
+	| MList l ->
+		(MList List.map(check_media ctx, l), p)
 	}
-	loop ml 1;
 }
 
 // simple detection only, cannot detect circular references

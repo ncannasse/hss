@@ -134,15 +134,11 @@ type class {
 
 type media;
 type media_decl {
-	MComma;
-	MNot;
-	MOnly;
-	MAnd;
-	MType: string;          // screen, all, print, speech
-	MAttr: (string, value); // (attr: value)
-	MSigAttr: string;       // (attr)
-	MQuotes: string;        // "string"
-	MParent: media list;    // ()
+	MAnd: (media, media);
+	MType: (string, string option);
+	MFeature: (string, value option);
+	MList: media list;
+	MQuotes: string;
 }
 type media = (media_decl, pos)
 
@@ -154,7 +150,7 @@ type expr_decl {
 	EIfDefine: ((string, bool), expr);
 	EBlock : (class list, expr list);
 	ESub : expr list;
-	EMedia : (media list, expr list);
+	EMedia : (media, expr list);
 	EInclude : string;
 	EImport : value;
 	EKeyframes: (string, (value, expr list) list);
