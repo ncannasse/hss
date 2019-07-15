@@ -460,42 +460,29 @@ var media_rules = {
 	var rint = [RInt]
 	var aspect_ratio = [ratio(RInt, RInt)]
 	var resolution = [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"];
-	[
-	("width",rlength);
-	("min-width",rlength);
-	("max-width",rlength);
-	("height",rlength);
-	("min-height",rlength);
-	("max-height",rlength);
-	("aspect-ratio",     aspect_ratio);
-	("min-aspect-ratio", aspect_ratio);
-	("max-aspect-ratio", aspect_ratio);
-	("orientation", [RId "portrait"; RId "landscape"]);
-	("resolution",     resolution);
-	("min-resolution", resolution);
-	("max-resolution", resolution);
-	("scan", [RId "interlace"; RId "progressive"]);
-	("grid", [RIntRange 0 1]);
-	("update", [none; RId "slow"; RId "fast"]);
-	("overflow-block", [none; RId "scroll"; RId "paged"; RId "optional-paged"]);
-	("overflow-inline", [none; RId "scroll"]);
-	("color",     rint);
-	("min-color", rint);
-	("max-color", rint);
-	("color-index",     rint);
-	("min-color-index", rint);
-	("max-color-index", rint);
-	("color-gamut", [RId "srgb"; RId "p3"; RId "rec2020"]);
-	("display-mode", [RId "fullscreen"; RId "standalone"; RId "minimal-ui"; RId "browser"]);
-	("monochrome",     rint);
-	("min-monochrome", rint);
-	("max-monochrome", rint);
-	("inverted-colors", [none; RId "inverted"]);
-	("pointer", [none; RId "coarse"; RId "fine"]);
-	("any-pointer", [none; RId "coarse"; RId "fine"]);
-	("hover", [none; RId "hover"]);
-	("any-hover", [none; RId "hover"]);
-	("light-level", [RId "dim"; RId "normal"; RId "washed"]);
-	("scripting", [none; RId "initial-only"; RId "enabled"]);
-	]
+	([  // allow min/max
+		("width",rlength);
+		("height",rlength);
+		("aspect-ratio", aspect_ratio);
+		("resolution", resolution);
+		("color", rint);
+		("color-index", rint);
+		("monochrome", rint);
+	] , [
+		("orientation", [RId "portrait"; RId "landscape"]);
+		("scan", [RId "interlace"; RId "progressive"]);
+		("grid", [RIntRange 0 1]);
+		("update", [none; RId "slow"; RId "fast"]);
+		("overflow-block", [none; RId "scroll"; RId "paged"; RId "optional-paged"]);
+		("overflow-inline", [none; RId "scroll"]);
+		("color-gamut", [RId "srgb"; RId "p3"; RId "rec2020"]);
+		("display-mode", [RId "fullscreen"; RId "standalone"; RId "minimal-ui"; RId "browser"]);
+		("inverted-colors", [none; RId "inverted"]);
+		("pointer", [none; RId "coarse"; RId "fine"]);
+		("any-pointer", [none; RId "coarse"; RId "fine"]);
+		("hover", [none; RId "hover"]);
+		("any-hover", [none; RId "hover"]);
+		("light-level", [RId "dim"; RId "normal"; RId "washed"]);
+		("scripting", [none; RId "initial-only"; RId "enabled"]);
+	])
 }

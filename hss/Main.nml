@@ -781,7 +781,14 @@ function load_rules(find, name, value, p) {
 
 var media_hrules = {
 	var h = Hashtbl.create();
-	List.iter (function((a,b)) Hashtbl.add h a b) Hss.Rules.media_rules;
+	var smin = "min"+"-";
+	var smax = "max"+"-";
+	List.iter (function((a,b)) {
+		Hashtbl.add h a b;
+		Hashtbl.add h (smin + a) b;
+		Hashtbl.add h (smax + a) b;
+	}) (fst Hss.Rules.media_rules);
+	List.iter (function((a,b)) Hashtbl.add h a b) (snd Hss.Rules.media_rules);
 	h
 }
 
@@ -792,12 +799,10 @@ function rec check_media(ctx, m: media) {
 	| MAnd(m1, m2) ->
 		(MAnd(check_media ctx m1, check_media ctx m2), p);
 	| MType(s, _) ->
-		if (!(List.mem(String.lowercase s, Hss.Rules.media_types))) then err s;
-		m;
+		if !List.mem(String.lowercase s, Hss.Rules.media_types) then err s;
+		m
 	| MFeature(s, None) ->
-		var k = String.lowercase s;
-		var h = String.sub k 0 4; // "min-"
-		if (h == "min"+"-" || h == "max"+"-" || !Hashtbl.exists(media_hrules,"min"+"-"+k) ) then err s;
+		if !List.exists(function((k,_)) k == String.lowercase s, fst Hss.Rules.media_rules) then err s;
 		m
 	| MFeature(s, Some v) ->
 		var v = eval ctx v;
