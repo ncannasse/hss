@@ -353,11 +353,13 @@ Operations between two different units (for instance 50px + 3em) are not allowed
 
 ### Hacks Support
 
+* *(NEW):* the same `media queries` will be automatically merged/combined, if you don't like it, you can use `-D no-merge-media` to turn it off.
+
 * `CSS(values)`: will simply output the values without rule checking which is sometimes useful for non-standard CSS properties:
 
   ```css
   .image {
-    my-special-property : CSS("some specific value"); /* NOTE: The outer quotes will be strip if only single string */
+    my-special-property : CSS("some specific value"); /* NOTE: The outer quotes will be strip if only single string as argument */
     my-special-property : CSS(some specific value);   /* In most cases, quotes are not required, New in 1.6 */
     filter: CSS( "progid:DXImageTransform.Microsoft.DropShadow"(color=#88FF0000,offx=8,offy="8") ); /* Old IE filter */
   }

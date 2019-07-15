@@ -1016,6 +1016,42 @@ function rec check(ctx,e) {
 	}
 }
 
+function merge_media(el) {
+	function rec filter(l, out) match l {
+	| [] -> l
+	| v :: l -> match fst v {
+		| EMedia(m,e) ->
+			var ch, str = IO.write_string();
+			print_media ch m;
+			out := (str(), e, m, pos v) :: *out;  // (str, el, ml, pos), str is used for compare
+			filter l out
+		| _ ->
+			v :: (filter l out)
+		}
+	}
+	function rec combine(l, ts, out) match l {
+	| [] -> l
+	| (s,e,_,_) :: tl ->
+		if (s == ts) then {
+			out := List.append(*out, e);
+			combine tl ts out
+		} else {
+			(List.hd l) :: (combine tl ts out)
+		}
+	}
+	function rec loop(l) match l {
+	| [] -> []
+	| (s,e,m,p) :: l ->
+		var e = &e;
+		var l = combine l s e;
+		(EMedia(m, *e), p) :: loop l
+	}
+	var rl = &[];
+	var el = filter el rl;
+	var ml = loop List.rev(*rl);
+	List.append el ml
+}
+
 function display(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
@@ -1053,6 +1089,8 @@ try {
 		var el = List.concat (List.map flatten([]) el);
 		// final eval
 		var el = List.map eval_block(ctx) el;
+		// combine/merge media queries if there is no `-D no_merge_media`
+		var el = if Hss.Parser.defines_has("no_merge_media") then el else merge_media el;
 		// write
 		var file2 = Sys.without_extension file + ".css";
 		var file2 = match *output {
