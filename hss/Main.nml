@@ -792,7 +792,7 @@ function rec check_media(ctx, m: media) {
 	| MAnd(m1, m2) ->
 		(MAnd(check_media ctx m1, check_media ctx m2), p);
 	| MType(s, _) ->
-		if (!(List.mem(String.lowercase s, HSS.Rules.media_types))) then err s;
+		if (!(List.mem(String.lowercase s, Hss.Rules.media_types))) then err s;
 		m;
 	| MFeature(s, None) ->
 		var k = String.lowercase s;
