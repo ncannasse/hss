@@ -455,11 +455,17 @@ function rec class(s,first) {
 
 var defines = &Set.empty();
 
-function add_defines(s) defines := Set.add(*defines, s)
+function defines_has(s) Set.exists (*defines) s
+
+function add_defines(s) {
+	var u = String.concat "_" (String.split s "-");
+	if (u != s) then defines := Set.add(*defines, u);
+	defines := Set.add(*defines, s)
+}
 
 function rec eval(v) {
 	match fst v {
-	| VIdent i -> Set.exists (*defines) i
+	| VIdent i -> defines_has i
 	| VLabel(_, v) -> !(eval v)
 	| VParentheses v -> eval v
 	| VOp(BoolAnd, v1, v2) -> (eval v1) && eval(v2)
