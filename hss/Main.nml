@@ -1015,9 +1015,10 @@ function rec check(ctx,e) {
 			| _ -> // never run to here since Parser
 			}
 			var attribs = List.rev List.fold(flatten_subs, [], snd seg); // only attributes
-			(fst seg, List.map(check ctx, attribs)) :: loop l
+			if attribs == [] then loop l else (fst seg, List.map(check ctx, attribs)) :: loop l
 		}
-		(EKeyframes(name, loop sl), pos e)
+		var sl = loop sl;
+		if sl == [] then (ESub [], pos e) else (EKeyframes(name, sl), pos e)
 	}
 }
 
