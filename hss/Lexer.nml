@@ -24,6 +24,49 @@ type error_msg {
 
 exception Error : (error_msg , Lexer.pos)
 
+type line_info {
+	mutable file  : string;
+	mutable lines : int array;
+	mutable all : (string, int array) list;
+	empty: int array;
+}
+var li = { file = ""; lines = Array.create(); all = []; empty = Array.create(); }
+
+function line_inc(file, pos) {
+	if file != li.file then {
+		function rec loop(l) match l {
+		| [] ->
+			li.file  := file;
+			li.lines := neko "var _a = $amake(512); _a[0] = 0; $array(_a,string, 1)"; // copy from Array.make
+			li.all   := (li.file, li.lines) :: li.all
+		| (s, a) :: _ when s == file ->
+			li.file  := s;
+			li.lines := a;
+		| _ :: l -> loop l
+		}
+		loop li.all
+	}
+	Array.add li.lines pos
+}
+function column(p: pos) {
+	var source = p.psource;
+	var a = if source == li.file then li.lines else {
+		function rec find(l) match l {
+		| [] -> li.empty
+		| (s, a) :: _ when s == source -> a
+		| _ :: l -> find l
+		}
+		find li.all
+	}
+	// no need binary search because we have p.pline
+	if p.pline <= (Array.length a) then {
+		var start = a.[p.pline-1];
+		(p.pmin - start, p.pmax - start)
+	} else {
+		(0, 0)
+	}
+}
+
 function error_msg(msg) {
 	match msg {
 	| Invalid_character c when ord c > 32 && ord c < 128 -> sprintf "Invalid character '%c'" c
@@ -88,6 +131,17 @@ function qstr(l) {
 function puargs(l) {
 	Lexer.token l (*epuargs)
 }
+
+function next_token(l) {
+	Lexer.token l (*expr)
+}
+
+function line_inc_with(next, l) {
+	var p = Lexer.curpos l;
+	line_inc(p.psource, p.pmax);
+	next l
+}
+
 function pseudo_or_doubledot(l: Buffer.t Lexer.t) {
 	var s = Lexer.current l;
 	var len = (String.length s) - 1;
@@ -98,7 +152,7 @@ function pseudo_or_doubledot(l: Buffer.t Lexer.t) {
 			mk l (Selector s)
 		| 2 when (peek_char l) == '(' ->
 			var p1 = Lexer.curpos l;
-			ignore Lexer.token(l,*expr); // ignore "("
+			ignore (next_token l); // ignore "("
 			var buf = Lexer.data l;
 			Buffer.reset buf;
 			try puargs l catch { Exit -> throw Error(Unclosed_parentheses, p1) };
@@ -119,7 +173,7 @@ function pseudo_or_doubledot(l: Buffer.t Lexer.t) {
 }
 
 expr := Lexer.build (List.concat [[
-	("\239\187\191", function(l) Lexer.token l (*expr));
+	("\239\187\191", next_token);
 	(";", function(l) { mk l Semicolon });
 	(".", function(l) { mk l Dot });
 	(",", function(l) { mk l Comma });
@@ -141,11 +195,12 @@ expr := Lexer.build (List.concat [[
 	("&&", function(l) mk l Op(BoolAnd));
 	("&", function(l) mk l Op(And));
 	("^", function(l) mk l Op(Xor));
-	("[ \r\t\n]+", function(l) { Lexer.token l (*expr) });
+	("[ \r\t]+", next_token);
 	("0", mk_int);
 	("-?[1-9][0-9]*", mk_int);
 	("-?[0-9]+.[0-9]*", mk_float);
 	("-?.[0-9]+", mk_float);
+	("\n", line_inc_with next_token);
 	(ident, function(l) {
 		var s = Lexer.current l;
 		mk l (if s != "var" then Const (Ident s) else Keyword Var)
@@ -192,11 +247,10 @@ expr := Lexer.build (List.concat [[
 		var p2 = Lexer.curpos l;
 		(Comment(Buffer.string buf) , Lexer.punion p1 p2)
 	});
-	("//[^\r\n]*\n?", function(l) {
+	("//[^\n]*", function(l) {
 		var s = Lexer.current l;
 		var len = String.length s;
-		var n = (if String.get s (len - 1) == '\r' then 3 else 2);
-		mk l CommentLine(String.sub s 0 (len - n))
+		mk l CommentLine(String.sub s 2 (len - 2))
 	});
 ]])
 	(function(l) {
@@ -207,20 +261,29 @@ expr := Lexer.build (List.concat [[
 	})
 ;
 
-function exit(l) {throw Exit}
+function exit(l) {}
+
+function throw_exit(l) {throw Exit}
+
+function buffer_add_with(next, l) { Buffer.add (Lexer.data l) (Lexer.current l); next l }
+
+var comment_add = buffer_add_with comment;
 
 ecomment := Lexer.build [
-	("\\*/", function(l) { });
-	("\\*", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); comment l });
-	("[^*]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); comment l });
-] exit;
+	("\n", line_inc_with comment_add);
+	("\\*/", exit);
+	("\\*", comment_add);
+	("[^*\n]+", comment_add);
+] throw_exit;
 
 epuargs := Lexer.build [ // TODO: lexer args for nth-xxxx
-	(")", function(l) { });
-	("[^)]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); puargs l });
-] exit;
+	("\n", line_inc_with puargs);
+	(")", exit);
+	("[^)\n]+", buffer_add_with puargs);
+] throw_exit;
 
 estring := Lexer.build [
+	("\n", line_inc_with (buffer_add_with str));
 	("\\\\\"", function(l) {
 		Buffer.add_char (Lexer.data l) '"';
 		str l
@@ -247,11 +310,12 @@ estring := Lexer.build [
 		str l
 	});
 	("\\\\" , function(l) { error l Invalid_escape });
-	("\"" , function(l) { });
-	("[^\\\\\"]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
-] exit;
+	("\"" , exit);
+	("[^\n\\\\\"]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); str l });
+] throw_exit;
 
 eqstring := Lexer.build [
+	("\n", line_inc_with (buffer_add_with qstr));
 	("\\\\'", function(l) {
 		Buffer.add_char (Lexer.data l) '\'';
 		qstr l
@@ -278,6 +342,6 @@ eqstring := Lexer.build [
 		qstr l
 	});
 	("\\\\" , function(l) { error l Invalid_escape });
-	("'" , function(l) { });
-	("[^\\\\']+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
-] exit;
+	("'" , exit);
+	("[^\n\\\\']+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); qstr l });
+] throw_exit;

@@ -1080,8 +1080,10 @@ function display(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
-	} else
-	IO.printf IO.stderr "%s:%d: %s\n" ((Lexer.source p),Lexer.line p,msg);
+	} else {
+		var a, b = Hss.Lexer.column(p);
+		IO.printf IO.stderr "%s:%d: %d-%d: %s\n" (Lexer.source p, Lexer.line p, a, b, msg);
+	}
 }
 
 function report(msg,p) {
