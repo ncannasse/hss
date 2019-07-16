@@ -43,6 +43,14 @@ function print_sep(str,f,ch,l) {
 	}
 }
 
+//      0,     1        2        3        4       5       6         7        8
+var __a = neko "$array(
+$array('\t',  ', ',   ' > ',   ' + ',   ' ~ ',   ': ',   ';\n',   ' {\n',   '}\n'),
+$array(''  ,  ',' ,    '>' ,    '+' ,    '~' ,   ':' ,   ';'  ,    '{'  ,   '}'  )
+)";
+function __s(n:int, s:string) neko "__a[0][n]"
+function enable_minify() neko "__a[0]=__a[1]"
+
 function rec print_value(ch,v) {
 	match fst v {
 	| VIdent i -> IO.write ch i
@@ -55,7 +63,7 @@ function rec print_value(ch,v) {
 		IO.printf ch "%s=" n;
 		print_value ch v
 	| VList l ->
-		print_sep ", " print_value ch l
+		print_sep __s(1, ", ") print_value ch l
 	| VGroup l ->
 		print_sep " " print_value ch l
 	| VUrl url ->
@@ -102,8 +110,8 @@ function rec print_class(first,ch,c) {
 	if !first then
 		IO.write ch (match c.operator {
 		| OpDefault -> " "
-		| OpChild -> " > "
-		| OpPreceding imm -> if imm then " + " else " ~ "
+		| OpChild -> __s(2, " > ")
+		| OpPreceding imm -> if imm then __s(3, " + ") else __s(4, " ~ ")
 		| OpJoint -> ""
 		})
 	match c.node {
@@ -139,14 +147,14 @@ function rec print_media(ch, m) {
 	| MType(s, Some op) -> IO.write ch (op + " " + s);
 	| MFeature(s, None) -> IO.write ch ("(" + s + ")")
 	| MFeature(s, Some v) ->
-		IO.write ch ("(" + s + ": ")
+		IO.write_char ch '(';  IO.write ch s;  IO.write ch __s(5, ": ");
 		match fst v {
 		| VString s -> IO.write ch s;
 		| _ -> print_value ch v;
 		}
 		IO.write_char ch ')'
 	| MQuotes s -> IO.write ch s;
-	| MList l -> print_sep ", " print_media ch l
+	| MList l -> print_sep __s(1, ", ") print_media ch l
 	}
 }
 
@@ -161,15 +169,11 @@ function rec print_css(ch,tabs,e) {
 		List.iter (print_css ch (tabs+"\t")) el;
 		IO.printf ch "%s}\n" tabs;
 	| EAttribute(name,val) ->
-		IO.printf ch "%s%s: " (tabs,name);
-		print_value ch val;
-		IO.write ch ";\n";
+		IO.write ch tabs;  IO.write ch name;  IO.write ch __s(5, ": ");  print_value ch val;  IO.write ch __s(6, ";\n");
 	| EBlock(classes,el) ->
-		IO.write ch tabs;
-		print_sep ", " (print_class true) ch classes;
-		IO.write ch " {\n";
-		List.iter (print_css ch (tabs+"\t")) el;
-		IO.printf ch "%s}\n" tabs;
+		IO.write ch tabs;  print_sep(__s(1, ", "), print_class true, ch, classes);  IO.write ch __s(7, " {\n");
+		List.iter (print_css ch (tabs+__s(0, "\t"))) el;
+		IO.write ch tabs;  IO.write ch __s(8, "}\n");
 	| EUseBlock(name, pl) ->
 		match pl {
 		| [] ->
@@ -186,12 +190,9 @@ function rec print_css(ch,tabs,e) {
 		match el {
 		| [] ->
 		| _ ->
-			IO.write ch "@media";
-			IO.write_char ch ' ';
-			print_media ch v;
-			IO.write ch " {\n";
-			List.iter (print_css ch (tabs+"\t")) el;
-			IO.printf ch "%s}\n" tabs;
+			IO.write ch "@media";  IO.write_char ch ' ';  print_media ch v;  IO.write ch __s(7, " {\n");
+			List.iter (print_css ch (tabs+__s(0, "\t"))) el;
+			IO.write ch tabs;  IO.write ch __s(8, "}\n");
 		}
 	| EInclude s ->
 		IO.write ch tabs;
@@ -204,9 +205,9 @@ function rec print_css(ch,tabs,e) {
 		| _ ->
 		}
 	| EKeyframes (name, ks) ->
-		IO.printf ch "%s@keyframes %s {\n" (tabs,name);
-		List.iter (print_keyframe ch (tabs+"\t")) ks;
-		IO.printf ch "%s}\n" tabs;
+		IO.write ch tabs;  IO.write ch "@keyframes";  IO.write_char ch ' ';  IO.write ch name;  IO.write ch __s(7, " {\n");
+		List.iter (print_keyframe ch (tabs+__s(0,"\t"))) ks;
+		IO.write ch tabs;  IO.write ch __s(8, "}\n");
 	}
 }
 
@@ -217,10 +218,9 @@ function rec print_keyframe(ch, tabs, k) {
 	| VUnit(f, _) -> IO.write ch (f + "%")
 	| _->
 	}
-	IO.write ch " {\n";
-	List.iter print_css(ch, tabs+"\t") (snd k);
-	IO.write ch tabs;
-	IO.write ch "}\n";
+	IO.write ch __s(7, " {\n");
+	List.iter print_css(ch, tabs+__s(0, "\t")) (snd k);
+	IO.write ch tabs;  IO.write ch __s(8, "}\n");
 }
 
 function rec make_sub(p,c) {
@@ -1077,6 +1077,7 @@ try {
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
+		("--minify",Args.Void enable_minify,"     : minify output by removing some whitespaces");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	List.iter (function(file) {
