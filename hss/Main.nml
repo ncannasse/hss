@@ -305,11 +305,11 @@ function rec check_rule_inner(rest, r, v) {
 	| (RCall(r,p), VCall (c,vl)) -> check_rule r c && check_rule p (VList vl,snd v)
 	| (RFloat, VInt _) | (RFloat, VFloat _) -> true
 	| (RInt, VInt _) -> true
-	| (RInt, VFloat f) when !(fractional_part f) -> true
+	| (RInt, VFloat f) -> !(fractional_part f)
 	| (RFloatRange(min,max), VInt n) -> n * 1.0 >= min && n * 1.0 <= max
 	| (RFloatRange(min,max), VFloat n) -> n >= min && n <= max
 	| (RIntRange(min,max), VInt n) -> n >= min && n <= max
-	| (RIntRange(min,max), VFloat f) when !(fractional_part f) -> (Math.floor f) >= min && (Math.floor f) <= max
+	| (RIntRange(min,max), VFloat f) -> !(fractional_part f) && (Math.floor f) >= min && (Math.floor f) <= max
 	| (ROr rl,_) -> List.exists (function(r) check_rule r v) rl
 	| (RIdent, VIdent _) -> true
 	| (RString, VString _) -> true
