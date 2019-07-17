@@ -37,6 +37,8 @@ function error(m,p) {
 	throw Error(m,p)
 }
 
+function contiguous(p1, p2) p1.pmax == p2.pmin && p1.pline == p2.pline;
+
 function semicolon(s) {
 	match s {
 	| [< (Semicolon,p) >] -> p
@@ -200,7 +202,7 @@ function rec value(s) {
 function rec value_unit(f,v,s) {
 	var p1 = pos v
 	var p2 = pos (stream_token s 0)
-	var v = if (p1.pmax == p2.pmin && p1.pline == p2.pline) then
+	var v = if contiguous p1 p2 then
 		match s {
 		| [< (Const (Ident i),_) >] -> (VUnit f i, punion p1 p2)
 		| [< (Percent,_) >] -> (VUnit f "%", punion p1 p2)
@@ -226,7 +228,7 @@ function rec value_next(v,s) {
 	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] ->
 		match p {
 		| (VList l,_) -> value_next (VCall v l, punion (pos v) p2) s
-		| _ -> match (fst v, (pos v).pmax == p1.pmin && (pos v).pline == p1.pline) {
+		| _ -> match (fst v, contiguous(pos v, p1)) {
 			| (_, true) | (VIdent "CSS",_) -> value_next (VCall v [p], punion (pos v) p2) s
 			| _ -> value_join v (value_next (VParentheses p,punion p1 p2) s)
 			}
@@ -310,7 +312,7 @@ function rec value_hex(p,s) {
 		var p2 = snd t;
 		pos := p2;
 		// contiguous
-		if p.pline != p2.pline || p.pmax != p2.pmin then
+		if !(contiguous p p2) then
 			i
 		else match fst t {
 		| Const (Ident id) when Regexp.find hex id 0 String.length(id) ->
@@ -362,7 +364,7 @@ function rec class(s,first) {
 		var p2 = snd t;
 		pos := p2;
 		// contiguous
-		if (i > 0 || c.attributes != []) && (p.pline != p2.pline || p.pmax != p2.pmin) then
+		if (i > 0 || c.attributes != []) && !(contiguous p p2) then
 			i
 		else match *last {
 		| None -> // STATE 1
@@ -438,7 +440,7 @@ function rec class(s,first) {
 		| Op Add -> stream_junk s 1; OpPreceding true
 		| _ ->
 			var p2 = snd nxt;
-			if (p.pline == p2.pline && p.pmax == p2.pmin) then OpJoint else OpDefault
+			if (contiguous p p2) then OpJoint else OpDefault
 		}
 	| [< >] -> OpDefault
 	}
