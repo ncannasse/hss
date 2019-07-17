@@ -298,11 +298,13 @@ function rec check_inherit(v) {
 
 function fractional_part(f) { if (Math.abs f) % 1 < 0.00001 then false else true }
 
+var last_error_value = &(VString "", Lexer.null_pos);
+
 function rec check_rule(r, v) { check_rule_inner(&[], r, v) }
 
 function rec check_rule_inner(rest, r, v) {
 	function rec check_rule(r,v) {check_rule_inner rest r v}
-	match (r, fst v) {
+	var r = match (r, fst v) {
 	| (RId s, VIdent n) -> s == n
 	| (RHex n, VHex s) -> String.length s == n
 	| (RUnit s, VUnit(_,n)) -> s == n
@@ -424,6 +426,8 @@ function rec check_rule_inner(rest, r, v) {
 		check_rule r v
 	| _ -> false
 	}
+	if !r then last_error_value := if *rest == [] then v else List.hd (*rest);
+	r
 }
 
 var hrules = {
@@ -782,8 +786,8 @@ function load_rules(find, name, value, p) {
 		var rules = find name
 		if !(List.exists (function(r) check_rule r value) rules) && !(check_inherit value) then {
 			var buf, str = IO.write_string();
-			print_value buf value;
-			check_errors_add ("Invalid '"+name+"' value '"+str()+"'", p)
+			print_value buf (*last_error_value);
+			check_errors_add ("Invalid '"+name+"' value '"+str()+"'", pos (*last_error_value))
 		}
 	} catch {
 	| Not_found -> if snd(Hss.Utils.vendor_prefix name) == "" then
