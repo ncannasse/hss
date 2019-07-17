@@ -44,6 +44,15 @@ function semicolon(s) {
 	}
 }
 
+function semicolon_final(s) {
+	match s {
+	| [< (Semicolon,p) >] -> p
+	| [< >] ->
+		var tk,p = stream_token s 0;
+		if (tk == BraceClose) then p else error (Expected_semicolon tk) p
+	}
+}
+
 function rec program(s) {
 	match s {
 	| [< (Eof,_) >] -> []
@@ -137,7 +146,7 @@ function rec expr_list(s) {
 	match s {
 	| [< (BraceClose,_) >] -> []
 	| [< >] -> (match s {
-		| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon s >] -> (EAttribute att v,p)
+		| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_final s >] -> (EAttribute att v,p)
 		| [< (Const (Val v),p) >] -> expr_dollar v p s
 		| [< e = expr s >] -> e
 		}) :: expr_list s
