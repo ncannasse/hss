@@ -19,6 +19,7 @@ type error_msg {
 	Unterminated_string;
 	Invalid_escape;
 	Unclosed_comment;
+	Unclosed_parentheses;
 }
 
 exception Error : (error_msg , Lexer.pos)
@@ -29,7 +30,8 @@ function error_msg(msg) {
 	| Invalid_character c -> sprintf "Invalid character 0x%.2X" (ord c)
 	| Invalid_escape -> "Invalid escaped char"
 	| Unterminated_string -> "Unterminated string"
-	| Unclosed_comment -> "Unclosed comment"
+	| Unclosed_comment -> "Unclosed " + "comment"
+	| Unclosed_parentheses -> "Unclosed " + ")"
 	}
 }
 
@@ -41,6 +43,14 @@ var keywords = {
 	var h = Hashtbl.create();
 	List.iter (function(k) { Hashtbl.add h (s_keyword k) k }) [Var;Media;Import;Keyframes;Include;PrIf;PrElse;PrElseIf;PrEnd];
 	h
+}
+
+// similar to Lexer.char but there is no "inc_line" here
+function peek_char(l: Buffer.t Lexer.t) : char {
+	var c = Lexer.read l;
+	l.bpos := l.bpos - 1;
+	l.bin := l.bin + 1;
+	c
 }
 
 function mk(l,t) {
@@ -61,6 +71,7 @@ var expr = &Lexer.empty();
 var estring = &Lexer.empty();
 var eqstring = &Lexer.empty();
 var ecomment = &Lexer.empty();
+var epuargs = &Lexer.empty();
 
 function comment(l) {
 	Lexer.token l (*ecomment)
@@ -74,6 +85,39 @@ function qstr(l) {
 	Lexer.token l (*eqstring)
 }
 
+function puargs(l) {
+	Lexer.token l (*epuargs)
+}
+function pseudo_or_doubledot(l: Buffer.t Lexer.t) {
+	var s = Lexer.current l;
+	var len = (String.length s) - 1;
+	var s = String.sub s 1 len;
+	try
+		match Map.find Hss.Rules.pseudo_cmap s {
+		| 1 ->
+			mk l (Selector s)
+		| 2 when (peek_char l) == '(' ->
+			var p1 = Lexer.curpos l;
+			ignore Lexer.token(l,*expr); // ignore "("
+			var buf = Lexer.data l;
+			Buffer.reset buf;
+			try puargs l catch { Exit -> throw Error(Unclosed_parentheses, p1) };
+			(SelectorFn(s, Buffer.string buf), Lexer.punion(p1, Lexer.curpos l))
+		| _ ->
+			throw Not_found
+		}
+	catch {
+	| _ -> // backtracing hack for (":"+ident)
+		l.pos  := l.pos - len;
+		l.bpos := l.bpos - len;
+		l.cpos := l.bpos;
+		l.bin  := l.bin + len;
+		l.cin  := l.bin;
+		l.current := ":";
+		mk l DoubleDot
+	}
+}
+
 expr := Lexer.build (List.concat [[
 	("\239\187\191", function(l) Lexer.token l (*expr));
 	(";", function(l) { mk l Semicolon });
@@ -85,8 +129,9 @@ expr := Lexer.build (List.concat [[
 	(")", function(l) { mk l ParentClose });
 	("\\[", function(l) { mk l BracketOpen });
 	("]", function(l) { mk l BracketClose });
-	(":", function(l) { mk l DoubleDot });
+	(":"+ident, pseudo_or_doubledot);
 	("::", function(l) { mk l DoubleDotx2 });
+	(":", function(l) { mk l DoubleDot });
 	("%", function(l) { mk l Percent });
 	("!", function(l) { mk l Exclamation });
 	("=", function(l) { mk l Eq });
@@ -153,24 +198,7 @@ expr := Lexer.build (List.concat [[
 		var n = (if String.get s (len - 1) == '\r' then 3 else 2);
 		mk l CommentLine(String.sub s 0 (len - n))
 	});
-];
-	(List.map (function(sel) {
-		(":"+sel, function(l) {
-			var s = Lexer.current l;
-			mk l Selector(String.sub(s, 1, String.length(s) - 1))
-		})
-	}) Hss.Rules.selectors);
-	(List.map (function(sel) {
-		(":"+sel+"([^)]*", function(l) {
-			var s = Lexer.current l;
-			var s = String.sub(s, 1, String.length(s) - 1);
-			match String.split s "(" {
-			| [a;b] -> mk l SelectorCall(a,b)
-			| _ -> assert()
-			}
-		})
-	}) Hss.Rules.selectors_call);
-])
+]])
 	(function(l) {
 		match Lexer.char l {
 		| None -> mk l Eof
@@ -185,6 +213,11 @@ ecomment := Lexer.build [
 	("\\*/", function(l) { });
 	("\\*", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); comment l });
 	("[^*]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); comment l });
+] exit;
+
+epuargs := Lexer.build [ // TODO: lexer args for nth-xxxx
+	(")", function(l) { });
+	("[^)]+", function(l) { Buffer.add (Lexer.data l) (Lexer.current l); puargs l });
 ] exit;
 
 estring := Lexer.build [

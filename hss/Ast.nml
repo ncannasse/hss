@@ -70,7 +70,7 @@ type token {
 	Comment : string;
 	CommentLine : string;
 	Selector : (string);
-	SelectorCall : (string,string);
+	SelectorFn : (string,string);
 	Op : op;
 	Tild;
 	Dollar;
@@ -117,9 +117,9 @@ type attrib_op {
 }
 
 type pseudo {
-	PSelector : string;
-	PSelector2 : string; // double colon(::) as prefix
-	PSelectorCall : (string, string); // (name, args)
+	PuClass   : string;
+	PuElement : string;
+	PuClassFn : (string, string);
 }
 
 type class {
@@ -222,7 +222,7 @@ function s_token(x) {
 	| Comment s -> "/*" + s + "*/"
 	| CommentLine s -> "//" + s
 	| Selector s -> ":"+s
-	| SelectorCall(s,e) -> s+"("+e+")"
+	| SelectorFn(s,e) -> s+"("+e+")"
 	| Op o -> s_op o
 	| Tild -> "~"
 	| Dollar -> "$"

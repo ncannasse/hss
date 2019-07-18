@@ -389,19 +389,18 @@ function rec class(s,first) {
 				| Const (Ident att) ->
 					stream_junk s (i + 2);
 					var p, op = parse_attribute s;
-					c.attributes := (att, op) :: c.attributes;
+					c.attributes := List.append c.attributes [(att, op)];
 					pos := p;
 					loop 0
 				| _ ->
-					i+1
+					i
 				}
 			| Selector s ->
-				c.selector := (PSelector s)::c.selector;
+				c.selector := (PuClass s)::c.selector;
 				loop (i+1)
-			| SelectorCall (s,e) ->
-				c.selector := PSelectorCall(s, e)::c.selector;
-				pos := {psource = p2.psource; pline = p2.pline; pmin = p2.pmin; pmax = p2.pmax + 1};
-				loop (i+2)
+			| SelectorFn(s,a) ->
+				c.selector := PuClassFn(s,a)::c.selector;
+				loop (i+1)
 			| ParentOpen when i == 1 && c.node == Some "CSS" ->
 				match (stream_token s (i + 1), stream_token s (i + 2)) {
 				| ((Const (String s),_), (ParentClose,p)) ->
@@ -420,7 +419,7 @@ function rec class(s,first) {
 				match v {
 				| Dot -> c.classes := List.append c.classes [id];
 				| Sharp -> c.id := Some id;
-				| DoubleDotx2 -> c.selector:= (PSelector2 id)::c.selector;
+				| DoubleDotx2 -> c.selector:= (PuElement id)::c.selector;
 				| _ -> error (Unexpected v) p // never run to this line
 				}
 			| t -> error (Unexpected t) p2
@@ -446,9 +445,9 @@ function rec class(s,first) {
 	}
 	var n = loop 0;
 	if n == 0 && c.attributes == [] then {
-		error (if first then Unexpected fst(stream_token s 0) else Class_expected) (*pos)
+		var tk,p = stream_token s 0;
+		error (if first then Unexpected tk else Class_expected) p
 	}
-	c.attributes := List.rev c.attributes;
 	stream_junk s n;
 	match fst(stream_token s 0) {
 	| BraceOpen | Comma -> ()
@@ -488,7 +487,7 @@ function parse(lexer) {
 		var h = List.hd(*mstack);
 		var t = &next_token();
 		while (*mstack) != [] && h === List.hd(*mstack) {
-			if fst(*t) == Eof then error Message("UnClosed @if/@else") pos(*t);
+			if fst(*t) == Eof then error Message("UnClosed "+"@if/@else") pos(*t);
 			t := next_token();
 		}
 		*t
