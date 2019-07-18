@@ -123,12 +123,12 @@ type pseudo {
 }
 
 type class {
-	mutable node : string option;
-	mutable classes : string list;
-	mutable id : string option;
-	mutable selector : pseudo list;
+	mutable node : (string,pos) option;
+	mutable classes : (string,pos) list;
+	mutable id : (string,pos) option;
+	mutable selector : (pseudo,pos) list;
 	mutable sub : class option;
-	mutable attributes : (string,attrib_op) list;
+	mutable attributes : ((string,attrib_op),pos) list;
 	mutable operator : operator;
 }
 

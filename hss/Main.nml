@@ -116,17 +116,17 @@ function rec print_class(first,ch,c) {
 		})
 	match c.node {
 	| None -> ()
-	| Some id -> IO.write ch id;
+	| Some(id,_) -> IO.write ch id;
 	}
-	List.iter (function((att,op)) {
+	List.iter (function(((att,op),_)) {
 		IO.printf ch "[%s%s]" (att,att_op_str op)
 	}) c.attributes;
 	match c.id {
 	| None -> ()
-	| Some id -> IO.printf ch "#%s" id;
+	| Some(id,_) -> IO.printf ch "#%s" id;
 	}
-	List.iter (IO.printf ch ".%s") c.classes;
-	List.iter (function(sel){
+	List.iter (function((c,_)) IO.printf ch ".%s" c) c.classes;
+	List.iter (function((sel,_)){
 		match sel {
 		| PuClass s -> IO.printf ch ":%s" s;
 		| PuElement s -> IO.printf ch "::%s" s;
@@ -443,9 +443,9 @@ function get_rule(ctx, name) {
 	| Not_found ->
 		function invalid(s) throw Invalid_argument("Unexpected " + "'" +  s + "'" + " here");
 		match (name,ctx.curblock) {
-		| ("src",Some { node = Some s }) ->
+		| ("src",Some { node = Some (s,_) }) ->
 			if s == "@font-face" then [Hss.Rules.font_face_src] else invalid name
-		| ("content", Some{selector=(PuClass s)::_}) | ("content", Some{selector=(PuElement s)::_}) ->
+		| ("content", Some{selector=((PuClass s),_)::_}) | ("content", Some{selector=((PuElement s),_)::_}) ->
 			if s == "before" || s == "after" then Hss.Rules.pseudo_content else invalid name
 		| _ -> throw Not_found
 		}
@@ -748,10 +748,10 @@ function rec expand_hacks(name,value,p) {
 }
 
 function rec expand_ns(ns,c) {
-	c.classes := List.map (function(c:string) ns + c) c.classes;
+	c.classes := List.map ( function((c:string,p)) (ns + c,p) ) c.classes;
 	match c.id {
 	| None -> ()
-	| Some id -> c.id := Some (ns + id)
+	| Some (id,p) -> c.id := Some (ns + id,p)
 	}
 	match c.sub {
 	| None -> ()
@@ -759,8 +759,8 @@ function rec expand_ns(ns,c) {
 	}
 }
 
-function rec check_class(ctx,p,c) {
-	List.iter (function(sel){
+function rec check_class(ctx, c) {
+	List.iter (function((sel,p)){
 		match sel {
 		| PuElement s ->
 			if !(List.mem(s, pseudo_elements) || (snd Hss.Utils.vendor_prefix(s) != "")) then
@@ -770,7 +770,7 @@ function rec check_class(ctx,p,c) {
 	}) c.selector
 	match c.sub {
 	| None -> ()
-	| Some c -> check_class ctx p c
+	| Some c -> check_class ctx c
 	}
 }
 
@@ -888,7 +888,7 @@ function rec check(ctx,e) {
 		var old2 = (ctx.ns, ctx.curblock);
 		ctx.curblock := match classes { a::_ -> Some(find_subclass a) | _ -> None };
 		var el = List.map (check ctx) el;
-		List.iter (check_class ctx snd(e)) classes;
+		List.iter (check_class ctx) classes;
 		// check duplicate variables
 		ignore(List.fold (function(acc,e) {
 			match fst e {

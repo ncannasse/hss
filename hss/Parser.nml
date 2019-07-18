@@ -373,7 +373,7 @@ function rec class(s,first) {
 				last := Some Dot;
 				loop (i+1)
 			| Const (Ident id) ->
-				c.node := Some id;
+				c.node := Some (id, p2);
 				loop (i+1)
 			| Sharp when c.id == None ->
 				last := Some Sharp;
@@ -382,30 +382,30 @@ function rec class(s,first) {
 				last := Some DoubleDotx2;
 				loop (i+1)
 			| Op Mul when i == 0 ->
-				c.node := Some "*";
+				c.node := Some ("*",p2);
 				loop 1
 			| BracketOpen ->
 				match fst (stream_token s (i+1)) {
 				| Const (Ident att) ->
 					stream_junk s (i + 2);
 					var p, op = parse_attribute s;
-					c.attributes := List.append c.attributes [(att, op)];
+					c.attributes := List.append c.attributes [((att, op),punion p2 p)];
 					pos := p;
 					loop 0
 				| _ ->
 					i
 				}
 			| Selector s ->
-				c.selector := (PuClass s)::c.selector;
+				c.selector := (PuClass s, p2)::c.selector;
 				loop (i+1)
 			| SelectorFn(s,a) ->
-				c.selector := PuClassFn(s,a)::c.selector;
+				c.selector := (PuClassFn(s,a), p2)::c.selector;
 				loop (i+1)
-			| ParentOpen when i == 1 && c.node == Some "CSS" ->
+			| ParentOpen when (match c.node {| Some ("CSS",_) -> true | _ -> false }) ->
 				match (stream_token s (i + 1), stream_token s (i + 2)) {
-				| ((Const (String s),_), (ParentClose,p)) ->
-					c.node := Some s;
-					pos := p;
+				| ((Const (String s),_), (ParentClose,p2)) ->
+					c.node := Some (s, punion p p2);
+					pos := p2;
 					loop (i+3)
 				| _ -> i
 				}
@@ -417,9 +417,9 @@ function rec class(s,first) {
 			match fst t {
 			| Const (Ident id) ->
 				match v {
-				| Dot -> c.classes := List.append c.classes [id];
-				| Sharp -> c.id := Some id;
-				| DoubleDotx2 -> c.selector:= (PuElement id)::c.selector;
+				| Dot -> c.classes := List.append c.classes [(id,punion p p2)];
+				| Sharp -> c.id := Some (id, punion p p2);
+				| DoubleDotx2 -> c.selector:= (PuElement id, punion p p2)::c.selector;
 				| _ -> error (Unexpected v) p // never run to this line
 				}
 			| t -> error (Unexpected t) p2
