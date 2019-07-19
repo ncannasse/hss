@@ -1101,8 +1101,8 @@ function display(msg,p) {
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
 	} else {
-		var a, b = Hss.Lexer.column(p);
-		IO.printf IO.stderr "%s:%d: %d-%d: %s\n" (Lexer.source p, Lexer.line p, a, b, msg);
+		var pc = Hss.Lexer.column(p);
+		IO.printf IO.stderr "%s:%d: %d-%d: %s\n" (Lexer.source p, pc.lmin, pc.cmin, pc.cmax_on, msg);
 	}
 }
 
