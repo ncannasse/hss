@@ -25,6 +25,34 @@ type context {
 	mutable ns : string option;
 	mutable curblock : class option;
 }
+type sep_chars {
+	tab   : string;
+	comma : string;
+	gt    : string;
+	plus  : string;
+	tild  : string;
+	colon : string;
+	semi  : string;
+	lbrace: string;
+	rbrace: string;
+}
+type print_mode {
+	mutable cur : sep_chars;
+	normal : sep_chars;
+	minify : sep_chars;
+	mutable enable_minify : void -> void;
+	mutable is_minify     : void -> bool;
+}
+var pmod = {
+	cur = neko "null";
+	normal = { tab="\t"; comma=", "; gt=" > "; plus=" + "; tild=" ~ "; colon=": "; semi=";\n"; lbrace=" {\n"; rbrace="}\n"; };
+	minify = { tab= "" ; comma="," ; gt= ">" ; plus= "+" ; tild= "~" ; colon=":" ; semi=";"  ; lbrace= "{"  ; rbrace=  "}"; };
+	enable_minify = neko "null";
+	is_minify     = neko "null";
+}
+pmod.cur := pmod.normal;
+pmod.is_minify := function() pmod.cur === pmod.minify;
+pmod.enable_minify := function() pmod.cur := pmod.minify;
 
 function error(msg,p) {
 	throw Error([(msg,p)])
@@ -43,14 +71,6 @@ function print_sep(str,f,ch,l) {
 	}
 }
 
-//      0,     1        2        3        4       5       6         7        8
-var __a = neko "$array(
-$array('\t',  ', ',   ' > ',   ' + ',   ' ~ ',   ': ',   ';\n',   ' {\n',   '}\n'),
-$array(''  ,  ',' ,    '>' ,    '+' ,    '~' ,   ':' ,   ';'  ,    '{'  ,   '}'  )
-)";
-function __s(n:int, s:string) neko "__a[0][n]"
-function enable_minify() neko "__a[0]=__a[1]"
-
 function rec print_value(ch,v) {
 	match fst v {
 	| VIdent i -> IO.write ch i
@@ -63,7 +83,7 @@ function rec print_value(ch,v) {
 		IO.printf ch "%s=" n;
 		print_value ch v
 	| VList l ->
-		print_sep __s(1, ", ") print_value ch l
+		print_sep pmod.cur.comma print_value ch l
 	| VGroup l ->
 		print_sep " " print_value ch l
 	| VUrl url ->
@@ -110,8 +130,8 @@ function rec print_class(first,ch,c) {
 	if !first then
 		IO.write ch (match c.operator {
 		| OpDefault -> " "
-		| OpChild -> __s(2, " > ")
-		| OpPreceding imm -> if imm then __s(3, " + ") else __s(4, " ~ ")
+		| OpChild -> pmod.cur.gt
+		| OpPreceding imm -> if imm then pmod.cur.plus else pmod.cur.tild
 		| OpJoint -> ""
 		})
 	match c.node {
@@ -147,14 +167,14 @@ function rec print_media(ch, m) {
 	| MType(s, Some op) -> IO.write ch (op + " " + s);
 	| MFeature(s, None) -> IO.write ch ("(" + s + ")")
 	| MFeature(s, Some v) ->
-		IO.write_char ch '(';  IO.write ch s;  IO.write ch __s(5, ": ");
+		IO.write_char ch '(';  IO.write ch s;  IO.write ch pmod.cur.colon;
 		match fst v {
 		| VString s -> IO.write ch s;
 		| _ -> print_value ch v;
 		}
 		IO.write_char ch ')'
 	| MQuotes s -> IO.write ch s;
-	| MList l -> print_sep __s(1, ", ") print_media ch l
+	| MList l -> print_sep pmod.cur.comma print_media ch l
 	}
 }
 
@@ -169,11 +189,11 @@ function rec print_css(ch,tabs,e) {
 		List.iter (print_css ch (tabs+"\t")) el;
 		IO.printf ch "%s}\n" tabs;
 	| EAttribute(name,val) ->
-		IO.write ch tabs;  IO.write ch name;  IO.write ch __s(5, ": ");  print_value ch val;  IO.write ch __s(6, ";\n");
+		IO.write ch tabs;  IO.write ch name;  IO.write ch pmod.cur.colon;  print_value ch val;  IO.write ch pmod.cur.semi;
 	| EBlock(classes,el) ->
-		IO.write ch tabs;  print_sep(__s(1, ", "), print_class true, ch, classes);  IO.write ch __s(7, " {\n");
-		List.iter (print_css ch (tabs+__s(0, "\t"))) el;
-		IO.write ch tabs;  IO.write ch __s(8, "}\n");
+		IO.write ch tabs;  print_sep(pmod.cur.comma, print_class true, ch, classes);  IO.write ch pmod.cur.lbrace;
+		List.iter (print_css ch (tabs+pmod.cur.tab)) el;
+		IO.write ch tabs;  IO.write ch pmod.cur.rbrace;
 	| EUseBlock(name, pl) ->
 		match pl {
 		| [] ->
@@ -190,9 +210,9 @@ function rec print_css(ch,tabs,e) {
 		match el {
 		| [] ->
 		| _ ->
-			IO.write ch "@media";  IO.write_char ch ' ';  print_media ch v;  IO.write ch __s(7, " {\n");
-			List.iter (print_css ch (tabs+__s(0, "\t"))) el;
-			IO.write ch tabs;  IO.write ch __s(8, "}\n");
+			IO.write ch "@media";  IO.write_char ch ' ';  print_media ch v;  IO.write ch pmod.cur.lbrace;
+			List.iter (print_css ch (tabs+pmod.cur.tab)) el;
+			IO.write ch tabs;  IO.write ch pmod.cur.rbrace;
 		}
 	| EInclude s ->
 		IO.write ch tabs;
@@ -205,9 +225,9 @@ function rec print_css(ch,tabs,e) {
 		| _ ->
 		}
 	| EKeyframes (name, ks) ->
-		IO.write ch tabs;  IO.write ch "@keyframes";  IO.write_char ch ' ';  IO.write ch name;  IO.write ch __s(7, " {\n");
-		List.iter (print_keyframe ch (tabs+__s(0,"\t"))) ks;
-		IO.write ch tabs;  IO.write ch __s(8, "}\n");
+		IO.write ch tabs;  IO.write ch "@keyframes";  IO.write_char ch ' ';  IO.write ch name;  IO.write ch pmod.cur.lbrace;
+		List.iter (print_keyframe ch (tabs+pmod.cur.tab)) ks;
+		IO.write ch tabs;  IO.write ch pmod.cur.rbrace;
 	}
 }
 
@@ -218,9 +238,9 @@ function rec print_keyframe(ch, tabs, k) {
 	| VUnit(f, _) -> IO.write ch (f + "%")
 	| _->
 	}
-	IO.write ch __s(7, " {\n");
-	List.iter print_css(ch, tabs+__s(0, "\t")) (snd k);
-	IO.write ch tabs;  IO.write ch __s(8, "}\n");
+	IO.write ch pmod.cur.lbrace;
+	List.iter print_css(ch, tabs+pmod.cur.tab) (snd k);
+	IO.write ch tabs;  IO.write ch pmod.cur.rbrace;
 }
 
 function rec make_sub(p,c) {
@@ -1098,7 +1118,7 @@ try {
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
-		("--minify",Args.Void enable_minify,"     : minify output by removing some whitespaces");
+		("--minify",Args.Void pmod.enable_minify,"     : minify output by removing some whitespaces");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	List.iter (function(file) {
