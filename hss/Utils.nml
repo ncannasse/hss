@@ -208,3 +208,49 @@ function img_to_base64(path: string, p: Lexer.pos): string {
 	String.blit(out, prefix_len, base_encode(content, base64_encode_table), 0, size - extra);
 	out
 }
+
+type sourcemap_value {
+	MVer : int;
+	MString : string;
+	MBuffer : (string, int);
+	MList : string list;
+}
+function sourcemap_write(ch, outfile, mappings, len) {
+	function rec comma_sep(ch, l) match l {
+	| [] ->
+	| s::l ->
+		IO.printf ch "\"%s\"" s;
+		if l != [] then {
+			IO.write_char ch ',';
+			comma_sep ch l
+		}
+	}
+	function rec loop(ch, l) match l {
+	| [] ->
+	| (k,v) :: l ->
+		IO.printf ch "\"%s\":" k;
+		match v {
+		| MVer i         -> IO.printf ch "%d" i;
+		| MString s      -> IO.write_char ch '"';  IO.write ch s;   IO.write_char ch '"';
+		| MBuffer(s,len) -> IO.write_char ch '"';  ignore IO.output(ch, s, 0, len); IO.write_char ch '"';
+		| MList vl       -> IO.write_char ch '[';  comma_sep ch vl; IO.write_char ch ']';
+		}
+		if l != [] then {
+			IO.write_char ch ',';
+			loop ch l
+		}
+	}
+	var root = Sys.get_cwd();
+	var root = "file://" + (if String.get(root, 0) == '/' then "" else "/") + String.concat("/", String.split(root,"\\"));
+	var data = [
+		("version", MVer 3);
+		("file", MString Sys.without_dir(outfile));
+		("sourceRoot", MString root);
+		("sources", MList List.map(function(path) path.str, *path_imports));
+		("mappings", MBuffer(mappings, len));
+		("names", MList []);
+	];
+	IO.write_char ch '{';
+	loop ch data;
+	IO.write_char ch '}';
+}
