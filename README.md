@@ -2,7 +2,7 @@
 
 ## Usage
 
-First you have to build it by `make` or `build.bat`(*if Windows*), it's depends on [Neko](http://nekovm.org/) or [Haxe](https://haxe.org/)
+First you have to build it via `make` or `build.bat`
 
 > Or Download HSS and put it in some place where it can be run from the commandline :
 >* Windows version : <http://ncannasse.fr/file/hss-1.3-win.zip>
@@ -353,7 +353,7 @@ Operations between two different units (for instance 50px + 3em) are not allowed
 
 ### Hacks Support
 
-* *(NEW):* the same `media queries` will be automatically merged/combined, if you don't like it, you can use `-D no-merge-media` to turn it off.
+* The same `media queries` will be merged/combined automatically if there is no `-D no-merge-media` or `--sourcemap`
 
 * `CSS(values)`: will simply output the values without rule checking which is sometimes useful for non-standard CSS properties:
 

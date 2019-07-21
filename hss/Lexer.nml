@@ -48,19 +48,24 @@ function line_inc(file, pos) {
 	}
 	Array.add li.lines pos
 }
+
 function column(p: pos):pos_column {
 	var source = p.psource;
 	var a = if source == li.file then li.lines else {
 		function rec find(l) match l {
 		| [] -> li.empty
-		| (s, a) :: _ when s == source -> a
-		| _ :: l -> find l
+		| (s, a) :: l ->
+			if s == source then {
+				li.file  := s;
+				li.lines := a;
+				a
+			} else
+				find l
 		}
 		find li.all
 	}
-	// no need binary search because we have p.pline
 	var len = Array.length a;
-	if p.pline <= len then {
+	if p.pline > 0 && p.pline <= len then {
 		var start = a.[p.pline-1];
 		var lnext = &p.pline;
 		while *lnext < len && p.pmax >= a.[*lnext] {
@@ -69,7 +74,6 @@ function column(p: pos):pos_column {
 		{lmin=p.pline; lmax=(*lnext); cmin=1 + p.pmin - start; cmax=1 + p.pmax - a.[*lnext-1]; cmax_on=1 + p.pmax - start;}
 	} else
 		{lmin=0; lmax=0; cmin=0; cmax=0; cmax_on=0;}
-
 }
 
 function error_msg(msg) {
