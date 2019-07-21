@@ -276,6 +276,8 @@ function throw_exit(l) {throw Exit}
 function buffer_add_with(next, l) { Buffer.add (Lexer.data l) (Lexer.current l); next l }
 
 var comment_add = buffer_add_with comment;
+var string_add  = buffer_add_with str;
+var qstring_add = buffer_add_with qstr;
 
 ecomment := Lexer.build [
 	("\n", line_inc_with comment_add);
@@ -284,32 +286,25 @@ ecomment := Lexer.build [
 	("[^*\n]+", comment_add);
 ] throw_exit;
 
-epuargs := Lexer.build [ // transform \n to ' ' for future sourcemap
-	("\n", function(l:Buffer.t Lexer.t){ line_inc(l.source, l.pos); Buffer.add_char (Lexer.data l) ' '; puargs l});
-	("\r", puargs);
+epuargs := Lexer.build [
 	(")", exit);
-	("[^)}{\n\r]+", buffer_add_with puargs);
+	("[^)}{\n\r]+", buffer_add_with puargs); // line breaks are not allowed
 ] throw_exit;
 
-function inc_with_escape(next, l:Buffer.t Lexer.t) {line_inc(l.source, l.pos); Buffer.add (Lexer.data l) "\\\\n"; next l}
-function string_plus_slash(l) { Buffer.add_char (Lexer.data l) '\\'; Buffer.add (Lexer.data l) (Lexer.current l); str l }
+function inc_with_escape(next, l:Buffer.t Lexer.t) {line_inc(l.source, l.pos); Buffer.add (Lexer.data l) "\\n"; next l}
 
 estring := Lexer.build [
 	("\n", inc_with_escape str);
 	("\r", str);
-	("\\\\\"", string_plus_slash);
-	("\\\\" , string_plus_slash);
+	("\\\\\"", string_add);
 	("\"", exit);
-	("[^\r\n\"\\\\]+", buffer_add_with str);
+	("[^\r\n\"]+", string_add);
 ] throw_exit;
-
-function qstring_plus_slash(l) { Buffer.add_char (Lexer.data l) '\\'; Buffer.add (Lexer.data l) (Lexer.current l); qstr l }
 
 eqstring := Lexer.build [
 	("\n", inc_with_escape qstr);
 	("\r", qstr);
-	("\\\\'", qstring_plus_slash);
-	("\\\\" , qstring_plus_slash);
+	("\\\\'", qstring_add);
 	("'", exit);
-	("[^\r\n'\\\\]+", buffer_add_with qstr);
+	("[^\r\n']+", qstring_add);
 ] throw_exit;

@@ -237,7 +237,7 @@ function print_sep(str,f,ch,l) {
 function rec print_value(ch,v) {
 	match fst v {
 	| VIdent i    -> sem.write ch i
-	| VString s   -> sem.write ch sprintf("\"%s\"", String.unescape s)
+	| VString s   -> sem.write ch sprintf("\"%s\"", s)
 	| VUnit (v,u) -> sem.write ch sprintf("%f%s", (v,u));
 	| VFloat f    -> sem.write ch sprintf("%f", f);
 	| VInt i      -> sem.write ch sprintf("%d", i);
@@ -249,7 +249,7 @@ function rec print_value(ch,v) {
 	| VGroup l ->
 		print_sep " " print_value ch l
 	| VUrl url ->
-		sem.write ch sprintf("url(\"%s\")", String.unescape url)
+		sem.write ch sprintf("url(\"%s\")", url)
 	| VVar s ->
 		sem.write ch sprintf("$%s", s)
 	| VCall (v,vl) ->
