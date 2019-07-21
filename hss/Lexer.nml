@@ -62,11 +62,10 @@ function column(p: pos):pos_column {
 			} else
 				find l
 		}
-		find li.all;
+		find li.all
 	}
-	// no need binary search because we have p.pline
 	var len = Array.length a;
-	if p.pline <= len then {
+	if p.pline > 0 && p.pline <= len then {
 		var start = a.[p.pline-1];
 		var lnext = &p.pline;
 		while *lnext < len && p.pmax >= a.[*lnext] {

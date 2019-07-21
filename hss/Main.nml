@@ -1302,13 +1302,13 @@ try {
 			(if slash == '/' || slash == '\\' then dir else dir + "/") + Sys.without_dir file2
 		};
 		if file != file2 then {
-			var map = file2 + ".map";
+			var fmap = file2 + ".map";
 			var ch = IO.write_file file2 true;
 			List.iter (print_css ch "") el;
-			if sem.enabled then IO.write ch ("\n/*# sourceMappingURL=" + (Sys.without_dir map) + "*/\n");
+			if sem.enabled then IO.write ch ("\n/*# sourceMappingURL=" + (Sys.without_dir fmap) + "*/");
 			IO.close_out ch;
 			if sem.enabled then {
-				var ch = IO.write_file map true;
+				var ch = IO.write_file fmap true;
 				Hss.Utils.sourcemap_write(ch, file2, sem.buf, sem.bpos);
 				IO.close_out ch;
 			}
