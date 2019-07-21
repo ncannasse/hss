@@ -34,18 +34,19 @@ function vendor_prefix(s: string) {
 
 // #99AABB => (0x99, 0xAA, 0xBB)
 function ofhex(h: string, p: Lexer.pos) {
-	match String.length h {
-	| 3 ->
+	var len = String.length h;
+	if len == 6 then
+		(int ("0x" + String.sub h 0 2), int ("0x" + String.sub h 2 2), int ("0x" + String.sub h 4 2))
+	else if len != 3 then
+		throw Error("Invalid '" + "#" + h + "'", p)
+	else {
 		var r = int ("0x" + String.sub h 0 1);
 		var g = int ("0x" + String.sub h 1 1);
 		var b = int ("0x" + String.sub h 2 1);
 		(r * 16 + r,g*16+g,b*16+b)
-	| 6 ->
-		(int ("0x" + String.sub h 0 2), int ("0x" + String.sub h 2 2), int ("0x" + String.sub h 4 2))
-	| _ ->
-		throw Error("Invalid '" + "#" + h + "'", p);
 	}
 }
+
 // Assumes r, g, and b are contained in the set [0, 255]
 function rgb2hsl(ir: int, ig: int, ib: int) {
 	var r = ir / 255.
@@ -103,11 +104,13 @@ function hsl2rgb(h:float, s:float, l:float) {
 var file_full_path: string -> string = neko("$loader.loadprim('std@file_full_path',1)");
 
 function is_abs_path(s) {
-	match String.length s {
-	| 0 -> false
-	| 1 -> '/' == String.get(s, 0)
-	| _ -> ':' == String.get(s, 1) || '/' == String.get(s, 0)
-	}
+	var len = String.length s;
+	if len > 1 then
+		':' == String.get(s, 1) || '/' == String.get(s, 0)
+	else if len == 0 then
+		false
+	else
+		'/' == String.get(s, 0)
 }
 
 type path {
@@ -142,11 +145,10 @@ function path_find(str) {
 
 function path(s: string, def_ext: string) {
 	function last_char(s, c) {
-		function rec loop(i) match i {
-		| -1 -> i
-		| _ -> if String.get(s, i) == c then i else loop(i - 1)
+		function rec loop(i) {
+			if i == -1 || String.get(s, i) == c then i else loop (i - 1)
 		}
-		loop((String.length s) - 1)
+		loop ((String.length s) - 1)
 	}
 	var last = (String.length s) - 1
 	var c1, c2 = (last_char s '/', last_char s '\\')
@@ -180,32 +182,24 @@ function img_to_base64(path: string, p: Lexer.pos): string {
 	var path = if (parent.dir == "" || is_abs_path path) then path else parent.dir + "/" + path;
 	var content = try IO.file_contents(path) catch { _ -> throw Error("file error: " + path, p) }
 	var content_len = String.length content;
-	var extra = content_len % 3;
 	var size: int = ((content_len + 2) / 3) << 2;
-	if size > 32768 then {                        // 32K
-		throw Error("Image exceeds 24KB: " + path, p)
-	}
+	if size > 32768 then throw Error("Image exceeds 24KB: " + path, p); // 32K limit
 	var sign = ord(String.get content 0) + (ord(String.get content 1) << 8)
 	var ext = match sign {
 	| 0xD8FF -> "jpg"
 	| 0x5089 -> "png"
 	| 0x4947 -> "gif"
-	| _ -> match (Sys.extension path) {
-		| "svg" -> "svg+xml"
-		| _ -> throw Error("UnSupported " + "Type: " + path, p)
-		}
+	| _ -> if Sys.extension path == "svg" then "svg+xml" else throw Error("UnSupported " + "Type: " + path, p)
 	}
 	var prefix = "data:image/" + ext + ";base64,"
 	var prefix_len = String.length prefix
 	var len = prefix_len + size
 	var out = String.create len;
 	String.blit(out, 0, prefix, 0, prefix_len);
-	var extra = match extra {
-	| 2 -> String.set(out, len - 1, '='); 1
-	| 1 -> String.set(out, len - 1, '='); String.set(out, len - 2, '='); 2
-	| _ -> extra                                  // 0
-	}
-	String.blit(out, prefix_len, base_encode(content, base64_encode_table), 0, size - extra);
+	String.set(out, len - 1, '='); // paddding extra '=' first
+	String.set(out, len - 2, '=');
+	var base = base_encode(content, base64_encode_table);
+	String.blit(out, prefix_len, base, 0, String.length base);
 	out
 }
 

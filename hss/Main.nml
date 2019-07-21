@@ -1173,8 +1173,10 @@ function rec check(ctx,e) {
 		var parent = Hss.Utils.path_find(Lexer.source p);
 		var file = if parent.dir == "" || Hss.Utils.is_abs_path(s) then s else parent.dir + "/" + s;
 		var path, added = Hss.Utils.path(file, "hss");
-		if added then match path.ext {
-			| "hss"	->
+		if !added then
+			(ESub [], p) // duplicate, simply ignore it
+		else {
+			if path.ext == "hss" then {
 				var ch = try (IO.read_file path.full true) catch { _ -> error("file error: " + path.str, p) }
 				var lex = Lexer.create Buffer.create();
 				Lexer.input lex (path.str) ch 1 0;
@@ -1191,13 +1193,11 @@ function rec check(ctx,e) {
 					ctx.blocks := old_blocks;
 				}
 				(ESub el, p)
-			| "css" ->
+			} else if path.ext == "css" then
 				(EImport (VString path.str, pos v), p)
-			| _ ->
+			else
 				error("UnSupported " + "Type: " + "." + path.ext, p)
-			}
-		else
-			(ESub [], p) // duplicate, simply ignore it;
+		}
 	| EKeyframes (name, sl) ->
 		if ctx.curblock != None then error("Unexpected " + "@keyframes" + " here", pos e)
 		function rec loop(l) match l {

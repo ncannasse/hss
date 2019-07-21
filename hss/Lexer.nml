@@ -155,18 +155,17 @@ function pseudo_or_doubledot(l: Buffer.t Lexer.t) {
 	var len = (String.length s) - 1;
 	var s = String.sub s 1 len;
 	try
-		match Map.find Hss.Rules.pseudo_cmap s {
-		| 1 ->
+		if (Map.find Hss.Rules.pseudo_cmap s) == 1 then
 			mk l (Selector s)
-		| 2 when (peek_char l) == '(' ->
+		else if (peek_char l) != '(' then
+			throw Not_found
+		else {
 			var p1 = Lexer.curpos l;
 			ignore (next_token l); // ignore "("
 			var buf = Lexer.data l;
 			Buffer.reset buf;
 			try puargs l catch { Exit -> throw Error(Unclosed_parentheses, Lexer.curpos l) };
 			(SelectorFn(s, Buffer.string buf), Lexer.punion(p1, Lexer.curpos l))
-		| _ ->
-			throw Not_found
 		}
 	catch {
 	| Not_found -> // backtracing hack for (":"+ident)

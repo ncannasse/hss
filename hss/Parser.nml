@@ -228,10 +228,12 @@ function rec value_next(v,s) {
 	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] ->
 		match p {
 		| (VList l,_) -> value_next (VCall v l, punion (pos v) p2) s
-		| _ -> match (fst v, contiguous(pos v, p1)) {
-			| (_, true) | (VIdent "CSS",_) -> value_next (VCall v [p], punion (pos v) p2) s
-			| _ -> value_join v (value_next (VParentheses p,punion p1 p2) s)
-			}
+		| _ ->
+			var id = match fst v {| VIdent s | VString s -> s | _ -> "" }
+			if (id != "" && contiguous(pos v, p1)) || id == "CSS" then
+				value_next (VCall v [p], punion (pos v) p2) s
+			else
+				value_join v (value_next (VParentheses p,punion p1 p2) s)
 		}
 	| [< (Exclamation,p1); (Const (Ident i),p2) >] ->
 		(VLabel i v,punion p1 p2)
@@ -497,10 +499,11 @@ function parse(lexer) {
 		| PrIf ->
 			var stub = &false;
 			mstack := stub :: (*mstack);
-			match eval parse_cond_macro(*s) {
-			| true -> stub := true; next_token()
-			| _ -> skip_tokens()
-			}
+			if eval parse_cond_macro(*s) then {
+				stub := true;
+				next_token()
+			} else
+				skip_tokens()
 		| PrEnd when (*mstack != []) ->
 			mstack := List.tl(*mstack);
 			match (*mstack) {
