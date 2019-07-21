@@ -544,7 +544,7 @@ function rec eval(ctx,v) {
 		var i = match eval ctx i { | (VString s,p)->(VIdent s,p) | i->i }; // strip quotes
 		var id = match (fst i) { | VIdent n -> n | _ -> "" }
 		var prev = ctx.skip_calc;
-		ctx.skip_calc := if (id == "calc") then 2 else 0;
+		ctx.skip_calc := if (id == "calc") then 2 else prev;
 		var vl = List.map (eval ctx) vl;
 		ctx.skip_calc := prev;
 		var vcall = VCall i vl;
