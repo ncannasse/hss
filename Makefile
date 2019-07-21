@@ -1,4 +1,4 @@
-# 1.7
+# 1.7+
 all:
 	nekoml hss/*.nml
 	mkdir -p bin
