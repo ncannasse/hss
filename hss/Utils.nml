@@ -12,107 +12,113 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  *  Lesser General Public License or the LICENSE file for more details.
  */
-exception Error : (string, Lexer.pos);
+type pos = Lexer.pos
 
-// "-webkit-user-select" => ("user-select","-webkit-")
-function vendor_prefix(s: string) {
-	if String.get(s, 0) == '-' then {
-		var len = String.length s;
-		if      len > 8 && String.sub(s, 0, 8) == "-webkit-" then
-			(String.sub(s, 8, len - 8), "-webkit-")
-		else if len > 5 && String.sub(s, 0, 5) == "-moz-" then
-			(String.sub(s, 5, len - 5), "-moz-")
-		else if len > 4 && String.sub(s, 0, 4) == "-ms-" then
-			(String.sub(s, 4, len - 4), "-ms-")
-		else if len > 3 && String.sub(s, 0, 3) == "-o-" then
-			(String.sub(s, 3, len - 3), "-o-")
-		else
+exception Error : (string, pos);
+
+/**
+* utils
+*/
+type utils {
+	vendor_prefix : string -> (string, string); // "-webkit-user-select" => ("user-select","-webkit-")
+}
+var utils = {
+	vendor_prefix = function(s) {
+		if String.get(s, 0) == '-' then {
+			var len = String.length s;
+			if      len > 8 && String.sub(s, 0, 8) == "-webkit-" then
+				(String.sub(s, 8, len - 8), "-webkit-")
+			else if len > 5 && String.sub(s, 0, 5) == "-moz-" then
+				(String.sub(s, 5, len - 5), "-moz-")
+			else if len > 4 && String.sub(s, 0, 4) == "-ms-" then
+				(String.sub(s, 4, len - 4), "-ms-")
+			else if len > 3 && String.sub(s, 0, 3) == "-o-" then
+				(String.sub(s, 3, len - 3), "-o-")
+			else
+				(s, "")
+		} else
 			(s, "")
-	} else
-		(s, "")
+	};
 }
 
-// #99AABB => (0x99, 0xAA, 0xBB)
-function ofhex(h: string, p: Lexer.pos) {
-	var len = String.length h;
-	if len == 6 then
-		(int ("0x" + String.sub h 0 2), int ("0x" + String.sub h 2 2), int ("0x" + String.sub h 4 2))
-	else if len != 3 then
-		throw Error("Invalid '" + "#" + h + "'", p)
-	else {
-		var r = int ("0x" + String.sub h 0 1);
-		var g = int ("0x" + String.sub h 1 1);
-		var b = int ("0x" + String.sub h 2 1);
-		(r * 16 + r,g*16+g,b*16+b)
+/**
+* color
+*/
+type rgb = (int, int, int)
+type hsl = (float, float, float)
+type rgbtools {
+	to_hsl : rgb -> hsl;
+	of_hex : string -> pos -> rgb;
+	of_hsl : hsl->rgb;
+}
+var rgbtools = {
+	of_hex = function(h, p: pos) {
+		var len = String.length h;
+		if len == 6 then
+			(int ("0x" + String.sub h 0 2), int ("0x" + String.sub h 2 2), int ("0x" + String.sub h 4 2))
+		else if len != 3 then
+			throw Error("Invalid '" + "#" + h + "'", p)
+		else {
+			var r = int ("0x" + String.sub h 0 1);
+			var g = int ("0x" + String.sub h 1 1);
+			var b = int ("0x" + String.sub h 2 1);
+			(r * 16 + r,g*16+g,b*16+b)
+		}
+	};
+	to_hsl = function((r,g,b) : rgb) : hsl {
+		var r = r / 255.
+		var g = g / 255.
+		var b = b / 255.
+		var max = max(max(r, g), b);
+		var min = min(min(r, g), b);
+		var l = (max + min) / 2.;
+		if (max == min) then
+			(0., 0., l)
+		else {
+			var d = max - min;
+			var s = if l > 0.5 then d / (2 - max - min) else d / (max + min);
+
+			var h = if max == r then
+				(g - b) / d + (if g < b then 6. else 0.)
+			else if max == g then
+				(b - r) / d + 2.
+			else
+				(r - g) / d + 4.;
+			(h/6., s, l)
+		}
+	};
+	of_hsl = function((h,s,l) : hsl) : rgb {
+		function hue(p: float, q, t) {
+			var t = if t < 0. then t + 1. else (if t > 1. then t - 1. else t)
+			if t < 1/6. then
+				p + (q - p) * 6. * t
+			else if t < 1/2. then
+				q
+			else if t < 2/3. then
+				p + (q - p) * (2/3. - t) * 6.
+			else
+				p
+		}
+		if (s <= 0.) then {
+			var r = Math.round((max 0. (min 1. l)) * 255);
+			(r, r, r)
+		} else {
+			var s = min 1.0 s;
+			var h = max 0. (min 1. h);
+			var l = max 0. (min 1. l);
+			var q = if l < 0.5 then l * (1. + s) else l + s - l * s;
+			var p = 2. * l - q;
+			var r = hue(p, q, h + 1/3.);
+			var g = hue(p, q, h);
+			var b = hue(p, q, h - 1/3.);
+			(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255))
+		}
 	}
 }
 
-// Assumes r, g, and b are contained in the set [0, 255]
-function rgb2hsl(ir: int, ig: int, ib: int) {
-	var r = ir / 255.
-	var g = ig / 255.
-	var b = ib / 255.
-	var max = max(max(r, g), b);
-	var min = min(min(r, g), b);
-	var l = (max + min) / 2.;
-	if (max == min) then
-		(0., 0., l)
-	else {
-		var d = max - min;
-		var s = if l > 0.5 then d / (2 - max - min) else d / (max + min);
-
-		var h = if max == r then
-			(g - b) / d + (if g < b then 6. else 0.)
-		else if max == g then
-			(b - r) / d + 2.
-		else
-			(r - g) / d + 4.;
-		(h/6., s, l)
-	}
-}
-
-function hue2rgb(p: float, q:float, t: float) {
-	var t = if t < 0. then t + 1. else (if t > 1. then t - 1. else t)
-	if t < 1/6. then
-		p + (q - p) * 6. * t
-	else if t < 1/2. then
-		q
-	else if t < 2/3. then
-		p + (q - p) * (2/3. - t) * 6.
-	else
-		p
-}
-
-function hsl2rgb(h:float, s:float, l:float) {
-	if (s <= 0.) then {
-		var r = Math.round((max 0. (min 1. l)) * 255);
-		(r, r, r)
-	} else {
-		var s = min 1.0 s;
-		var h = max 0. (min 1. h);
-		var l = max 0. (min 1. l);
-		var q = if l < 0.5 then l * (1. + s) else l + s - l * s;
-		var p = 2. * l - q;
-		var r = hue2rgb(p, q, h + 1/3.);
-		var g = hue2rgb(p, q, h);
-		var b = hue2rgb(p, q, h - 1/3.);
-		(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255))
-	}
-}
-
-// Path
-var file_full_path: string -> string = neko("$loader.loadprim('std@file_full_path',1)");
-
-function is_abs_path(s) {
-	var len = String.length s;
-	if len > 1 then
-		':' == String.get(s, 1) || '/' == String.get(s, 0)
-	else if len == 0 then
-		false
-	else
-		'/' == String.get(s, 0)
-}
-
+/**
+* path
+*/
 type path {
 	dir : string; // without trailing slash
 	name: string;
@@ -120,35 +126,53 @@ type path {
 	full: string;
 	str : string; // relative to root
 }
-
-var path_imports: path list ref = &[];
-
-function path_reset() path_imports := []
-
-function path_add(path) {
-	function rec loop(l, file) match l {
-	| [] -> false
-	| path::tl -> if file == Sys.without_extension(path.full) then true else loop tl file
-	}
-	var exists = loop (*path_imports) Sys.without_extension(path.full);
-	if (!exists) then path_imports := path::(*path_imports);
-	!exists
+type pathtools {
+	mutable all   : path list;
+	mutable reset : void   -> void;
+	mutable add   : string -> string -> (path, bool);
+	mutable find  : pos -> path;
+	mutable index : pos -> int;
+	file_full : string -> string;
+	add_slash : string -> string;
+	is_abs    : string -> bool;
 }
-
-function path_find(str) {
-	function rec loop(l) match l {
-	| [] -> throw Not_found
-	| path::tl -> if path.str == str then path else loop tl
-	}
-	loop(*path_imports)
+var pathtools = {
+	all = [];
+	file_full = neko("$loader.loadprim('std@file_full_path',1)");
+	add_slash = function(dir) {
+		var c = String.get dir ((String.length dir) - 1);
+		if c == '/' || c == '\\' then dir else dir + "/"
+	};
+	is_abs = function(s) {
+		var len = String.length s;
+		if len > 1 then
+			':' == String.get(s, 1) || '/' == String.get(s, 0)
+		else if len == 0 then
+			false
+		else
+			'/' == String.get(s, 0)
+	};
+	reset = neko "null";
+	add   = neko "null";
+	find  = neko "null";
+	index = neko "null";
 }
-
-function path(s: string, def_ext: string) {
+pathtools.reset := function() pathtools.all := [];
+pathtools.add := function(s: string, def_ext: string) {
 	function last_char(s, c) {
 		function rec loop(i) {
 			if i == -1 || String.get(s, i) == c then i else loop (i - 1)
 		}
 		loop ((String.length s) - 1)
+	}
+	function path_add(path: path) {
+		function rec loop(l, file) match l {
+		| [] -> false
+		| path::tl -> if file == Sys.without_extension(path.full) then true else loop tl file
+		}
+		var exists = loop pathtools.all Sys.without_extension(path.full);
+		if (!exists) then pathtools.all := path :: pathtools.all;
+		!exists
 	}
 	var last = (String.length s) - 1
 	var c1, c2 = (last_char s '/', last_char s '\\')
@@ -167,19 +191,46 @@ function path(s: string, def_ext: string) {
 		dir  = dir;
 		name = name;
 		ext  = ext;
-		full = file_full_path s;
+		full = pathtools.file_full s;
 		str  = (if dir == "" then name else dir + "/" + name) + (if ext == "" then "" else "." + ext);
 	}
 	(ret, path_add ret)
 }
+pathtools.find := function(p: pos) {
+	var source = p.psource;
+	function rec loop(l) match l {
+	| [] -> throw Not_found
+	| path::tl -> if path.str === source then path else loop tl
+	}
+	loop pathtools.all
+}
+pathtools.index := function(p: pos) {
+	var source = p.psource;
+	function rec loop(acc, l) match l {
+	| [] -> throw Not_found
+	| path::tl -> if path.str === source then acc else loop (acc+1) tl
+	}
+	loop 0 pathtools.all
+}
 
-var base64_encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-var base_encode : string -> string -> string = neko "$loader.loadprim('std@base_encode',2)";
-
-function img_to_base64(path: string, p: Lexer.pos): string {
+/**
+* base64
+*
+*/
+type base64 {
+	table: string;
+	encode : string -> string -> string;
+	mutable encode_image : string -> pos -> string;
+}
+var base64 = {
+	table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	encode = neko "$loader.loadprim('std@base_encode',2)";
+	encode_image = neko "null";
+};
+base64.encode_image := function(path, p: pos) {
 	if String.sub(path, 0, 4) == "http" then throw Error("Local Files only", p);
-	var parent: path = path_find(Lexer.source p);
-	var path = if (parent.dir == "" || is_abs_path path) then path else parent.dir + "/" + path;
+	var parent = pathtools.find p;
+	var path = if (parent.dir == "" || pathtools.is_abs path) then path else parent.dir + "/" + path;
 	var content = try IO.file_contents(path) catch { _ -> throw Error("file error: " + path, p) }
 	var content_len = String.length content;
 	var size: int = ((content_len + 2) / 3) << 2;
@@ -198,53 +249,222 @@ function img_to_base64(path: string, p: Lexer.pos): string {
 	String.blit(out, 0, prefix, 0, prefix_len);
 	String.set(out, len - 1, '='); // paddding extra '=' first
 	String.set(out, len - 2, '=');
-	var base = base_encode(content, base64_encode_table);
+	var base = base64.encode(content, base64.table);
 	String.blit(out, prefix_len, base, 0, String.length base);
 	out
-}
+};
 
-type sourcemap_value {
-	MVer : int;
-	MString : string;
-	MBuffer : (string, int);
-	MList : string list;
+/**
+* print_mode
+*/
+type sep_chars {
+	tab   : string;
+	comma : string;
+	gt    : string;
+	plus  : string;
+	tild  : string;
+	colon : string;
+	lbrace: string;
+	rbrace: string;
+	mutable crlf  : IO.output -> void;
 }
-function sourcemap_write(ch, outfile, mappings, len) {
-	function rec comma_sep(ch, l) match l {
-	| [] ->
-	| s::l ->
-		IO.printf ch "\"%s\"" s;
-		if l != [] then {
-			IO.write_char ch ',';
-			comma_sep ch l
+type print_mode {
+	mutable cur : sep_chars;
+	normal : sep_chars;
+	minify : sep_chars;
+	mutable enable_minify : void -> void;
+	mutable is_minify     : void -> bool;
+}
+var pmod = {
+	cur = neko "null";
+	normal = { tab="\t"; comma=", "; gt=" > "; plus=" + "; tild=" ~ "; colon=": "; lbrace=" {"; rbrace="}"; crlf=function(ch) IO.write_char ch '\n'; };
+	minify = { tab= "" ; comma="," ; gt= ">" ; plus= "+" ; tild= "~" ; colon=":" ; lbrace= "{"; rbrace="}"; crlf=function(ch) {} };
+	enable_minify = neko "null";
+	is_minify     = neko "null";
+}
+pmod.cur := pmod.normal;
+pmod.is_minify := function() pmod.cur === pmod.minify;
+pmod.enable_minify := function() pmod.cur := pmod.minify;
+
+/**
+* sourcemap
+*/
+type sourcemap_value {
+	SMVer : int;
+	SMString : string;
+	SMBuffer : (string, int);
+	SMList : string list;
+}
+type sourcemap {
+	mutable enabled : bool;
+	mutable source : string;
+	mutable index : int;
+	mutable last_src_line : int;
+	mutable last_src_col : int;
+	mutable out_comma : bool;
+	mutable current : int;
+	mutable last : int;
+	mutable bpos : int;
+	mutable buf : string;
+	mutable write_extern : IO.output->string -> void;
+	mutable write_char   : IO.output->char   -> void;
+	mutable write        : IO.output->string -> void;
+	mutable pick_begin : pos -> void;
+	mutable pick_data  : Hss.Ast.pos_column;
+	mutable pick_end   : void -> void;
+	mutable switch_on  : void -> void;
+	mutable reset      : void -> void;
+	mutable flush      : IO.output->string-> void;
+}
+var sem = {
+	var table = base64.table;
+	var m = {
+		enabled=false; source=""; index=0; last_src_line=1; last_src_col=1; out_comma=false; current=0; last=0; bpos=0;
+		buf = String.create(40960);
+		write_extern = IO.write;
+		write_char   = IO.write_char;
+		write        = IO.write;
+		pick_begin   = function(p) {};
+		pick_data    = neko "null";
+		pick_end     = function()  {};
+		switch_on    = neko "null";
+		reset        = neko "null";
+		flush        = neko "null";
+	};
+	function add_char(c: char) {
+		var m = m;
+		var n = m.bpos;
+		if (n == String.length m.buf) then {
+			var s = String.create(n * 2);
+			String.blit(s, 0, m.buf, 0, n);
+			m.buf := s;
 		}
+		neko("$sset")(m.buf, n, c);
+		m.bpos := n + 1;
 	}
-	function rec loop(ch, l) match l {
-	| [] ->
-	| (k,v) :: l ->
-		IO.printf ch "\"%s\":" k;
-		match v {
-		| MVer i         -> IO.printf ch "%d" i;
-		| MString s      -> IO.write_char ch '"';  IO.write ch s;   IO.write_char ch '"';
-		| MBuffer(s,len) -> IO.write_char ch '"';  ignore IO.output(ch, s, 0, len); IO.write_char ch '"';
-		| MList vl       -> IO.write_char ch '[';  comma_sep ch vl; IO.write_char ch ']';
+	function add_vlq(n) {
+		function rec loop(v) {
+			var base = 0x20; // 0b100000
+			var n64 = v and 0x1F;
+			var next = v >>> 5;
+			var n64 = if next > 0 then (n64 + base) else n64;
+			add_char (neko("$sget")(table, n64));
+			if next > 0 then loop next;
 		}
-		if l != [] then {
-			IO.write_char ch ',';
-			loop ch l
-		}
+		var v = if n < 0 then ((-n) << 1) + 1 else n << 1;
+		loop v
 	}
-	var root = Sys.get_cwd();
-	var root = "file://" + (if String.get(root, 0) == '/' then "" else "/") + String.concat("/", String.split(root,"\\"));
-	var data = [
-		("version", MVer 3);
-		("file", MString Sys.without_dir(outfile));
-		("sourceRoot", MString root);
-		("sources", MList List.map(function(path) path.str, *path_imports));
-		("mappings", MBuffer(mappings, len));
-		("names", MList []);
-	];
-	IO.write_char ch '{';
-	loop ch data;
-	IO.write_char ch '}';
+	function segment(di:int, line:int, col:int) {
+		var m = m;
+		if m.out_comma then add_char ',' else m.out_comma := true;
+		add_vlq( m.current - m.last );
+		add_vlq( di );
+		add_vlq( line - m.last_src_line);
+		add_vlq( col  - m.last_src_col );
+		m.last := m.current;
+		m.last_src_line := line;
+		m.last_src_col  := col;
+	}
+	m.reset := function() {
+		var m = m;
+		m.out_comma := false;
+		m.source := "";
+		m.index  := 0;
+		m.last_src_line := 1;
+		m.last_src_col  := 1;
+		m.current := 0;
+		m.last := 0;
+		m.bpos := 0;
+	}
+	// overrides if switch on
+	m.switch_on := function() {
+		pmod.normal.crlf := function (ch:IO.output) {
+			ch.out_write '\n';
+			m.current := 0;
+			m.last := 0;
+			m.out_comma := false;
+			add_char ';';
+		}
+		m.write_char := function(ch:IO.output, c) {
+			ch.out_write c;
+			m.current := m.current + 1;
+		}
+		m.write := function(ch:IO.output, s) {
+			var len = String.length s;
+			var n = ch.out_output s 0 len;
+			if n != len then throw IO.Blocked;
+			m.current := m.current + len;
+		}
+		m.write_extern := function(ch:IO.output, s) {
+			var i = &0
+			var cr = &0
+			var len = String.length s;
+			while *i < len {
+				var c = neko("$sget")(s, *i);
+				if c == '\n' then
+					pmod.normal.crlf ch
+				else if c == '\r' then
+					cr := *cr + 1
+				else
+					ch.out_write c;
+				i := *i + 1;
+			}
+			m.current := m.current + len - (*cr);
+		}
+		m.pick_begin := function (p:pos) {
+			var m = m;
+			var i = m.index;
+			if p.psource !== m.source then {
+				m.index  := pathtools.index p;
+				m.source := p.psource;
+			}
+			m.pick_data := Hss.Lexer.column p;
+			segment(m.index - i, m.pick_data.lmin, m.pick_data.cmin);
+		}
+		m.pick_end := function() {
+			segment(0, m.pick_data.lmax, m.pick_data.cmax);
+		}
+		m.enabled := true;
+	};
+
+	m.flush := function (ch, outfile) {
+		function rec comma_sep(ch, l) match l {
+		| [] ->
+		| s::l ->
+			IO.printf ch "\"%s\"" s;
+			if l != [] then {
+				IO.write_char ch ',';
+				comma_sep ch l
+			}
+		}
+		function rec loop(ch, l) match l {
+		| [] ->
+		| (k,v) :: l ->
+			IO.printf ch "\"%s\":" k;
+			match v {
+			| SMVer i         -> IO.printf ch "%d" i;
+			| SMString s      -> IO.write_char ch '"';  IO.write ch s;   IO.write_char ch '"';
+			| SMBuffer(s,len) -> IO.write_char ch '"';  ignore IO.output(ch, s, 0, len); IO.write_char ch '"';
+			| SMList vl       -> IO.write_char ch '[';  comma_sep ch vl; IO.write_char ch ']';
+			}
+			if l != [] then {
+				IO.write_char ch ',';
+				loop ch l
+			}
+		}
+		var root = Sys.get_cwd();
+		var root = "file://" + (if String.get(root, 0) == '/' then "" else "/") + String.concat("/", String.split(root,"\\"));
+		var data = [
+			("version", SMVer 3);
+			("file", SMString Sys.without_dir(outfile));
+			("sourceRoot", SMString root);
+			("sources", SMList List.map(function(path) path.str, pathtools.all));
+			("mappings", SMBuffer(m.buf, m.bpos));
+			("names", SMList []);
+		];
+		IO.write_char ch '{';
+		loop ch data;
+		IO.write_char ch '}';
+	}
+	m;
 }

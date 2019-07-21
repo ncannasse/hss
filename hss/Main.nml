@@ -25,54 +25,13 @@ type context {
 	mutable ns : string option;
 	mutable curblock : class option;
 }
-type sourcemap {
-	mutable enabled : bool;
-	mutable source : string;
-	mutable index : int;
-	mutable last_src_line : int;
-	mutable last_src_col : int;
-	mutable out_comma : bool;
-	mutable current : int;
-	mutable last : int;
-	mutable bpos : int;
-	mutable buf : string;
-	mutable write_extern : IO.output->string -> void;
-	mutable write_char   : IO.output->char   -> void;
-	mutable write        : IO.output->string -> void;
-	mutable pick_begin : pos -> void;
-	mutable pick_data  : pos_column;
-	mutable pick_end   : void -> void;
-	mutable switch_on  : void -> void;
-	mutable reset      : void -> void;
-}
-type sep_chars {
-	tab   : string;
-	comma : string;
-	gt    : string;
-	plus  : string;
-	tild  : string;
-	colon : string;
-	lbrace: string;
-	rbrace: string;
-	mutable crlf  : IO.output -> void;
-}
-type print_mode {
-	mutable cur : sep_chars;
-	normal : sep_chars;
-	minify : sep_chars;
-	mutable enable_minify : void -> void;
-	mutable is_minify     : void -> bool;
-}
-var pmod = {
-	cur = neko "null";
-	normal = { tab="\t"; comma=", "; gt=" > "; plus=" + "; tild=" ~ "; colon=": "; lbrace=" {"; rbrace="}"; crlf=function(ch) IO.write_char ch '\n'; };
-	minify = { tab= "" ; comma="," ; gt= ">" ; plus= "+" ; tild= "~" ; colon=":" ; lbrace= "{"; rbrace="}"; crlf=function(ch) {} };
-	enable_minify = neko "null";
-	is_minify     = neko "null";
-}
-pmod.cur := pmod.normal;
-pmod.is_minify := function() pmod.cur === pmod.minify;
-pmod.enable_minify := function() pmod.cur := pmod.minify;
+
+var pathtools : Hss.Utils.pathtools = Hss.Utils.pathtools
+var rgbtools : Hss.Utils.rgbtools = Hss.Utils.rgbtools
+var base64 : Hss.Utils.base64 = Hss.Utils.base64
+var utils : Hss.Utils.utils = Hss.Utils.utils
+var pmod : Hss.Utils.print_mode = Hss.Utils.pmod
+var sem : Hss.Utils.sourcemap = Hss.Utils.sem
 
 function error(msg,p) {
 	throw Error([(msg,p)])
@@ -81,124 +40,6 @@ function error(msg,p) {
 function warning(msg,p) {
 	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
 }
-
-var sem = {
-	var table = Hss.Utils.base64_encode_table;
-	var m = {
-		enabled=false; source=""; index=0; last_src_line=1; last_src_col=1; out_comma=false; current=0; last=0; bpos=0;
-		buf = String.create(40960);
-		write_extern = IO.write;
-		write_char   = IO.write_char;
-		write        = IO.write;
-		pick_begin   = function(p) {};
-		pick_data    = neko "null";
-		pick_end     = function()  {};
-		switch_on    = neko "null";
-		reset        = neko "null";
-	};
-	function add_char(c: char) {
-		var m = m;
-		var n = m.bpos;
-		if (n == String.length m.buf) then {
-			var s = String.create(n * 2);
-			String.blit(s, 0, m.buf, 0, n);
-			m.buf := s;
-		}
-		neko("$sset")(m.buf, n, c);
-		m.bpos := n + 1;
-	}
-	function add_vlq(n) {
-		function rec loop(v) {
-			var base = 0x20; // 0b100000
-			var n64 = v and 0x1F;
-			var next = v >>> 5;
-			var n64 = if next > 0 then (n64 + base) else n64;
-			add_char (neko("$sget")(table, n64));
-			if next > 0 then loop next;
-		}
-		var v = if n < 0 then ((-n) << 1) + 1 else n << 1;
-		loop v
-	}
-	function segment(di:int, line:int, col:int) {
-		var m = m;
-		if m.out_comma then add_char ',' else m.out_comma := true;
-		add_vlq( m.current - m.last );
-		add_vlq( di );
-		add_vlq( line - m.last_src_line);
-		add_vlq( col  - m.last_src_col );
-		m.last := m.current;
-		m.last_src_line := line;
-		m.last_src_col  := col;
-	}
-	function rec find_i(f, acc, l:Hss.Utils.path list) {
-		match l {
-		| [] -> throw Not_found
-		| x :: l -> if x.str === f then acc else find_i(f, acc + 1, l)
-		}
-	}
-	m.reset := function() {
-		var m = m;
-		m.out_comma := false;
-		m.source := "";
-		m.index  := 0;
-		m.last_src_line := 1;
-		m.last_src_col  := 1;
-		m.current := 0;
-		m.last := 0;
-		m.bpos := 0;
-	}
-	// overrides if switch on
-	m.switch_on := function() {
-		pmod.normal.crlf := function (ch:IO.output) {
-			ch.out_write '\n';
-			m.current := 0;
-			m.last := 0;
-			m.out_comma := false;
-			add_char ';';
-		}
-		m.write_char := function(ch:IO.output, c) {
-			ch.out_write c;
-			m.current := m.current + 1;
-		}
-		m.write := function(ch:IO.output, s) {
-			var len = String.length s;
-			var n = ch.out_output s 0 len;
-			if n != len then throw IO.Blocked;
-			m.current := m.current + len;
-		}
-		m.write_extern := function(ch:IO.output, s) {
-			var i = &0
-			var cr = &0
-			var len = String.length s;
-			while *i < len {
-				var c = neko("$sget")(s, *i);
-				if c == '\n' then
-					pmod.normal.crlf ch
-				else if c == '\r' then
-					cr := *cr + 1
-				else
-					ch.out_write c;
-				i := *i + 1;
-			}
-			m.current := m.current + len - (*cr);
-		}
-		m.pick_begin := function (p:pos) {
-			var m = m;
-			var i = m.index;
-			if p.psource !== m.source then {
-				m.index  := find_i(p.psource, 0, *Hss.Utils.path_imports);
-				m.source := p.psource;
-			}
-			m.pick_data := Hss.Lexer.column p;
-			segment(m.index - i, m.pick_data.lmin, m.pick_data.cmin);
-		}
-		m.pick_end := function() {
-			segment(0, m.pick_data.lmax, m.pick_data.cmax);
-		}
-		m.enabled := true;
-	};
-	m;
-};
 
 function classes_pos (l:class list):pos {
 	var pp = &Lexer.null_pos;
@@ -636,15 +477,15 @@ function custom_calls(id, vl, p, vcall) {
 	function mix(ds, dl) {
 		var r, g, b, i = (match vl {
 		| [(VHex h, p); (VUnit(i,"%"),_)] ->
-			var r, g, b = Hss.Utils.ofhex h p;
+			var r, g, b = rgbtools.of_hex h p;
 			(r, g, b, i)
 		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_); (VUnit(i,"%"),_)] ->
 			(cint r rp, cint g gp, cint b bp, i)
 		| _ ->
 			exit()
 		})
-		var h, s, l = Hss.Utils.rgb2hsl r g b
-		var r, g, b = Hss.Utils.hsl2rgb h (i * ds + s) (i * dl + l);
+		var h, s, l = rgbtools.to_hsl (r, g, b)
+		var r, g, b = rgbtools.of_hsl (h, i*ds + s, i*dl + l);
 		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
 	}
 	(match id {
@@ -654,7 +495,7 @@ function custom_calls(id, vl, p, vcall) {
 	| "desaturate" -> mix(-0.01,  0.  )
 	| "invert" ->
 		var r, g, b = (match vl {
-		| [(VHex h, p)] -> Hss.Utils.ofhex h p
+		| [(VHex h, p)] -> rgbtools.of_hex h p;
 		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_)] -> (cint r rp, cint g gp, cint b bp)
 		| _ -> exit()
 		})
@@ -753,7 +594,7 @@ function rec eval(ctx,v) {
 					var c = Math.round (fop (c * 1.0) a);
 					if c < 0 then 0 else if c > 255 then 255 else c;
 				}
-				var r, g, b = Hss.Utils.ofhex(c, snd v1);
+				var r, g, b = rgbtools.of_hex(c, snd v1);
 				var r, g, b = (color r, color g, color b);
 				VHex (sprintf "%.6X" ((r << 16) or (g << 8) or b))
 			| (_,VLabel (l,v)) ->
@@ -852,11 +693,11 @@ function rec expand_val(value) {
 	var p = snd value;
 	match fst value {
 	| VCall((VIdent "rgba",_) as c,[(VHex h,hp);(VFloat f,fp)]) ->
-		var r, g, b = Hss.Utils.ofhex h hp;
+		var r, g, b = rgbtools.of_hex h hp;
 		var params = [(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)];
 		expand_val (VCall c params, p)
 	| VCall((VIdent "embed",p1), [(VString url, p2)]) ->
-		(VCall (VIdent "url",p1) [(VString Hss.Utils.img_to_base64(url, p2), p2)], p)
+		(VCall (VIdent "url",p1) [(VString base64.encode_image(url, p2), p2)], p)
 	| VCall (v,vl) ->
 		(VCall expand_val(v) (List.map expand_val vl), p)
 	| VList vl ->
@@ -938,7 +779,7 @@ function rec check_class(ctx, c) {
 	List.iter (function((sel,p)){
 		match sel {
 		| PuElement s ->
-			if !(List.mem(s, pseudo_elements) || (snd Hss.Utils.vendor_prefix(s) != "")) then
+			if !(List.mem(s, pseudo_elements) || (snd utils.vendor_prefix(s) != "")) then
 				check_errors_add ("Invalid '" + "::" + s + "'", p);
 		| _ ->
 		}
@@ -965,7 +806,7 @@ function load_rules(find, name, value, p) {
 			check_errors_add ("Invalid '"+name+"' value '"+str()+"'", pos (*last_error_value))
 		}
 	} catch {
-	| Not_found -> if snd(Hss.Utils.vendor_prefix name) == "" then
+	| Not_found -> if snd(utils.vendor_prefix name) == "" then
 		check_errors_add ("Unknown attribute '"+name+"'", p)
 	| Invalid_argument s ->
 		check_errors_add (s, p)
@@ -1170,9 +1011,9 @@ function rec check(ctx,e) {
 		| (VString s,_) when s != "" -> s
 		| v -> error("Unexpected " + "@import" + "("+ (s_value v) +")", p)
 		}
-		var parent = Hss.Utils.path_find(Lexer.source p);
-		var file = if parent.dir == "" || Hss.Utils.is_abs_path(s) then s else parent.dir + "/" + s;
-		var path, added = Hss.Utils.path(file, "hss");
+		var parent = pathtools.find p;
+		var file = if parent.dir == "" || pathtools.is_abs(s) then s else parent.dir + "/" + s;
+		var path, added = pathtools.add(file, "hss");
 		if !added then
 			(ESub [], p) // duplicate, simply ignore it
 		else {
@@ -1278,7 +1119,7 @@ try {
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 	List.iter (function(file) {
-		var path,_ = Hss.Utils.path file "";
+		var path,_ = pathtools.add file "";
 		// parse
 		var ch = IO.read_file (path.str) true;
 		var lex = Lexer.create Buffer.create();
@@ -1297,10 +1138,7 @@ try {
 		var el = if sem.enabled || Hss.Parser.defines_has("no_merge_media") then el else merge_media el;
 		// write
 		var file2 = Sys.without_extension file + ".css";
-		var file2 = match *output {| None -> file2 | Some dir ->
-			var slash = String.get dir ((String.length dir) - 1);
-			(if slash == '/' || slash == '\\' then dir else dir + "/") + Sys.without_dir file2
-		};
+		var file2 = match *output {| None -> file2 | Some dir -> (pathtools.add_slash dir) + (Sys.without_dir file2) }
 		if file != file2 then {
 			var fmap = file2 + ".map";
 			var ch = IO.write_file file2 true;
@@ -1309,12 +1147,12 @@ try {
 			IO.close_out ch;
 			if sem.enabled then {
 				var ch = IO.write_file fmap true;
-				Hss.Utils.sourcemap_write(ch, file2, sem.buf, sem.bpos);
+				sem.flush ch file2;
 				IO.close_out ch;
 			}
 		}
 		sem.reset();
-		Hss.Utils.path_reset()
+		pathtools.reset()
 	}) (*files);
 } catch {
 	// todo : fix a small bug in nekoml to have ctx.current not to lowercase
