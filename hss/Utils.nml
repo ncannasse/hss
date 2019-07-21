@@ -17,12 +17,12 @@ type pos = Lexer.pos
 exception Error : (string, pos);
 
 /**
-* utils
+* misc
 */
-type utils {
+type misc {
 	vendor_prefix : string -> (string, string); // "-webkit-user-select" => ("user-select","-webkit-")
 }
-var utils = {
+var misc = {
 	vendor_prefix = function(s) {
 		if String.get(s, 0) == '-' then {
 			var len = String.length s;
@@ -215,7 +215,6 @@ pathtools.index := function(p: pos) {
 
 /**
 * base64
-*
 */
 type base64 {
 	table: string;
@@ -255,7 +254,70 @@ base64.encode_image := function(path, p: pos) {
 };
 
 /**
-* print_mode
+* lines counter which should be hooked in hss/Lexer
+*/
+type pos_column {
+	lmin : int;
+	lmax : int;
+	cmin : int;
+	cmax : int;    // max col base on (max line)
+	cmax_on : int; // max col base on (min line)
+}
+type rows_conter {
+	mutable current : string;
+	mutable cached : int array;
+	mutable all : (string, int array) list;
+	empty: int array;
+	mutable add_line : string -> int -> void;
+	mutable column   : pos -> pos_column;
+}
+var rows = { current = ""; cached = Array.create(); all = []; empty = Array.create(); add_line = neko("null"); column = neko("null"); }
+rows.add_line := function (source, pos:int) {
+	if source != rows.current then {
+		function rec loop(l) match l {
+		| [] ->
+			rows.current:= source;
+			rows.cached := neko "var _a = $amake(512); _a[0] = 0; $array(_a,string, 1)"; // copy from Array.make
+			rows.all    := (rows.current, rows.cached) :: rows.all
+		| (s, a) :: _ when s == source ->
+			rows.current:= s;
+			rows.cached := a;
+		| _ :: l ->
+			loop l
+		}
+		loop rows.all
+	}
+	Array.add rows.cached pos;
+}
+rows.column := function (p: pos):pos_column {
+	var source = p.psource;
+	var a = if source == rows.current then rows.cached else {
+		function rec find(l) match l {
+		| [] ->
+			rows.empty
+		| (s, a) :: _ when s == source ->
+			rows.current:= s;
+			rows.cached := a;
+			a
+		| _ :: l ->
+			find l
+		}
+		find rows.all
+	}
+	var len = Array.length a;
+	if p.pline > 0 && p.pline <= len then {
+		var start = a.[p.pline-1];
+		var lnext = &p.pline;
+		while *lnext < len && p.pmax >= a.[*lnext] {
+			lnext := *lnext + 1
+		}
+		{lmin=p.pline; lmax=(*lnext); cmin=1 + p.pmin - start; cmax=1 + p.pmax - a.[*lnext-1]; cmax_on=1 + p.pmax - start;}
+	} else
+		{lmin=0; lmax=0; cmin=0; cmax=0; cmax_on=0;}
+}
+
+/**
+* print_mode used for minify
 */
 type sep_chars {
 	tab   : string;
@@ -310,7 +372,7 @@ type sourcemap {
 	mutable write_char   : IO.output->char   -> void;
 	mutable write        : IO.output->string -> void;
 	mutable pick_begin : pos -> void;
-	mutable pick_data  : Hss.Ast.pos_column;
+	mutable pick_data  : pos_column;
 	mutable pick_end   : void -> void;
 	mutable switch_on  : void -> void;
 	mutable reset      : void -> void;
@@ -418,7 +480,7 @@ var sem = {
 				m.index  := pathtools.index p;
 				m.source := p.psource;
 			}
-			m.pick_data := Hss.Lexer.column p;
+			m.pick_data := rows.column p;
 			segment(m.index - i, m.pick_data.lmin, m.pick_data.cmin);
 		}
 		m.pick_end := function() {
@@ -466,5 +528,5 @@ var sem = {
 		loop ch data;
 		IO.write_char ch '}';
 	}
-	m;
+	m
 }

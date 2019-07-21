@@ -23,14 +23,6 @@ type constant {
 	Val : string;
 }
 
-type pos_column {
-	lmin : int;
-	lmax : int;
-	cmin : int;
-	cmax : int;    // max col base on (max line)
-	cmax_on : int; // max col base on (min line)
-}
-
 type keyword {
 	Var;
 	Media;

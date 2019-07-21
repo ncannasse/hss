@@ -29,9 +29,9 @@ type context {
 var pathtools : Hss.Utils.pathtools = Hss.Utils.pathtools
 var rgbtools : Hss.Utils.rgbtools = Hss.Utils.rgbtools
 var base64 : Hss.Utils.base64 = Hss.Utils.base64
-var utils : Hss.Utils.utils = Hss.Utils.utils
 var pmod : Hss.Utils.print_mode = Hss.Utils.pmod
 var sem : Hss.Utils.sourcemap = Hss.Utils.sem
+var misc : Hss.Utils.misc = Hss.Utils.misc
 
 function error(msg,p) {
 	throw Error([(msg,p)])
@@ -779,7 +779,7 @@ function rec check_class(ctx, c) {
 	List.iter (function((sel,p)){
 		match sel {
 		| PuElement s ->
-			if !(List.mem(s, pseudo_elements) || (snd utils.vendor_prefix(s) != "")) then
+			if !(List.mem(s, pseudo_elements) || (snd misc.vendor_prefix(s) != "")) then
 				check_errors_add ("Invalid '" + "::" + s + "'", p);
 		| _ ->
 		}
@@ -806,7 +806,7 @@ function load_rules(find, name, value, p) {
 			check_errors_add ("Invalid '"+name+"' value '"+str()+"'", pos (*last_error_value))
 		}
 	} catch {
-	| Not_found -> if snd(utils.vendor_prefix name) == "" then
+	| Not_found -> if snd(misc.vendor_prefix name) == "" then
 		check_errors_add ("Unknown attribute '"+name+"'", p)
 	| Invalid_argument s ->
 		check_errors_add (s, p)
@@ -1049,7 +1049,7 @@ function display(msg,p) {
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
 	} else {
-		var pc = Hss.Lexer.column(p);
+		var pc = Hss.Utils.rows.column(p);
 		IO.printf IO.stderr "%s:%d: %d-%d: %s\n" (Lexer.source p, pc.lmin, pc.cmin, pc.cmax_on, msg);
 	}
 }
