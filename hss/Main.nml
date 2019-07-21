@@ -852,32 +852,6 @@ function rec check_media(ctx, m: media) {
 	}
 }
 
-// simple detection only, cannot detect circular references
-function selfref_var(id, v) {
-	match fst v {
-	| VVar name when id == name -> error("Self referencing loop: " + id + " = $" + id, pos v)
-	| _ ->
-	}
-}
-
-function rec selfref_block(redef, id, l) {
-	match l {
-	| [] ->
-	| e::tl ->
-		match fst e {
-		| EUseBlock(name, _) ->
-			if name == id && (*redef) == false then error("Self referencing loop: " + "$" + id, pos e);
-		| EVarBlock(name, el) ->
-			var r = *redef; (selfref_block redef id el); redef := r;
-			if name == id && (*redef) == false then redef := true;
-		| EBlock(_,el) ->
-			var r = *redef; (selfref_block redef id el); redef := r;
-		| _ ->
-		}
-		selfref_block redef id tl;
-	}
-}
-
 function rec check(ctx,e) {
 	match fst e {
 	| EVar ("namespace",value) ->
@@ -887,12 +861,9 @@ function rec check(ctx,e) {
 		}
 		e
 	| EVar (name,value) ->
-		selfref_var name value;
 		ctx.vars := Map.add ctx.vars name value;
 		e
 	| EVarBlock (name,el) ->
-		var redef = &false;
-		selfref_block redef name el;
 		ctx.blocks := Map.add ctx.blocks name el;
 		e
 	| EBlock (classes,el) ->
@@ -951,9 +922,7 @@ function rec check(ctx,e) {
 		var old_ns, old_vars, old_blocks = (ctx.ns, ctx.vars, ctx.blocks);
 		List.iter (function(v){
 			match fst v {
-			| VBind(name, value) ->
-				selfref_var name value;
-				ctx.vars := Map.add ctx.vars name value;
+			| VBind(name, value) -> ctx.vars := Map.add ctx.vars name value;
 			| _ ->
 			}
 		}) pl;
@@ -969,9 +938,7 @@ function rec check(ctx,e) {
 				var locals = &Map.empty();
 				var b = List.map (function(e){
 					match fst e {
-					| EVar (name,value) when name != "namespace" ->
-						selfref_var name value;
-						locals := Map.add (*locals) name value;
+					| EVar (name,value) when name != "namespace" -> locals := Map.add (*locals) name value;
 					| _ ->
 					}
 					check ctx e;
