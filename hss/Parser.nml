@@ -39,6 +39,23 @@ function error(m,p) {
 
 function contiguous(p1, p2) p1.pmax == p2.pmin && p1.pline == p2.pline;
 
+function rec missed_last(lmax, v) {
+	match fst v {
+	| VGroup l | VList l ->
+		function rec loop(acc, l) match l {
+		| [] -> acc
+		| x :: l -> if Lexer.line(snd x) < lmax then loop x l else acc
+		}
+		missed_last lmax (loop v l)
+	| VLabel(_, v) -> missed_last lmax v
+	| VOp(_,v1, v2) ->
+		var v1 = missed_last lmax v1;
+		var v2 = missed_last lmax v2;
+		if Lexer.line(snd v2) < lmax then v2 else v1
+	| _ -> v
+	}
+}
+
 function semicolon(s) {
 	match s {
 	| [< (Semicolon,p) >] -> p
@@ -46,12 +63,16 @@ function semicolon(s) {
 	}
 }
 
-function semicolon_final(s) {
+function semicolon_final(s, v) {
 	match s {
 	| [< (Semicolon,p) >] -> p
 	| [< >] ->
 		var tk,p = stream_token s 0;
-		if (tk == BraceClose) then p else error (Expected_semicolon tk) p
+		if (tk == BraceClose) then p else {
+			var lmax = Hss.Utils.rows.column(snd v).lmax;
+			var v = missed_last lmax v;
+			error Message("around the '" + (s_value v) + "' maybe missing ;") (snd v)
+		}
 	}
 }
 
@@ -66,7 +87,7 @@ function rec expr(s) {
 	match s {
 	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_) >] -> match s {
 		| [< (BraceOpen,p2); l = expr_list s >] -> (EVarBlock i l, punion p1 p2)
-		| [< v = value s; p2 = semicolon s >] -> (EVar i v, punion p1 p2)
+		| [< v = value s; p2 = semicolon_final s v >] -> (EVar i v, punion p1 p2)
 		}
 	| [< (Keyword Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = semicolon s >] -> (EInclude css, punion p1 p2)
 	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = semicolon s >] -> (EImport v, p)
@@ -148,7 +169,7 @@ function rec expr_list(s) {
 	match s {
 	| [< (BraceClose,_) >] -> []
 	| [< >] -> (match s {
-		| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_final s >] -> (EAttribute att v,p)
+		| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_final s v >] -> (EAttribute att v,p)
 		| [< (Const (Val v),p) >] -> expr_dollar v p s
 		| [< e = expr s >] -> e
 		}) :: expr_list s
