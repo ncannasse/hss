@@ -2,23 +2,31 @@
 
 ## Usage
 
-First you have to build it via `make` or `build.bat`
-
-> Or Download HSS and put it in some place where it can be run from the commandline :
->* Windows version : <http://ncannasse.fr/file/hss-1.3-win.zip>
->* OSX version : <http://ncannasse.fr/file/hss-1.3-osx.gz>
->* Linux version : <http://ncannasse.fr/file/hss-1.3-linux.gz>
->
-> **TIP:** On OSX and Linux you will have to enable the file to be executable after unzipping, by running the command chmod +x hss
-
-You can then rename you _.css_ file with the extension _.hss_. Since HSS extends the CSS syntax, it means that every valid CSS valid is a valid HSS file as well.
+Downloads and then builds via `make` or `build.bat`
 
 You can then compile your HSS file into the corresponding CSS file by running the hss command :
 
-```
+```bash
+hss [options] <file>
+ Options :
+  -output <dir> : specify output directory
+  -D <flag>     : define a conditional compilation flag
+  --minify      : minify output by removing some whitespaces
+  --sourcemap   : outputs a v3 sourcemap file
+#
 hss myfile.hss
 ```
-You can specify an output directory with `-output <dir>` if you need it to be different than the hss file one.
+
+Features:
+
+* Variable
+  - [Property Variables](#Property-Variables)
+  - [Block Variables](#Block-Variables)
+* [Nested Blocks](#Nested-Blocks)
+* [Macro Condition](#Macro-Condition) *Only accept parameters passed by '-D flag'*
+* [CSS Validation](#CSS-Validation)
+* [Operations](#Operations)
+* [More...](#Hacks-Support)
 
 > **TIP:** Since every time the HSS file is modified the CSS file needs to be regenerated, it's better if the website itself automatically runs HSS when it notices that the HSS file has changed, and displays errors if any occurs.
 
@@ -63,8 +71,7 @@ pre {
 ```
 Block variables are very useful to share some "behaviors" between unrelated rules. They can be used to improve the way CSS files are organized and makes it much more easy to test style-changes.
 
-The Block Variables also has **function features**. Since 1.5.2. Note that it's uses **semicolon(`;`)** as the parameter separator.
-because the comma(`,`) is a valid CSS property value.
+The Block Variables also has **function features**. Note that it's uses **semicolon(`;`)** as the parameter separator.
 
 ```scss
 var nomargin = { margin : $margin; padding : $padding;}
@@ -82,54 +89,6 @@ pre {
   margin: 18px;
   padding: -4px;
   color: #FF0000;
-}
-```
-
-Note that the "Block Variables" and "Property Variables" belong to different spaces.
-
-```scss
-var alpha = {            // Definition a "Block Variables".
-  opacity: $alpha;       // Reference to "Property Variables", NOT "Block Variables"
-  filter: alpha(opacity=$alpha*100);  // IE8 filter
-  // $alpha;             // It's "Block Variables", but hss will report an error to avoid entering the dead loop.
-}
-
-.alpha-80 {
-  $alpha(alpha = 0.8);   // use it.
-}
-
-var ref = $alpha;        // The right side of the expr will be parsed as "Property Var",
-                         // So you can't refer to "Block Variables"
-```
-
-#### the variables scope
-
-if the name of the "Block Variables" starts with `_` then the internal variables will be exported to the current scope.
-
-```scss
-var vars =  { var color = black;}
-.without {
-  var color = red;
-  $vars();
-  color: $color;
-}
-
-var _vars = { var color = black;}  // starts with "_"
-.with {
-  var color = red;
-  $_vars();
-  color: $color;
-}
-```
-
-output:
-
-```css
-.without {
-  color: red;
-}
-.with {
-  color: black;
 }
 ```
 
@@ -293,23 +252,26 @@ HSS also enforces some good CSS practices such as :
  * properties declarations must always end with a semicolon (;)
  * URLs must be quoted : don't do url(img.gif) but please use url('img.gif') instead.
 
-#### Notes
+`@media` queries:
 
-* HSS will try to detect if `@media` query is valid, but not all the syntax
+```scss
+// you could use quotes to skip detection for "media type" or "media feature".
+@media "tv", "handheld" {}
+@media (some-css3-media: "unknown") {}
+// Note: Only supports Property Variables in value of the "media feature"
+var narrow_width = 767px;
+@media only screen and (max-width : $narrow_width) {}
+```
 
-  ```scss
-  // you could use quotes to skip detection for "media type" or "media feature".
-  @media "tv", "handheld" {}
-  @media (some-css3-media: "unknown") {}
+CSS rule limit:
+- `font:` only accept single font-family value
+- `background:` no support for `/background-size` notation
 
-  // Note: Only supports Property Variables in value of the "media feature"
-  var narrow_width = 767px;
-  @media only screen and (max-width : $narrow_width) {}
-  ```
+HSS does not support all CSS Attributes, such as `grid`series, So you may need `CSS()` to skip detection:
 
-* CSS rule limit:
-  - `font:` only accept single font-family value
-  - `background:` no support for `/background-size` notation
+```scss
+grid: CSS(auto-flow dense / 40px 40px 1fr);
+```
 
 ### CSS Rules
 The whole CSS properties rules that are used to check the property value correctness are listed in the Rules.nml file of the HSS sources. You might want to modify them for your own needs.
@@ -329,8 +291,7 @@ E[foo], E[foo=value], E[foo|=value], E[foo~=value], E[foo^=value], E[foo$=value]
 ```
 [supported pseudo-classes selectors](hss/Rules.nml#L46-L51), and other unsupported pseudo-selectors can use `CSS()` hack :
 ```css
-/* Here CSS() only accepts string as argument */
-.page CSS("h1:placeholder") {
+.page CSS("h1:blank") { /* Here CSS() only accepts string as argument */
     color : red
 }
 ```
@@ -360,21 +321,15 @@ Operations between two different units (for instance 50px + 3em) are not allowed
   ```css
   .image {
     my-special-property : CSS("some specific value"); /* NOTE: The outer quotes will be strip if only single string as argument */
-    my-special-property : CSS(some specific value);   /* In most cases, quotes are not required, New in 1.6 */
+    my-special-property : CSS(some specific value);   /* In most cases, quotes are not required */
     filter: CSS( "progid:DXImageTransform.Microsoft.DropShadow"(color=#88FF0000,offx=8,offy="8") ); /* Old IE filter */
   }
   ```
 
-* `color : rgba(r,g,b,a); background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
-
-* `hss-width` and `hss-height` : will generate width and height from which will be subtracted the padding and border values declared in the current block.
-
-* You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
-
-* `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate imported files will be ignored.
+* `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate files will be ignored.
 
   ```scss
-  @import("path/to/_vars") // if file name starts with "_" the variables of the file will be exported to current file.
+  @import("path/to/_vars") // NOTE: if the file name starts with "_" then the variables will be exported to current file.
   @import("path/to/reset")
   ```
 
@@ -390,7 +345,7 @@ Operations between two different units (for instance 50px + 3em) are not allowed
   }
   ```
 
-  `int(float)`: convert float to int, you will rarely use it.
+  `int(float)`: convert float to int
 
 
 * `embed("path/to/image")`: for embedding small(less than 24KB) image(png/jpg/gif) as `data:image/xxx;base64`.
@@ -399,6 +354,12 @@ Operations between two different units (for instance 50px + 3em) are not allowed
     background-image: embed("logo.png"); // the png is relative to current .hss file.
   }
   ```
+
+* `color : rgba(r,g,b,a); background-color : rgba(r,g,b,a)` : will add a solid color default value for browsers which don't support rgba
+
+* `hss-width` and `hss-height` : will generate width and height from which will be subtracted the padding and border values declared in the current block.
+
+* You can also add `@include('some css string')` either at the top level or instead of an attribute, this will include raw CSS string in the output, prefixed with the hierarchy classes if any New in 1.4
 
 ## Credits
 The HSS software was developed by Nicolas Cannasse for Motion-Twin.

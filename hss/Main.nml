@@ -1086,7 +1086,7 @@ try {
 		var el = List.concat (List.map flatten([]) el);
 		// final eval
 		var el = List.map eval_block(ctx) el;
-		// combine/merge media queries if there is no `-D no_merge_media` and no --sourcemap
+		// combine/merge media queries if there is no `-D no_merge_media` or --sourcemap
 		var el = if sem.enabled || Hss.Parser.defines_has("no_merge_media") then el else merge_media el;
 		// write
 		var file2 = Sys.without_extension file + ".css";
