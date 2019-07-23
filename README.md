@@ -4,15 +4,15 @@
 
 Downloads and then builds via `make` or `build.bat`
 
-You can then compile your HSS file into the corresponding CSS file by running the hss command :
+You can compile your HSS file into the corresponding CSS file by running the hss command :
 
 ```bash
-hss [options] <file>
- Options :
-  -output <dir> : specify output directory
-  -D <flag>     : define a conditional compilation flag
-  --minify      : minify output by removing some whitespaces
-  --sourcemap   : outputs a v3 sourcemap file
+#hss [options] <file>
+# Options :
+#  -output <dir> : specify output directory
+#  -D <flag>     : define a conditional compilation flag
+#  --minify      : minify output by removing some whitespaces
+#  --sourcemap   : outputs a v3 sourcemap file
 #
 hss myfile.hss
 ```
