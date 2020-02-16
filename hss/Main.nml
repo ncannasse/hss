@@ -475,35 +475,44 @@ function get_rule(ctx, name) {
 	}
 }
 
-function custom_calls(id, vl, p, vcall) {
-	function exit() { throw Exit }
-	function cint(i, p) {
-		if (i < 0 || i > 255) then check_errors_add ("OutOfRange " + i, p);
+function rgb_values(l) {
+	var l = List.map (function((v, p)) {
+		var i = match v {
+		| VInt i -> i
+		| VFloat f -> Math.floor(before_floor f)
+		| VUnit (f,"%") -> Math.floor(before_floor(f * 2.55))
+		| _ -> check_errors_add ("Unexpected " + (s_value (v,p)), p); 0
+		}
+		if i < 0 || i > 255 then check_errors_add ("Unexpected " + i, p);
 		i
+	}) l;
+	match l {
+	| [r;g;b] -> (r, g, b)
+	| _ -> invalid_arg()
 	}
+};
+
+function custom_calls(id, vl, p, origin) {
+	function exit() { throw Exit }
 	function mix(ds, dl) {
-		var r, g, b, i = (match vl {
-		| [(VHex h, p); (VUnit(i,"%"),_)] ->
-			var r, g, b = rgbtools.of_hex h p;
-			(r, g, b, i)
-		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_); (VUnit(i,"%"),_)] ->
-			(cint r rp, cint g gp, cint b bp, i)
-		| _ ->
-			exit()
+		var rgb, i = (match vl {
+		| [(VHex h, p); (VUnit(i,"%"),_)] -> (rgbtools.of_hex h p, i)
+		| [(VCall((VIdent "rgb",_),[r;g;b] as rgb),_); (VUnit(i,"%"),_)] -> (rgb_values rgb, i)
+		| _ -> exit()
 		})
-		var h, s, l = rgbtools.to_hsl (r, g, b)
+		var h, s, l = rgbtools.to_hsl rgb
 		var r, g, b = rgbtools.of_hsl (h, i*ds + s, i*dl + l);
 		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
 	}
 	(match id {
-	| "lighten" ->    mix( 0.  ,  0.01)
-	| "darken" ->     mix( 0.  , -0.01)
-	| "saturate" ->   mix( 0.01,  0.  )
+	| "lighten"    -> mix( 0.  ,  0.01)
+	| "darken"     -> mix( 0.  , -0.01)
+	| "saturate"   -> mix( 0.01,  0.  )
 	| "desaturate" -> mix(-0.01,  0.  )
 	| "invert" ->
 		var r, g, b = (match vl {
 		| [(VHex h, p)] -> rgbtools.of_hex h p;
-		| [(VCall((VIdent "rgb",_),[(VInt r,rp);(VInt g,gp);(VInt b,bp)]),_)] -> (cint r rp, cint g gp, cint b bp)
+		| [(VCall((VIdent "rgb",_),[r;g;b] as rgb),_)] -> rgb_values rgb;
 		| _ -> exit()
 		})
 		var r, g, b = (255 - r, 255 - g, 255 - b);
@@ -514,7 +523,7 @@ function custom_calls(id, vl, p, vcall) {
 		| [(VUnit (f,u), _)] -> VUnit Math.ffloor(before_floor f) u
 		| _ -> exit()
 		}
-	| _ -> vcall
+	| _ -> origin
 	}, p)
 }
 
@@ -584,9 +593,7 @@ function rec eval(ctx,v) {
 		};
 		function rec loop(v1,v2) {
 			match (fst v1,fst v2) {
-			| (VInt x, VInt y) ->
-				var f = fop(x * 1.0, y * 1.0);
-				if (fractional_part f) then VFloat ( Math.fround(f * 1000.) / 1000. ) else VInt Math.floor(before_floor f)
+			| (VInt x, VInt y) -> VFloat fop(x * 1.0, y * 1.0)
 			| (VInt x, VFloat y) -> VFloat (fop (x * 1.0) y)
 			| (VFloat x, VInt y) -> VFloat (fop x (y * 1.0))
 			| (VFloat x, VFloat y) -> VFloat (fop x y)
@@ -737,15 +744,7 @@ function rec expand_hacks(name,value,p) {
 		var first = match fst value { VGroup v :: l -> v | _ -> value };
 		match fst first {
 		| VCall ((VIdent "rgba",_),[r;g;b;a]) ->
-			var hcol = String.concat "" (List.map (function(c) {
-				match fst c {
-				| VInt i -> sprintf "%.2X" i
-				| VUnit (f,"%") ->
-					var i = Math.floor (f * 2.55);
-					sprintf "%.2X" (if i < 0 then 0 else if i > 255 then 255 else i)
-				| _ -> assert()
-				}
-			}) [r;g;b]);
+			var hcol = sprintf "%.2X%.2X%.2X" (rgb_values [r;g;b]);
 			(ESub [
 				(EAttribute name (VHex hcol,p),p); // simply adds a fallback with fixed hex color
 				(EAttribute name value,p);
