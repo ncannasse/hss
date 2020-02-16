@@ -312,7 +312,14 @@ function rec check_inherit(v) {
 	}
 }
 
-function fractional_part(f) { if (Math.abs f) % 1 < 0.00001 then false else true }
+function fractional_part(f) {
+	var f = if f >= 0. then (f + 0.000001) else -(f - 0.000001); // Math.abs
+	f - (Math.ffloor f) > 0.0000019
+}
+
+function before_floor(f) {
+	if f >= 0. then f + 0.000001 else f - 0.000001
+}
 
 var last_error_value = &(VString "", Lexer.null_pos);
 
@@ -331,7 +338,7 @@ function rec check_rule_inner(rest, r, v) {
 	| (RFloatRange(min,max), VInt n) -> n * 1.0 >= min && n * 1.0 <= max
 	| (RFloatRange(min,max), VFloat n) -> n >= min && n <= max
 	| (RIntRange(min,max), VInt n) -> n >= min && n <= max
-	| (RIntRange(min,max), VFloat f) -> !(fractional_part f) && (Math.floor f) >= min && (Math.floor f) <= max
+	| (RIntRange(min,max), VFloat f) -> !(fractional_part f) && f >= min*1.0 && f <= max*1.0
 	| (ROr rl,_) -> List.exists (function(r) check_rule r v) rl
 	| (RIdent, VIdent _) -> true
 	| (RString, VString _) -> true
@@ -503,8 +510,8 @@ function custom_calls(id, vl, p, vcall) {
 		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
 	| "int" ->
 		match vl {
-		| [(VFloat f, _)] -> VInt Math.floor(f)
-		| [(VUnit (f,u), _)] -> VUnit Math.ffloor(f) u
+		| [(VFloat f, _)] -> VInt Math.floor(before_floor f)
+		| [(VUnit (f,u), _)] -> VUnit Math.ffloor(before_floor f) u
 		| _ -> exit()
 		}
 	| _ -> vcall
@@ -579,7 +586,7 @@ function rec eval(ctx,v) {
 			match (fst v1,fst v2) {
 			| (VInt x, VInt y) ->
 				var f = fop(x * 1.0, y * 1.0);
-				if (fractional_part f) then VFloat ( Math.fround(f * 1000.) / 1000. ) else VInt (Math.floor f)
+				if (fractional_part f) then VFloat ( Math.fround(f * 1000.) / 1000. ) else VInt Math.floor(before_floor f)
 			| (VInt x, VFloat y) -> VFloat (fop (x * 1.0) y)
 			| (VFloat x, VInt y) -> VFloat (fop x (y * 1.0))
 			| (VFloat x, VFloat y) -> VFloat (fop x y)
