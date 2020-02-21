@@ -147,7 +147,6 @@ type expr_decl {
 	EVarBlock : (string, expr list);
 	EAttribute : (string, value);
 	EUseBlock : (string, value list);
-	EIfDefine: ((string, bool), expr);
 	EBlock : (class list, expr list);
 	ESub : expr list;
 	EMedia : (media, expr list);

@@ -221,7 +221,7 @@ function rec print_css(ch,tabs,e) {
 		sem.write ch pmod.cur.lbrace;  (pmod.cur.crlf ch);
 		List.iter (print_keyframe ch (tabs+pmod.cur.tab)) ks;
 		sem.write ch tabs;  sem.write ch pmod.cur.rbrace;  (pmod.cur.crlf ch)
-	| EVar _ | EVarBlock _ | EUseBlock _ | EIfDefine _ ->
+	| EVar _ | EVarBlock _ | EUseBlock _ ->
 	}
 }
 
@@ -264,7 +264,7 @@ function rec flatten_subs(acc,e) {
 
 function rec flatten(parents,e) {
 	match fst e {
-	| EVar _ | EAttribute _ | EUseBlock _ | EIfDefine _ | EVarBlock _ -> []
+	| EVar _ | EAttribute _ | EUseBlock _ | EVarBlock _ -> []
 	| ESub el ->
 		List.concat (List.map (flatten parents) el)
 	| EBlock (classes,el) ->
@@ -941,21 +941,6 @@ function rec check(ctx,e) {
 		} catch {
 		| Error l -> throw Error(("Included here ",p)::l)
 		}
-	| EIfDefine((name, t), b) ->
-		function rec loop(name, t, b, pr, pt) {
-			var r = match (pr, pt) {
-			| (true, false) -> true  //  ( true, ||)
-			| (false, true) -> false //  (false, &&)
-			| _ -> Map.exists ctx.vars name;
-			}
-			match fst b {
-			| EIfDefine ((name, t2), b) -> loop name t2 b r t
-			| _ ->
-				var next = if t then r else !r;
-				if next then check ctx b else (ESub [], pos b)
-			}
-		}
-		loop name t b true true;
 	| ESub el ->
 		(ESub (List.map (check ctx) el),snd e)
 	| EMedia (l,el) ->

@@ -93,7 +93,6 @@ function rec expr(s) {
 	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = semicolon s >] -> (EImport v, p)
 	| [< (Keyword Keyframes,p1); (Const (Ident n),p2); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, punion p1 p2)
 	| [< (Keyword Media,p); m = media s; (BraceOpen,_); l = expr_list s; >] -> (EMedia m l, p)
-	| [< (Const (Val v),p) >] -> expr_dollar v p s
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
 	}
 }
@@ -168,29 +167,10 @@ function rec block_args(s) {
 function rec expr_list(s) {
 	match s {
 	| [< (BraceClose,_) >] -> []
-	| [< >] -> (match s {
-		| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_final s v >] -> (EAttribute att v,p)
-		| [< (Const (Val v),p) >] -> expr_dollar v p s
-		| [< e = expr s >] -> e
-		}) :: expr_list s
-	}
-}
-
-function rec expr_dollar_next(s) {
-	match s {
-	| [< (Const (Val v),p); >] -> expr_dollar v p s
-	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon s >] -> (EAttribute att v,p)
-	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = semicolon s >] -> (EImport v, p)
-	| [< (BraceOpen, p); l = expr_list s >] -> (ESub l, p)
-	}
-}
-
-function rec expr_dollar(v: string, p: pos, s) {
-	match s {
-	| [< (ParentOpen,_); l = block_args s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p)
-	| [< (Op BoolAnd,_); b = expr_dollar_next s; >] -> (EIfDefine (v, true) b, p)
-	| [< (Op BoolOr ,_); b = expr_dollar_next s; >] -> (EIfDefine (v, false) b, p)
-	| [< _ = semicolon s >] -> (EUseBlock v [],p)
+	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_final s v >] -> (EAttribute att v,p) :: expr_list s
+	| [< (Const (Val v),p); (ParentOpen,_); l = block_args s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p) :: expr_list s
+	| [< (Const (Val v),p); _ = semicolon s >] -> (EUseBlock v [],p) :: expr_list s
+	| [< e = expr s >] -> e :: expr_list s
 	}
 }
 
