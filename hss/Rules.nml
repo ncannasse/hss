@@ -364,7 +364,10 @@ var rules = List.concat [[
 	]
 };[
 	// others
-	("cursor", ids ["auto";"hand";"crosshair";"default";"e-resize";"help";"move";"n-rsize";"ne-resize";"nw-resize";"pointer";"progress";"s-resize";"se-resize";"sw-resize";"text";"w-resize";"wait"]);
+	("cursor", none :: url :: ids ["auto";"default";"none";"move";"pointer";"help";"text";"progress";"wait";"cell";"crosshair";
+		"vertical-text";"alias";"copy";"no-drop";"not-allowed";"grab";"grabbing";"zoom-in";"zoom-out";"context-menu";"all-scroll";
+		"col-resize";"row-resize";"n-resize";"e-resize";"s-resize";"w-resize";"ne-resize";"nw-resize";"se-resize";"sw-resize";"ew-resize";"ns-resize";
+	]);
 	("opacity", [RFloatRange 0. 1.]);
 	("list-style", [none; RGroupCustom [(ROr (List.tl lst),OOpt); (ROr lsp,OOpt); (ROr image,OOpt)]]); // remove "none" from lst
 	("list-style-type", lst);
