@@ -21,7 +21,7 @@ type context {
 	mutable vars : (string,value) Map.t;
 	mutable blocks : (string,expr list) Map.t;
 	mutable eval_rec : int;
-	mutable skip_calc: int; // 0: no skip, 1: skip "/", 2 : skip ALL
+	mutable skip_calc: int; // 0: no skip, 1: skip "/" (default), 2 : skip ALL
 	mutable ns : string option;
 	mutable curblock : class option;
 }
@@ -560,7 +560,7 @@ function rec eval(ctx,v) {
 		var i = match eval ctx i { | (VString s,p)->(VIdent s,p) | i->i }; // strip quotes
 		var id = match (fst i) { | VIdent n -> n | _ -> "" }
 		var prev = ctx.skip_calc;
-		ctx.skip_calc := if (id == "calc") then 2 else prev;
+		ctx.skip_calc := match id { "int" -> 0 | "calc" -> 2 | _ -> prev };
 		var vl = List.map (eval ctx) vl;
 		ctx.skip_calc := prev;
 		var vcall = VCall i vl;
