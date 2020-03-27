@@ -557,7 +557,6 @@ function rec eval(ctx,v) {
 		ctx.eval_rec := ctx.eval_rec - 1;
 		r
 	| VCall(i,vl) ->
-		var i = match eval ctx i { | (VString s,p)->(VIdent s,p) | i->i }; // strip quotes
 		var id = match (fst i) { | VIdent n -> n | _ -> "" }
 		var prev = ctx.skip_calc;
 		ctx.skip_calc := match id { "int" -> 0 | "calc" -> 2 | _ -> prev };
@@ -911,7 +910,8 @@ function rec check(ctx,e) {
 		var value = eval ctx value;
 		var p = pos e;
 		var value = match value {
-		| (VCall ((VIdent "CSS",_),vl),_) -> var value = match vl { // strip CSS
+		| (VCall ((VIdent "CSS",_),vl),_) ->
+			var value = match vl { // strip CSS
 			| [(VString s, p)] -> (VIdent s, p) // strip quotes
 			| [value] -> value
 			| _ -> (VList vl,p)
