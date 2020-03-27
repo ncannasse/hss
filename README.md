@@ -347,6 +347,14 @@ Operations between two different units (for instance 50px + 3em) are not allowed
 
   `int(float)`: convert float to int
 
+  `string(expr)`: convert expr to string
+
+  ```scss
+  var alpha = 0.3;
+  // For IE8
+  -ms-filter: string( "progid:DXImageTransform.Microsoft.Alpha"(Opacity=$alpha*100) );
+  // [output] -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=30)"
+  ```
 
 * `embed("path/to/image")`: for embedding small(less than 24KB) image(png/jpg/gif) as `data:image/xxx;base64`.
   ```scss

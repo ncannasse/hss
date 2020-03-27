@@ -517,6 +517,8 @@ function custom_calls(id, vl, p, origin) {
 		})
 		var r, g, b = (255 - r, 255 - g, 255 - b);
 		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
+	| "string" ->
+		VString(s_value (VList vl, p))
 	| "int" ->
 		match vl {
 		| [(VFloat f, _)] -> VInt Math.floor(before_floor f)
