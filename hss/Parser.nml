@@ -232,7 +232,7 @@ function rec value_next(v,s) {
 		| _ ->
 			var id = match fst v {| VIdent s | VString s -> s | _ -> "" }
 			if (id != "" && contiguous(pos v, p1)) || id == "CSS" then
-				value_next (VCall (VIdent id, pos v) [p], punion (pos v) p2) s
+				value_next (VCall v [p], punion (pos v) p2) s
 			else
 				value_join v (value_next (VParentheses p,punion p1 p2) s)
 		}
