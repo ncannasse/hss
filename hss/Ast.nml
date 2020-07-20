@@ -21,6 +21,7 @@ type constant {
 	String : string;
 	Ident : string;
 	Val : string;
+	NVal : string;
 }
 
 type keyword {
@@ -165,6 +166,7 @@ function s_constant(x) {
 	| Float s -> string s
 	| String s -> "\"" + String.escape s + "\""
 	| Val s -> "$" + s
+	| NVal s -> "-$" + s
 	| Ident s -> s
 	}
 }

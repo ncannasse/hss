@@ -169,9 +169,11 @@ expr := Lexer.build (List.concat [[
 		| _ -> Const (Ident s)
 		})
 	});
-	("$"+ident, function(l) {
+	("-?$"+ident, function(l) {
 		var i = Lexer.current(l);
-		mk l Const(Val (String.sub i 1 (String.length i - 1)))
+		var n = if (String.get i 0) == '-' then 2 else 1;
+		var s = String.sub i n (String.length i - n);
+		mk l Const(if n == 1 then Val s else NVal s)
 	});
 	("$", function(l) mk l Dollar);
 	("#", function(l) { mk l Sharp });
