@@ -47,23 +47,21 @@ var misc = {
 type rgb = (int, int, int)
 type hsl = (float, float, float)
 type rgbtools {
+	string : rgb -> string;
 	to_hsl : rgb -> hsl;
 	of_hex : string -> pos -> rgb;
 	of_hsl : hsl->rgb;
+	alpha_mix : rgb->float->rgb -> rgb;
 }
 var rgbtools = {
 	of_hex = function(h, p: pos) {
 		var len = String.length h;
 		if len == 6 then
-			(int ("0x" + String.sub h 0 2), int ("0x" + String.sub h 2 2), int ("0x" + String.sub h 4 2))
-		else if len != 3 then
+			(int("0x" + String.sub h 0 2), int("0x" + String.sub h 2 2), int("0x" + String.sub h 4 2))
+		else if len == 3 then
+			(int("0x" + String.sub h 0 1) * 17, int("0x" + String.sub h 1 1) * 17, int("0x" + String.sub h 2 1) * 17)
+		else
 			throw Error("Invalid '" + "#" + h + "'", p)
-		else {
-			var r = int ("0x" + String.sub h 0 1);
-			var g = int ("0x" + String.sub h 1 1);
-			var b = int ("0x" + String.sub h 2 1);
-			(r * 16 + r,g*16+g,b*16+b)
-		}
 	};
 	to_hsl = function((r,g,b) : rgb) : hsl {
 		var r = r / 255.
@@ -86,6 +84,9 @@ var rgbtools = {
 				(r - g) / d + 4.;
 			(h/6., s, l)
 		}
+	};
+	string = function((r,g,b) : rgb) : string {
+		sprintf "%.6X" ((r << 16) + (g << 8) + b)
 	};
 	of_hsl = function((h,s,l) : hsl) : rgb {
 		function hue(p: float, q, t) {
@@ -113,7 +114,12 @@ var rgbtools = {
 			var b = hue(p, q, h - 1/3.);
 			(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255))
 		}
-	}
+	};
+	alpha_mix = function((fr,fg,fb) : rgb, a : float, (br,bg,bb) : rgb) : rgb {
+		var a = max 0. (min 1.0 a);
+		var d = 1.0 - a;
+		(Math.round(fr * a + br * d), Math.round(fg * a + bg * d), Math.round(fb * a + bb * d))
+	};
 }
 
 /**

@@ -345,6 +345,29 @@ Operations between two different units (for instance 50px + 3em) are not allowed
   }
   ```
 
+  `alphamix(foreground, alpha, background)`: Blend a translucent foreground color with a background color
+
+  ```scss
+  // reduce the use of "opacity" to improve browser performance
+  menu {
+    var background-color = #343a40;
+    background-color: $background-color;
+    button {
+      var button-color = #007bff;
+      var text-color   = #f8f9fa;
+      var alpha = 0.4;
+
+      color: alphamix($text-color, $alpha, $background-color);              // output: #82868A
+      background-color: alphamix($button-color, $alpha, $background-color); // output: #1F548C
+
+      &:hover {
+        color: $text-color;
+        background-color: $button-color;
+      }
+    }
+  }
+  ```
+
   `int(float)`: convert float to int
 
   `string(expr)`: convert expr to string

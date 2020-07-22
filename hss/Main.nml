@@ -475,48 +475,57 @@ function get_rule(ctx, name) {
 	}
 }
 
-function rgb_values(l) {
-	var l = List.map (function((v, p)) {
-		var i = match v {
-		| VInt i -> i
-		| VFloat f -> Math.floor(before_floor f)
-		| VUnit (f,"%") -> Math.floor(before_floor(f * 2.55))
-		| _ -> check_errors_add ("Unexpected " + (s_value (v,p)), p); 0
+function rgb_value( (v,p) : value ) {
+	match v {
+	| VHex h ->
+		rgbtools.of_hex h p
+	| VCall((VIdent "rgb",_) ,[r; g; b])
+	| VCall((VIdent "rgba",_),[r; g; b; (VFloat _,_)]) ->
+		function mono((v, p)) {
+			var i = match v {
+			| VInt i -> i
+			| VFloat f -> Math.floor(before_floor f)
+			| VUnit (f,"%") -> Math.floor(before_floor(f * 2.55))
+			| _ -> check_errors_add ("Unexpected " + (s_value (v,p)), p); 0
+			}
+			if i < 0 || i > 255 then check_errors_add ("Unexpected " + (s_value (v,p)), p);
+			i
 		}
-		if i < 0 || i > 255 then check_errors_add ("Unexpected " + i, p);
-		i
-	}) l;
-	match l {
-	| [r;g;b] -> (r, g, b)
-	| _ -> invalid_arg()
+		(mono r, mono g, mono b)
+	| _ ->
+		check_errors_add ("Unexpected " + (s_value (v,p)), p);
+		(0,0,0)
 	}
-};
+}
 
 function custom_calls(id, vl, p, origin) {
 	function exit() { throw Exit }
 	function mix(ds, dl) {
-		var rgb, i = (match vl {
-		| [(VHex h, p); (VUnit(i,"%"),_)] -> (rgbtools.of_hex h p, i)
-		| [(VCall((VIdent "rgb",_),[r;g;b] as rgb),_); (VUnit(i,"%"),_)] -> (rgb_values rgb, i)
-		| _ -> exit()
-		})
-		var h, s, l = rgbtools.to_hsl rgb
-		var r, g, b = rgbtools.of_hsl (h, i*ds + s, i*dl + l);
-		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
+		match vl {
+		| [color; (VUnit(i,"%"),_)] ->
+			var rgb = rgb_value color;
+			var h, s, l = rgbtools.to_hsl rgb
+			var rgb = rgbtools.of_hsl (h, i*ds + s, i*dl + l);
+			VHex (rgbtools.string rgb)
+		| _ ->
+			exit()
+		}
 	}
 	(match id {
 	| "lighten"    -> mix( 0.  ,  0.01)
 	| "darken"     -> mix( 0.  , -0.01)
 	| "saturate"   -> mix( 0.01,  0.  )
 	| "desaturate" -> mix(-0.01,  0.  )
-	| "invert" ->
-		var r, g, b = (match vl {
-		| [(VHex h, p)] -> rgbtools.of_hex h p;
-		| [(VCall((VIdent "rgb",_),[r;g;b] as rgb),_)] -> rgb_values rgb;
+	| "invert"     -> match vl {
+		| [color] ->
+			var r, g, b = rgb_value color;
+			VHex (rgbtools.string (255 - r, 255 - g, 255 - b))
 		| _ -> exit()
-		})
-		var r, g, b = (255 - r, 255 - g, 255 - b);
-		VHex (sprintf "%.6X" ((r << 16) + (g << 8) + b))
+		}
+	| "alphamix"   -> match vl {
+		| [f; (VFloat a, _); b] -> VHex (rgbtools.string rgbtools.alpha_mix(rgb_value f, a, rgb_value b))
+		| _ -> exit()
+		}
 	| "string" ->
 		VString(s_value (VList vl, p))
 	| "int" ->
@@ -611,8 +620,7 @@ function rec eval(ctx,v) {
 					if c < 0 then 0 else if c > 255 then 255 else c;
 				}
 				var r, g, b = rgbtools.of_hex(c, snd v1);
-				var r, g, b = (color r, color g, color b);
-				VHex (sprintf "%.6X" ((r << 16) or (g << 8) or b))
+				VHex (rgbtools.string (color r, color g, color b))
 			| (_,VLabel (l,v)) ->
 				VLabel l (loop v1 v, snd v)
 			| _ ->
@@ -745,8 +753,8 @@ function rec expand_hacks(name,value,p) {
 	| "background-color" | "color" | "background" ->
 		var first = match fst value { VGroup v :: l -> v | _ -> value };
 		match fst first {
-		| VCall ((VIdent "rgba",_),[r;g;b;a]) ->
-			var hcol = sprintf "%.2X%.2X%.2X" (rgb_values [r;g;b]);
+		| VCall ((VIdent "rgba",_), _) ->
+			var hcol = rgbtools.string (rgb_value first);
 			(ESub [
 				(EAttribute name (VHex hcol,p),p); // simply adds a fallback with fixed hex color
 				(EAttribute name value,p);
