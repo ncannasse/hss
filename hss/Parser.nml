@@ -39,6 +39,8 @@ function error(m,p) {
 
 function contiguous(p1, p2) p1.pmax == p2.pmin && p1.pline == p2.pline;
 
+var rhex = Regexp.build "^[A-Fa-f0-9]+$";
+
 function rec missed_last(lmax, v) {
 	match fst v {
 	| VGroup l | VList l ->
@@ -308,7 +310,6 @@ function rec parse_attribute(s) {
 function rec value_hex(p,s) {
 	var str = &"";
 	var pos = &p;
-	var hex = Regexp.build "^[A-Za-z0-9]+$";
 	function rec loop(i) {
 		var t = stream_token s i;
 		var p = *pos;
@@ -318,7 +319,7 @@ function rec value_hex(p,s) {
 		if !(contiguous p p2) then
 			i
 		else match fst t {
-		| Const (Ident id) when Regexp.find hex id 0 String.length(id) ->
+		| Const (Ident id) when Regexp.find rhex id 0 String.length(id) ->
 			str := *str + id;
 			loop (i+1)
 		| Const (Int k) when k >= 0 ->
