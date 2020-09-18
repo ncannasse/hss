@@ -291,6 +291,8 @@ var rules = List.concat [[
 	("word-break", ids ["normal";"keep-all";"break-all"]);
 	("word-wrap", ids ["normal";"break-word"]);
 	("direction", ids ["ltr";"rtl"]);
+	("writing-mode", ids ["horizontal-tb";"vertical-rl";"vertical-lr"]);
+	("unicode-bidi", ids ["normal";"embed";"bidi-override"]);
 	]
 }; { // background
 	var h = ROr (List.tl horiz) // remove center
