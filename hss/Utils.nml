@@ -277,7 +277,7 @@ type rows_conter {
 	mutable add_line : string -> int -> void;
 	mutable column   : pos -> pos_column;
 }
-var rows = { current = ""; cached = Array.create(); all = []; empty = Array.create(); add_line = neko("null"); column = neko("null"); }
+var rows = { current = ""; cached = Array.create(); all = []; empty = Array.make(1, 0); add_line = neko("null"); column = neko("null"); }
 rows.add_line := function (source, pos:int) {
 	if source != rows.current then {
 		function rec loop(l) match l {
