@@ -73,7 +73,7 @@ function semicolon_final(s, v) {
 		if (tk == BraceClose) then p else {
 			var lmax = Hss.Utils.rows.column(snd v).lmax;
 			var v = missed_last lmax v;
-			error Message("around the '" + (s_value v) + "' maybe missing ;") (snd v)
+			error Message("Probably missing ; after '"+ s_value v + "'") (snd v)
 		}
 	}
 }
@@ -541,7 +541,7 @@ function parse(lexer) {
 		program (*s)
 	} catch {
 	| Stream_error ->
-		var tk,p = neko("s[0].cache[$asize(s[0].cache)-1]"); // get last from stream
+		var tk,p = neko("s[0].cache[$asize(s[0].cache)-1]"); // get the last token from stream.cache
 		error Unexpected(tk) p
 	}
 }

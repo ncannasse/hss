@@ -443,7 +443,7 @@ function rec check_rule_inner(rest, r, v) {
 			}
 			Hss.Ast.s_op o == s && loop r1 v1 && loop r2 v2
 		| _  -> true // TODO: for "grid-area", the Parser cannot correctly recognize the value such as "span 2 / span 3"
-		             // TODO: "calc(expr)" is hard to check
+		             // TODO: "calc(expr)" is hard to verify
 		}
 	| (RBind (s,r), VBind (n,v)) when s == n ->
 		check_rule r v
