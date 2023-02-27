@@ -1040,9 +1040,13 @@ function merge_media(el) {
 		(EMedia(m, *e), p) :: loop l
 	}
 	var rl = &[];
-	var el = filter el rl;
-	var ml = loop List.rev(*rl);
-	List.append el ml
+	var xl = filter el rl;
+	match *rl {
+	| [] ->
+		el
+	| l ->
+		List.append xl (loop (List.rev l))
+	}
 }
 
 function display(msg,p) {
