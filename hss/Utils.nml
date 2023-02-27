@@ -345,7 +345,7 @@ type print_mode {
 }
 var pmod = {
 	cur = neko "null";
-	normal = { tab="\t"; comma=", "; gt=" > "; plus=" + "; tild=" ~ "; colon=": "; lbrace=" {"; rbrace="}"; crlf=function(ch) IO.write_char ch '\n'; };
+	normal = { tab="\t"; comma=", "; gt=" > "; plus=" + "; tild=" ~ "; colon=" : ";lbrace=" {"; rbrace="}"; crlf=function(ch) IO.write_char ch '\n'; };
 	minify = { tab= "" ; comma="," ; gt= ">" ; plus= "+" ; tild= "~" ; colon=":" ; lbrace= "{"; rbrace="}"; crlf=function(ch) {} };
 	enable_minify = neko "null";
 	is_minify     = neko "null";
