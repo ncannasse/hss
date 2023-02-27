@@ -158,18 +158,13 @@ expr := Lexer.build (List.concat [[
 	("-?[0-9]+.[0-9]*", mk_float);
 	("-?.[0-9]+", mk_float);
 	("\n", line_inc_with next_token);
-	(ident, function(l) {
+	("var", function(l) mk l Keyword(Var));
+	("-?" + ident, function(l) mk l Const(Ident (Lexer.current l)));
+	("@" + ident, function(l) {
 		var s = Lexer.current l;
-		mk l (if s != "var" then Const (Ident s) else Keyword Var)
+		mk l (try Keyword (Hashtbl.find keywords s) catch { Not_found -> Const (Ident s) })
 	});
-	("[-@][-a-zA-Z_][-a-zA-Z0-9_]*", function(l) {
-		var s = Lexer.current l;
-		mk l (match neko("$sget(s,0)") {
-		| '@' -> try Keyword (Hashtbl.find keywords s) catch { Not_found -> Const (Ident s) }
-		| _ -> Const (Ident s)
-		})
-	});
-	("-?$"+ident, function(l) {
+	("-?$" + ident, function(l) {
 		var i = Lexer.current(l);
 		var n = if (String.get i 0) == '-' then 2 else 1;
 		var s = String.sub i n (String.length i - n);
@@ -224,7 +219,10 @@ function exit(l) {}
 
 function throw_exit(l) {throw Exit}
 
-function buffer_add_with(next, l) { Buffer.add (Lexer.data l) (Lexer.current l); next l }
+function buffer_add_with(next, l) {
+	Buffer.add (Lexer.data l) (Lexer.current l);
+	next l
+}
 
 var comment_add = buffer_add_with comment;
 var string_add  = buffer_add_with str;
@@ -242,20 +240,24 @@ epuargs := Lexer.build [
 	("[^)}{\n\r]+", buffer_add_with puargs); // line breaks are not allowed
 ] throw_exit;
 
-function inc_with_escape(next, l:Buffer.t Lexer.t) {rows.add_line l.source l.pos; Buffer.add (Lexer.data l) "\\n"; next l}
+function inc_with_escape(next, l:Buffer.t Lexer.t) {
+	rows.add_line l.source l.pos;
+	Buffer.add (Lexer.data l) "\\n";
+	next l
+}
 
 estring := Lexer.build [
-	("\n", inc_with_escape str);
-	("\r", str);
+	("\r?\n", inc_with_escape str);
 	("\\\\\"", string_add);
 	("\"", exit);
-	("[^\r\n\"]+", string_add);
+	("\\\\", string_add);
+	("[^\r\n\"\\\\]+", string_add);
 ] throw_exit;
 
 eqstring := Lexer.build [
-	("\n", inc_with_escape qstr);
-	("\r", qstr);
+	("\r?\n", inc_with_escape qstr);
 	("\\\\'", qstring_add);
 	("'", exit);
-	("[^\r\n']+", qstring_add);
+	("\\\\", qstring_add);
+	("[^\r\n'\\\\]+", qstring_add);
 ] throw_exit;

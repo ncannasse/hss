@@ -65,7 +65,14 @@ function semicolon(s) {
 	}
 }
 
-function semicolon_final(s, v) {
+function semicolon_opt(s) {
+	match s {
+	| [< (Semicolon, _) >] -> 1
+	| [< >] -> 0
+	}
+}
+
+function semicolon_or_ended(s, v) {
 	match s {
 	| [< (Semicolon,p) >] -> p
 	| [< >] ->
@@ -89,10 +96,10 @@ function rec expr(s) {
 	match s {
 	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_) >] -> match s {
 		| [< (BraceOpen,p2); l = expr_list s >] -> (EVarBlock i l, punion p1 p2)
-		| [< v = value s; p2 = semicolon_final s v >] -> (EVar i v, punion p1 p2)
+		| [< v = value s; p2 = semicolon_or_ended s v >] -> (EVar i v, punion p1 p2)
 		}
-	| [< (Keyword Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = semicolon s >] -> (EInclude css, punion p1 p2)
-	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = semicolon s >] -> (EImport v, p)
+	| [< (Keyword Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = semicolon_opt s >] -> (EInclude css, punion p1 p2)
+	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = semicolon_opt s >] -> (EImport v, p)
 	| [< (Keyword Keyframes,p1); (Const (Ident n),p2); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, punion p1 p2)
 	| [< (Keyword Media,p); m = media s; (BraceOpen,_); l = expr_list s; >] -> (EMedia m l, p)
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
@@ -171,7 +178,7 @@ function rec block_args(s) {
 function rec expr_list(s) {
 	match s {
 	| [< (BraceClose,_) >] -> []
-	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_final s v >] -> (EAttribute att v,p) :: expr_list s
+	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_or_ended s v >] -> (EAttribute att v,p) :: expr_list s
 	| [< (Const (Val v),p); (ParentOpen,_); l = block_args s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p) :: expr_list s
 	| [< (Const (Val v),p); _ = semicolon s >] -> (EUseBlock v [],p) :: expr_list s
 	| [< e = expr s >] -> e :: expr_list s
