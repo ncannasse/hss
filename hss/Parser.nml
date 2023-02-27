@@ -132,7 +132,9 @@ function rec media_next(s, m) {
 			}
 		}
 		loop m2
-	| [< (Const (Ident op),p); m2 = media_feature s >] when String.lowercase op == "and" ->
+	| [< (Const(Ident op),p); m2 = media_feature s >] ->
+		if (String.lowercase op) != "and" then
+			error (Unexpected Const(Ident op)) p;
 		function rec loop(m2) {
 			var p = punion (pos m) (pos m2);
 			match fst m2 {
