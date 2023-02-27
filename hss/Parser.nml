@@ -98,15 +98,20 @@ function rec program(s) {
 
 function rec expr(s) {
 	match s {
-	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_) >] -> match s {
-		| [< (BraceOpen,p2); l = expr_list s >] -> (EVarBlock i l, punion p1 p2)
-		| [< v = value s; p2 = semicolon_or_ended s v >] -> (EVar i v, punion p1 p2)
-		}
+	| [< (Const (Val i),p1); (DoubleDot,_) >] -> var_decl i p1 s
+	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_) >] -> var_decl i p1 s
 	| [< (Keyword Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = semicolon_opt s >] -> (EInclude css, punion p1 p2)
 	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = semicolon_opt s >] -> (EImport v, p)
 	| [< (Keyword Keyframes,p1); (Const (Ident n),p2); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, punion p1 p2)
 	| [< (Keyword Media,p); m = media s; (BraceOpen,_); l = expr_list s; >] -> (EMedia m l, p)
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)
+	}
+}
+
+function rec var_decl(id, p1, s) {
+	match s {
+	| [< (BraceOpen, p2); l = expr_list s >] -> (EVarBlock id l, punion p1 p2)
+	| [< v = value s; p2 = semicolon_or_ended s v >] -> (EVar id v, punion p1 p2)
 	}
 }
 
@@ -184,7 +189,7 @@ function rec expr_list(s) {
 	| [< (BraceClose,_) >] -> []
 	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_or_ended s v >] -> (EAttribute att v,p) :: expr_list s
 	| [< (Const (Val v),p); (ParentOpen,_); l = block_args s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p) :: expr_list s
-	| [< (Const (Val v),p); _ = semicolon s >] -> (EUseBlock v [],p) :: expr_list s
+	| [< (Const (Val v),p); (Semicolon, _) >] -> (EUseBlock v [],p) :: expr_list s
 	| [< e = expr s >] -> e :: expr_list s
 	}
 }
@@ -470,7 +475,10 @@ function rec class(s,first) {
 	var n = loop 0;
 	if n == 0 && c.attributes == [] then {
 		var tk,p = stream_token s 0;
-		error (if first then Unexpected tk else Class_expected) p
+		match tk {
+		| Const(Val _) -> error (Expected_semicolon tk) p
+		| _ -> error (if first then Unexpected tk else Class_expected) p
+		}
 	}
 	stream_junk s n;
 	match fst(stream_token s 0) {

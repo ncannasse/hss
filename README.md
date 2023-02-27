@@ -34,7 +34,7 @@ Features:
 HSS is a CSS compiler which supports valid CSS syntax, so for every error that occurs during the parsing of the HSS file, it will display and error indicating at which file and which line the error occurred.
 
 HSS also enforce additional syntax rules. While this is valid CSS, the following is not HSS-valid since there is a missing semicolon at the end of the color value :
-```
+```css
 pre {
     color : #FF0000
 }
@@ -48,7 +48,7 @@ Fix all the errors and HSS will then be able to generate the corresponding CSS f
 HSS adds property variables to the CSS syntax.
 
 You can declare a variable with the keyword var and use it in the HSS file by prefixing the variable name with a dollar :
-```
+```scss
 var mycolor = #1111AA;
 var myfont = "Trebuchet MS", Arial, sans-serif;
 
@@ -56,12 +56,16 @@ body {
     color : $mycolor;
     font-family : $myfont;
 }
+
+// less or scss syntax will also works
+@myfont  : Arial;
+$mycolor : #ddd;
 ```
 Variables are a very good way to avoid replacing everything in a CSS file every time you want to change a single color value. It also helps designers to remember and easily locate the main colors that are used in a given website.
 
 ### Block Variables
 You can also declare variables that will declare several properties at the same time :
-```
+```scss
 var nomargin = { margin : 0px; padding : 0px; }
 
 pre {
