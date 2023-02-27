@@ -518,7 +518,7 @@ function rec eval(v) {
 	}
 }
 
-function parse(lexer) {
+function parse(program, lexer) {
 	var mstack = &[]
 	var s = &neko("null")
 	function rec next_token() {
@@ -575,7 +575,7 @@ function parse(lexer) {
 	}
 	s := stream next_token;
 	try {
-		program (*s)
+		program(*s);
 	} catch {
 	| Stream_error ->
 		var tk,p = neko("s[0].cache[$asize(s[0].cache)-1]"); // get the last token from stream.cache

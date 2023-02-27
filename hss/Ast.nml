@@ -58,6 +58,7 @@ type token {
 	DoubleDot;
 	DoubleDotx2;
 	Percent;
+	Question;
 	Exclamation;
 	BraceOpen;
 	BraceClose;
@@ -157,6 +158,36 @@ type expr_decl {
 
 type expr = (expr_decl , pos)
 
+type rule
+type rule_decl {
+	RAny;
+	RId : string;
+	RVal : string; // $vaiable
+	RHex : int;
+	RUnit : string list;
+	RCall : (string, rule);
+	RFloat;
+	RInt;
+	RFloatRange : (float, float);
+	RIntRange : (int, int);
+	RIdent;
+	RString;
+	ROr : rule list;
+	ROp : (op, rule, rule)
+	RList : rule list;  // comma-separated (calls, etc.)
+	RGroup : rule list; // no comma
+	RBind : (string, rule);
+}
+type rule = (rule_decl, pos)
+
+type rule_expr
+type rule_expr_decl {
+	REVar : (string, rule);
+	REAttribute : (string, rule);
+	REBlock : (string, rule_expr list);
+}
+type rule_expr = (rule_expr_decl, pos)
+
 function pos((_,x)) { x }
 
 function s_constant(x) {
@@ -209,6 +240,7 @@ function s_token(x) {
 	| Sharp -> "#"
 	| Eq -> "="
 	| Gt -> ">"
+	| Question -> "?"
 	| Exclamation -> "!"
 	| BraceOpen -> "{"
 	| BraceClose -> "}"
@@ -246,5 +278,39 @@ function rec s_value(v) {
 	| VLabel("dup", v) -> s_value v
 	| VLabel(s,v) -> (s_value v) + " !" + s
 	| VParentheses v -> "(" + (s_value v) + ")"
+	}
+}
+
+function rec s_rule(r) {
+	match fst r {
+	| RId s -> s
+	| RAny -> "any"
+	| RVal s -> "$" + s
+	| RHex n -> var hex = match n {
+		| 3 -> "FFF"
+		| 6 -> "FFFFFF"
+		| 8 -> "FFFFFFFF"
+		| _ -> string n
+		}
+		"#" + hex
+	| RUnit l -> "Unit(" + (String.concat " " l) + ")"
+	| RCall(s, r) -> var args = match (fst r) {
+		| ROr l -> "[" + String.concat(" ", List.map s_rule l) + "]"
+		| RList l -> "(" + String.concat(", ", List.map s_rule l) + ")"
+		| RGroup l -> "(" + String.concat(" ", List.map s_rule l) + ")"
+		| _ -> "(" + s_rule r + ")"
+		}
+		s + args
+	| RFloat -> "float"
+	| RInt -> "int"
+	| RFloatRange(x, y) ->  if x != y then x + "-" + y else "" + x
+	| RIntRange(i, j) -> if i != j then i + "-" + j else "" + i
+	| RIdent -> "id"
+	| RString -> "string"
+	| ROr l -> "OR[ " + String.concat(" ", List.map s_rule l) + " ]"
+	| ROp(op, r1, r2) ->  (s_rule r1) + " " + (s_op op) + " " + (s_rule r2)
+	| RList l -> "L( " + String.concat(", ", List.map s_rule l) + " )"
+	| RGroup l -> "G( " + String.concat(" ", List.map s_rule l) + " )"
+	| RBind(s, r) -> s + "=" + (s_rule r)
 	}
 }
