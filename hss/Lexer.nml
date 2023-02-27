@@ -164,11 +164,10 @@ expr := Lexer.build (List.concat [[
 		var s = Lexer.current l;
 		mk l (try Keyword (Hashtbl.find keywords s) catch { Not_found -> Const (Ident s) })
 	});
-	("-?$" + ident, function(l) {
-		var i = Lexer.current(l);
-		var n = if (String.get i 0) == '-' then 2 else 1;
-		var s = String.sub i n (String.length i - n);
-		mk l Const(if n == 1 then Val s else NVal s)
+	("$" + ident, function(l) {
+		var s = Lexer.current(l);
+		var len = String.length s;
+		mk l Const(Val String.sub(s, 1, len - 1))
 	});
 	("$", function(l) mk l Dollar);
 	("#", function(l) { mk l Sharp });
