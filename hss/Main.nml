@@ -961,7 +961,8 @@ function rec check(ctx,e) {
 		if ctx.curblock != None then error("Unexpected " + "@import" + " here", p)
 		var parent = pathtools.find p;
 		var file = if parent.dir == "" || pathtools.is_abs(s) then s else parent.dir + "/" + s;
-		var path, added = pathtools.add(file, "hss");
+		var ext = match parent.ext {| "scss" | "less"  -> parent.ext | _ -> "hss"}
+		var path, added = pathtools.add(file, ext);
 		match (added, path.ext) {
 		| (false, _) ->
 			(ESub [], p) // duplicate, simply ignore it
