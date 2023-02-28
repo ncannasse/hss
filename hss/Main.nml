@@ -1049,7 +1049,7 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.8 - (c)2008-2019 Nicolas Cannasse\nUsage : hss [options] <file>";
+	var head = "HSS v1.81 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [
@@ -1075,8 +1075,8 @@ try {
 		var el = List.concat (List.map flatten([]) el);
 		// final eval
 		var el = List.map eval_block(ctx) el;
-		// combine/merge media queries if there is no `-D no_merge_media` or --sourcemap
-		var el = if sem.enabled || Hss.Parser.defines_has("no_merge_media") then el else merge_media el;
+		// combine/merge media queries if `-D merge_media`
+		var el = if Hss.Parser.defines_has "merge_media" then merge_media el else el;
 		// write
 		var file2 = Sys.without_extension file + ".css";
 		var file2 = match *output {| None -> file2 | Some dir -> (pathtools.add_slash dir) + (Sys.without_dir file2) }
