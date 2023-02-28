@@ -333,8 +333,9 @@ Operations between two different units (for instance 50px + 3em) are not allowed
 * `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate files will be ignored.
 
   ```scss
-  @import("path/to/_vars") // NOTE: if the file name starts with "_" then the variables will be exported to current file.
-  @import("path/to/reset")
+  @import("path/to/_vars")
+
+  @import "path/to/reset";
   ```
 
 * hss functions:

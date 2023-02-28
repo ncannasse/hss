@@ -101,7 +101,8 @@ function rec expr(s) {
 	| [< (Const (Val i),p1); (DoubleDot,_) >] -> var_decl i p1 s
 	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_) >] -> var_decl i p1 s
 	| [< (Keyword Include,p1); (ParentOpen,_); (Const (String css),_); (ParentClose,p2); _ = semicolon_opt s >] -> (EInclude css, punion p1 p2)
-	| [< (Keyword Import,p); (ParentOpen,_); v = value s; (ParentClose,_); _ = semicolon_opt s >] -> (EImport v, p)
+	| [< (Keyword Import,p1); (ParentOpen,_); (Const (String file),_); (ParentClose,p2); _ = semicolon_opt s >] -> (EImport file, punion p1 p2)
+	| [< (Keyword Import,p1); (Const (String file),p2); _ = semicolon_opt s >] -> (EImport file, punion p1 p2)
 	| [< (Keyword Keyframes,p1); (Const (Ident n),p2); (BraceOpen,_); l = keyframes s; >] -> (EKeyframes n l, punion p1 p2)
 	| [< (Keyword Media,p); m = media s; (BraceOpen,_); l = expr_list s; >] -> (EMedia m l, p)
 	| [< c = class_list s true; (BraceOpen,p); l = expr_list s; >] -> (EBlock c l, p)

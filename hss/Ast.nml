@@ -151,7 +151,7 @@ type expr_decl {
 	ESub : expr list;
 	EMedia : (media, expr list);
 	EInclude : string;
-	EImport : value;
+	EImport : string;
 	EKeyframes: (string, (value, expr list) list);
 }
 
