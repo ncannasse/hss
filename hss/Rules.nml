@@ -272,6 +272,7 @@ var rules = List.concat [[
 	("font-size",font_size);
 	("font-variant",font_variant);
 	("font-weight",font_weight);
+	("font-display", ids ["auto"; "block"; "swap"; "fallback"; "optional"]);
 	("text-align",ids ["center";"justify";"left";"right"]);
 	("text-decoration-line", [none; RGroupCustom [(ROr text_decoration_line,OMany)]]);
 	("text-decoration-color", color);

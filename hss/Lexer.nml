@@ -162,7 +162,10 @@ expr := Lexer.build (List.concat [[
 	("-?" + ident, function(l) mk l Const(Ident (Lexer.current l)));
 	("@" + ident, function(l) {
 		var s = Lexer.current l;
-		mk l (try Keyword (Hashtbl.find keywords s) catch { Not_found -> Const(Val String.sub(s, 1, (String.length s) - 1))})
+		mk l (try Keyword (Hashtbl.find keywords s) catch {
+		| Not_found when s == "@font-face" -> Const(Ident s)
+		| _ -> Const(Val String.sub(s, 1, (String.length s) - 1))
+		})
 	});
 	("$" + ident, function(l) {
 		var s = Lexer.current(l);
