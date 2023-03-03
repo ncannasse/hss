@@ -85,8 +85,18 @@ function semicolon_or_ended(s, v) {
 	}
 }
 
-function neg_var(s, p1, p2) {
-	(VParentheses (VOp Sub (VInt 0, p1) (VVar s, p2), punion p1 p2), punion p1 p2)
+function rec neg_first(v, p1) {
+	var p2 = pos v
+	var p = punion p1 p2;
+	var d = match fst v {
+	| VGroup (v2 :: l) -> VGroup (neg_first v2 p1 :: l)
+	| VList (v2 :: l) -> VList (neg_first v2 p1 :: l)
+	| VLabel (l, v2) -> VLabel l (neg_first v2 p1)
+	| VOp(o2, v1, v2) -> VOp o2 (neg_first v1 p1) v2
+	| VUnit(f, s) -> VUnit(-f, s)
+	| _ -> VParentheses (VOp Sub (VInt 0, p1) v, p)
+	}
+	(d, p)
 }
 
 function rec program(s) {
@@ -216,7 +226,7 @@ function rec value(s) {
 	| [< (Const (Int i),p) >] -> value_unit (i * 1.0) (VInt i, p) s
 	| [< (Const (Float f),p) >] -> value_unit f (VFloat f, p) s
 	| [< (Const (Val v),p) >] -> value_next (VVar v,p) s
-	| [< (Op Sub, p1); (Const (Val v), p2) >] -> value_next (neg_var v p1 p2) s
+	| [< (Op Sub, p1); v = value s >] -> neg_first v p1
 	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] -> value_next (VParentheses p,punion p1 p2) s
 	}
 }
@@ -270,13 +280,11 @@ function rec value_next(v,s) {
 		}
 	| [< (Exclamation,p1); (Const (Ident i),p2) >] ->
 		(VLabel i v,punion p1 p2)
-	| [< (Op Sub, p1); (Const (Val i), p2) >] ->                // don't use "when" in stream matching
-		match (contiguous p1 p2) {
-		| true -> value_join v (value_next (neg_var i p1 p2) s) // -$var
-		| _ -> value_op_join Sub v (value_next (VVar i, p2) s)  // v op v2
-		}
 	| [< (Op o, p1); v2 = value s >] ->
-		value_op_join o v v2
+		if (contiguous p1 (pos v2) && o == Sub) then
+				value_join v (neg_first v2 p1) // -value
+			else
+				value_op_join o v v2
 	| [< (Comma,_); v2 = value s >] ->
 		function rec loop(v2) {
 			var p = punion (pos v) (pos v2);

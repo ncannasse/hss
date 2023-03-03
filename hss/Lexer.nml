@@ -154,9 +154,9 @@ expr := Lexer.build (List.concat [[
 	("^", function(l) mk l Op(Xor));
 	("[ \r\t]+", next_token);
 	("0", mk_int);
-	("-?[1-9][0-9]*", mk_int);
-	("-?[0-9]+.[0-9]*", mk_float);
-	("-?.[0-9]+", mk_float);
+	("[1-9][0-9]*", mk_int);
+	("[0-9]+.[0-9]*", mk_float);
+	(".[0-9]+", mk_float);
 	("\n", line_inc_with next_token);
 	("var", function(l) mk l Keyword(Var));
 	("-?" + ident, function(l) mk l Const(Ident (Lexer.current l)));
