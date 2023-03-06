@@ -138,13 +138,16 @@ type pathtools {
 	mutable add   : string -> string -> (path, bool);
 	mutable find  : pos -> path;
 	mutable index : pos -> int;
-	file_full : string -> string;
+	// The following are static methods
 	add_slash : string -> string;
 	is_abs    : string -> bool;
+	path_dir  : string -> string; // without slash
+	file_full_path   : string -> string;
+	sys_program_path : void -> string;
 }
 var pathtools = {
 	all = [];
-	file_full = neko("$loader.loadprim('std@file_full_path',1)");
+	file_full_path = neko("$loader.loadprim('std@file_full_path',1)");
 	add_slash = function(dir) {
 		var c = String.get dir ((String.length dir) - 1);
 		if c == '/' || c == '\\' then dir else dir + "/"
@@ -157,6 +160,23 @@ var pathtools = {
 			false
 		else
 			'/' == String.get(s, 0)
+	};
+	sys_program_path = function() {
+		// TODO: haxe/neko/vm/Module.name ($exports.__module) doesn't work.
+		var path : string = neko("$field($objfields($loader.cache)[0])");
+		if path == "_self" then Sys.executable_path() else path
+	};
+	path_dir = function(s) {
+		function rec loop(acc, l) match l {
+		| [] -> assert()
+		| x :: (_ :: _) as l -> loop (acc + "/" + x) l
+		| [_] -> acc
+		}
+		var s = String.concat "/" (String.split s "\\");
+		match String.split s "/" {
+		| h :: tl -> loop h tl
+		| _ -> "."
+		}
 	};
 	reset = neko "null";
 	add   = neko "null";
@@ -197,7 +217,7 @@ pathtools.add := function(s: string, def_ext: string) {
 		dir  = dir;
 		name = name;
 		ext  = ext;
-		full = pathtools.file_full s;
+		full = pathtools.file_full_path s;
 		str  = (if dir == "" then name else dir + "/" + name) + (if ext == "" then "" else "." + ext);
 	}
 	(ret, path_add ret)

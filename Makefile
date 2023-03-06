@@ -14,10 +14,10 @@ release: $(TARGET)
 #	(cd release && mv ../hss-linux hss && gzip hss && mv hss.gz hss-linux.gz && mv ../hss-osx hss && gzip hss && mv hss.gz hss-osx.gz && mv ../hss-win.exe hss.exe && zip hss-win.zip hss.exe && rm -rf hss.exe)
 
 clean:
-	rm -rf *.n hss/*.n $(BYCODE) $(TARGET)
+	rm -rf *.n hss/*.n $(BYCODE) $(TARGET) test/test.css
 
 test: $(BYCODE)
-	neko $<
+	neko $< --append -rule test/test.rules test/test.hss
 
 .PHONY: test release clean
 

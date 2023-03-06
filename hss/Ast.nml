@@ -180,14 +180,6 @@ type rule_decl {
 }
 type rule = (rule_decl, pos)
 
-type rule_expr
-type rule_expr_decl {
-	REVar : (string, rule);
-	REAttribute : (string, rule);
-	REBlock : (string, rule_expr list);
-}
-type rule_expr = (rule_expr_decl, pos)
-
 function pos((_,x)) { x }
 
 function s_constant(x) {

@@ -32,7 +32,7 @@ var pmod : Hss.Utils.print_mode = Hss.Utils.pmod
 var sem : Hss.Utils.sourcemap = Hss.Utils.sem
 var misc : Hss.Utils.misc = Hss.Utils.misc
 var hssparse = Hss.Parser.parse Hss.Parser.program
-
+var rules_htable = Hss.Rules.find_namespace Hss.Rules.context
 
 function error(msg,p) {
 	throw Error([(msg,p)])
@@ -336,19 +336,28 @@ function get_rule(ctx, name) {
 		Hashtbl.find rules_globals name
 	catch {
 	| Not_found ->
-		function is_pseudo(c) match c {
-		| PuClass s | PuElement s when s == "before" || s == "after" -> true
-		| _ -> false
-		}
-		match rules_special_attribute name {
-		| Some rule ->
-			match (name, ctx.curblock) {
-			| ("src", Some{node = Some(s, _)}) when s == "@font-face" ->
-				rule
-			| ("content", Some{selector = (c, _) :: _}) when is_pseudo c ->
-				rule
-			| _ ->
-				throw Invalid_argument("Unexpected " + "'" +  name + "'" + " here");
+		match ctx.curblock {
+		| Some c ->
+			var rf = &None;
+			var k = match c.selector { // ::before, :hover, :active
+			| (PuClass s,_) :: _ -> ":" + s
+			| (PuElement s,_) :: _ -> "::" + s
+			| _ -> ""
+			}
+			if k != "" then {
+				match rules_htable k {
+				| Some tbl -> try rf := Some(Hashtbl.find tbl name) catch {| Not_found -> }
+				| _ ->
+				}
+			}
+			match *rf {
+			| Some r -> r
+			| None ->
+				var k = match c.node {| Some(n, _) -> n | _ -> "" }
+				match rules_htable k {
+				| Some tbl -> Hashtbl.find tbl name
+				| _ -> throw Not_found
+				}
 			}
 		| _ ->
 			throw Not_found
@@ -717,6 +726,8 @@ function load_rules(find, name, value, pos) {
 		check_errors_add ("Unknown attribute '" + name + "'", pos)
 	| Invalid_argument s ->
 		check_errors_add (s, pos)
+	| Core.Error s ->
+		check_errors_add (s + name, pos)
 	}
 }
 
@@ -955,7 +966,7 @@ try {
 	List.iter (function(file) {
 		var path,_ = pathtools.add file "";
 		// load rules
-		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules" path.dir;
+		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules";
 		// parse
 		var ch = IO.read_file (path.str) true;
 		var lex = Lexer.create Buffer.create();

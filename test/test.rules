@@ -1,0 +1,25 @@
+
+
+group-1      : (C X* D);
+group-2      : (A (B C)? D);
+group-3      : (A (B? C?)    D);
+group-4      : (A (B? C?){1} D);
+group-5      : (A (B? C?)~ D);
+group-6      : (A (B? C?)~{1} D);
+
+rep2-4       : [A B]{2-4} ;
+opt          : B? ;
+star         : C* ;
+plus         : D+ ;
+calc         : calc(* ^ *) ;
+many         : [A B C]# ;
+or           : [A B C]+ ;
+unorder      :     ([left right]? [top bottom]?)~  ;
+to_unorder   : (to ([left right]? [top bottom]?)~    end) ;
+to_unorder-2 : (to ([left right]? [top bottom]?)~{1} end) ;
+
+
+
+special {
+	duplicate_check : off;
+}
