@@ -2,4 +2,4 @@ bin/**
 !bin/css.rules
 dump
 *.n
-*.hss
+*.css

@@ -84,6 +84,10 @@ function rec statement_list(s) {
 function rec rule(s) {
 	var r = match s {
 	| [< (BracketOpen, p1); r = rule s; (BracketClose, p2) >] ->
+		match fst r {
+		| RList (_,p1) :: (_,p2) :: _ -> error Message("Unexpected " + "'" + ","  +"'") gap(p1, p2)
+		| _ ->
+		}
 		(ROr [r], punion p1 p2)
 	| [< (ParentOpen, p1); r = rule s; (ParentClose, p2) >] ->
 		(match fst r {
@@ -187,10 +191,7 @@ function rec rule_join(r1, r2) {
 		function calls_merge(name, p1, r2) {
 			match r2 {
 			| (RCall(ctl, e), p2) ->
-				if ctl != "UnOrdered" then
-					Some (RCall(ctl, (RCall(name, e), p2) ), punion p1 p2)
-				else
-					Some (RCall(name, r2), punion p1 p2)
+				Some (RCall(ctl, (RCall(name, e), p2) ), punion p1 p2)
 			| _ ->
 				None
 			}
@@ -199,9 +200,8 @@ function rec rule_join(r1, r2) {
 		| ROr _ | RList _ | RGroup _ | RCall _ -> true
 		| _ -> false
 		}
-		// '?', '*', '+', '{}', '#' will move to the front, but no for '~'
+		// '?', '*', '+', '{}', '#' and '~' will move to the front
 		// func(x, y)? b c; ==> func..[Opt(any)      ; b; c] --> [Opt(func(x, y))      ; b; c]
-		// func(x, y)~ b c; ==> func..[UnOrdered(any); b; c] --> [func(UnOrdered(x, y)); b; c]
 		match v2 {
 		| ROr (((v21, p21) as r21) :: l)
 		| RList (((v21, p21) as r21) :: l) when (contiguous p1 p21) && (has_brackets v21) ->
@@ -408,21 +408,6 @@ function fractional_part(f) {
 	f - (Math.ffloor f) > 0.0000019
 }
 
-function unordered_keep(r) match fst r {
-| RCall(n,x) -> match n {
-	| "Plus" -> Some (RCall("Star", x), pos r)
-	| "Star" -> Some r
-	| "Rep" -> match x {
-		| (RList [x; (RIntRange(m, n), p)], px) when n > 0 ->
-			var vl = (RList [x; (RIntRange(m - 1, n - 1), p)] , px);
-			Some (RCall("Rep", vl),pos r)
-		| _ -> None
-		}
-	| _ -> None
-	}
-| _ -> None
-}
-
 function rec is_optional(rl) {
 	match rl {
 	| [] -> true
@@ -468,6 +453,29 @@ function is_empty_match(vtl, v) {
 	match *vtl {
 	| [] -> false
 	| x :: _ -> x === v
+	}
+}
+
+function barrier_push(vtl, v) {
+	vtl := (separator v) :: *vtl;
+}
+
+function barrier_pop(vtl, v) {
+	var ept = is_empty_match vtl v;
+	vtl_pop vtl;
+	if ept then {
+		vtl_pop vtl;
+		vtl_push vtl v;
+	}
+}
+
+// Transform "RList" to RGroup for matching, otherwise "check_repeat" will fails
+// And disallow RGroup as arguments
+function convert_args(r) {
+	match fst r {
+	| RList rl -> (RGroup rl, pos r)
+	| RGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2)
+	| _ -> r
 	}
 }
 
@@ -532,26 +540,26 @@ function rec check_complex(vtl, v, r, check_callback) {
 	var restore = *vtl;
 	var succ = match (fst r, fst v) {
 	| (x, VGroup vl) ->
-		vtl := List.append vl ((separator v) :: *vtl); // uses VParentheses as Separator
+		vtl := List.append vl (*vtl);
 		match x {
-		| RGroup rl -> check_callback vtl rl
+		| RGroup rl -> check_callback vtl rl false
 		| RList _ -> false
-		| _ -> check_callback vtl [r]
+		| _ -> check_callback vtl [r] false
 		}
 	| (x, VList vl) ->
-		vtl := List.append vl ((separator v) :: *vtl);
+		vtl := List.append vl (*vtl);
 		var rl = match x {
 		| RList rl -> rl
 		| _ -> [r]
 		}
-		check_callback vtl rl;
+		check_callback vtl rl true;
 	| (RGroup rl, x) ->
 		match x {
-		//| VGroup vl ->   // already matched
-		| VList _ -> false // fails
+		//| VGroup vl ->    // already matched
+		| VList _ -> false  // fails
 		| _ ->
 			vtl_push vtl v; // no separator. think: r(A (B C) D) v(A B C D)
-			check_callback vtl rl;
+			check_callback vtl rl false;
 		}
 	| _ ->
 		//printf "UnMatched rule : %s, value : %s\n" (s_rule r, s_value v);
@@ -561,37 +569,39 @@ function rec check_complex(vtl, v, r, check_callback) {
 		vtl := restore;
 	succ
 }
-function rec check_normal_groups(vtl, rl) {
-	match (rl, *vtl) {
-	| (_, (VParentheses _,_) :: vl) -> // separator is used to prevents "check_repeat" from out-of-bounds
-		vtl := vl;
+function rec check_normal_groups(vtl, rl, sep) {
+	var scs = match (rl, *vtl) {
+	| (_, (VParentheses _,_) :: _) ->
 		is_optional rl
 	| (r :: rl, v :: vl) ->
 		vtl := vl;
-		// printf "stack : %d, value : '%s', rule : '%s'\n" (List.length (*vtl), s_value v, s_rule r);
-		(check vtl v r) && (check_normal_groups vtl rl)
+		// printf "(%s) stack : %d, rule : '%s', value : '%s'\n" (if sep then "sep" else "non", List.length (*vtl), s_rule r, s_value v);
+		// Insert a separator as a barrier to prevents "check_repeat" out of bounds
+		if sep then barrier_push vtl v;
+		var scs = (check vtl v r);
+		if sep then barrier_pop vtl v;
+		scs && (check_normal_groups vtl rl sep)
 	| _ ->
 		is_optional rl
 	}
+	scs
 }
 
 function rec check_repeat_inner(acc, vtl, r, min, max) {
 	var succ = acc >= min;
 	match *vtl {
-	| (VParentheses _,_) :: vl ->
-		if succ then
-			vtl := vl;
+	| (VParentheses _,_) :: _ ->
 		succ
 	| v :: vl when max == 0 || acc < max ->
 		vtl := vl;
-		// Nested Opt or Star may match nothing but still return true
 		var scs = check vtl v r
-		var empty = is_empty_match vtl v;
-		if scs && !empty then {
+		var ept = is_empty_match vtl v;
+		// Nested Opt or Star may match nothing but still return true
+		if scs && !ept then {
 			check_repeat_inner (acc + 1) vtl r min max
 		} else {
-			// empty means nested Opt or Star has already pushed a v to vtl
-			if !empty then
+			// ept means nested Opt or Star has already pushed a v to vtl
+			if !ept then
 				vtl_push vtl v;
 			succ
 		}
@@ -605,17 +615,19 @@ function rec check_repeat(vtl, v, r, min, max) {
 }
 
 // ensure that at least one match is made
-function rec check_unordered(vtl, rl) {
+function rec check_unordered(vtl, rl, sep) {
 	var succ = is_optional rl;
 	match *vtl {
 	| [] -> succ
 	| v :: vl ->
-		vtl := vl;
 		match (fst v) {
 		| VParentheses _ -> succ
 		| _ ->
+			vtl := vl;
+			if sep then barrier_push vtl v;
 			var rl, succ = check_unordered_inner vtl [] v rl;
-			if succ then check_unordered vtl rl else is_optional rl
+			if sep then barrier_pop  vtl v;
+			if succ then check_unordered vtl rl sep else is_optional rl
 		}
 	}
 }
@@ -625,19 +637,13 @@ function rec check_unordered_inner(vtl, acc, v, rl) {
 		vtl_push vtl v; // if 'v' is not matched then put it back.
 		(acc, false)
 	| r :: rl ->
-		// Opt(), Star() will put v back to *vtl if matches empty.
 		var scs = check vtl v r
-		var empty = is_empty_match vtl v;
-		if scs && !empty then {
-			/* Discard the successfully matched rule
-			var rl = match unordered_keep r {
-			| Some r -> r :: rl
-			| None -> rl
-			}
-			*/
+		var ept = is_empty_match vtl v;
+		// Opt(), Star() will put v back to *vtl if matches empty.
+		if scs && !ept then {
 			(List.append acc rl, true)
 		} else {
-			if empty then
+			if ept then
 				vtl_pop vtl;
 			check_unordered_inner vtl (r :: acc) v rl
 		}
@@ -662,13 +668,14 @@ function rec check_calls(vtl, v, r, name) {
 		| _ -> check vtl v r
 		}
 	| "UnOrdered" ->
-		check_complex vtl v r check_unordered
+		match r { // UnOrdered( func(a, b, c) ) => func( UnOrdered(a b c) )
+		| (RCall(s, a), p) -> check_calls vtl v (RCall(name, convert_args a), p) s
+		| _ -> check_complex vtl v r check_unordered
+		}
 	| _ ->
 		match (fst v) {
-		| VCall(c, l) ->
-			check vtl c (RId name, pos r) && check vtl (VList l, pos v) r
-		| _ ->
-			false
+		| VCall(c, l) -> check vtl c (RId name, pos r) && check vtl (VGroup l, pos v) (convert_args r)
+		| _ -> false
 		}
 	}
 }
