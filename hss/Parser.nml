@@ -37,7 +37,7 @@ function error(m,p) {
 	throw Error(m,p)
 }
 
-function contiguous(p1, p2) p1.pmax == p2.pmin && p1.pline == p2.pline;
+function contiguous(p1, p2) p1.pmax == p2.pmin;
 
 var rhex = Regexp.build "^[A-Fa-f0-9]+$";
 
