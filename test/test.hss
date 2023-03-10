@@ -9,7 +9,7 @@ css_rules_test {
 
 	// (A, B)
 	list-1  : A, B;
-	list-1  : A                  !error;  
+	list-1  : A                  !error;
 	list-1  : A  B               !error;
 	list-1  : B, A               !error;
 
@@ -21,15 +21,18 @@ css_rules_test {
 	func-1  : call(A, B);
 	func-1  : call(B, A);
 	func-1  : call(A, B);
-//	func-1  : call(A  B);  // Parser error
+	func-1  : call(A  B)          !error;
 	func-1  : call(B)             !error;
 	func-1  : call(A)             !error;
 
 	// matrix(float{2, 4})
 	func-2  : matrix(1)           !error;
-	func-2  : matrix(1, 2);
+//	func-2  : matrix(1 2);       // thrown
 	func-2  : matrix(1, 2, 3, 4);
 	func-2  : matrix(1, 2, 3, 4,5)!error;
+
+	// drop-shadow(A A A? B?)
+	func-3  : drop-shadow(A A A);
 
 	// (A B)
 	group-0 : A B;
@@ -103,8 +106,9 @@ css_rules_test {
 	call-23 : call(X, A, B, C);
 	call-23 : call(A, B, C);
 	call-23 : call(X)             !error;
-	
-	// 
+	// call([A B], [A, B]?);
+	call-3  : call(A);
+	//
 	many-1  : A, A, B, C;
 	many-2  : A, "B", C D;
 	// none [A B C]#;
@@ -112,6 +116,9 @@ css_rules_test {
 	many-3  : A, B, B;
 	many-3  : none, A             !error;
 
+	// Many((A? B{2, 3})~)
+	many-5  : B B;
+	many-5  : B B A;
 	// simple
 	calc    : calc(1 + 2);
 	opt     : B;
@@ -205,16 +212,83 @@ css_rules_test {
 	background : no-repeat center/80% url("image.png");
 	background : #FFF url("test.jpg") repeat-y, url("test.jpg") repeat-y;
 
+	border : 1px solid #FFF;
+	border : 1px;
+	border : #FFF #FFF            !error;
+
+	counter-reset : my-counter my-counter -3;
+	counter-reset : my-counter -3;
+	counter-reset: reversed(counter1) 1 counter2 9 reversed(counter3) 4;
+	quotes : "«" "»" "‹" "›";
+	quotes : auto;
+	quotes : auto "«" "»" "‹" "›" !error;
+
+	filter : drop-shadow(0 -6mm 4mm rgb(160, 0, 210));
+	filter : drop-shadow(30px 10px #FFF);
+	filter : drop-shadow(0 0 0.75rem crimson);
 	div::after {
 		content : "abc";
 	}
+
+	transform-origin : left 5px -3px;
+	transform-origin : bottom right 2cm;
+	transform-origin : 2px 30% 10px;
+	transform-origin : bottom;
+
+	perspective-origin: bottom right;
+	perspective-origin: 500% 200%;
+	perspective-origin: -170%;
+	perspective-origin: center;
+	perspective-origin: top;
+
+	text-shadow : 1px 1px 2px red, 0 0 1em blue, 0 0 0.2em blue;
+	text-shadow : 5px 5px #558ABB;
+	text-shadow : #FC0 1px 0 10px;
+
+	box-shadow : 2px 2px 2px 1px rgba(0, 0, 0, 0.2);
+	box-shadow : 10px 5px 5px black;
+	box-shadow : 3px 3px red, -1em 0 0.4em olive;
+
+	flex : 1 1 100px;
+	flex : 1 30px;
+	flex : 1;
+
+	flex-flow : row nowrap;
+	flex-flow : column wrap;
+	flex-flow : column-reverse wrap-reverse;
+
+	align-content : baseline;
+	align-content : first baseline;
+	align-content : last baseline;
+	align-content : space-around;
+	align-content : start;
+
+	align-items : baseline;
+	align-items : first baseline;
+	align-items : last baseline; /* Overflow alignment (for positional alignment only) */
+	align-items : safe center;
+	align-items : unsafe center;
+
+	justify-items : baseline;
+	justify-items : first baseline;
+	justify-items : last baseline;
+
+	/* Overflow alignment (for positional alignment only) */
+	justify-items : safe center;
+	justify-items : unsafe center;
+
+	/* Legacy alignment */
+	justify-items : legacy right;
+	justify-items : legacy left;
+	justify-items : legacy center;
+
+	animation : 3s ease-in 1s infinite reverse both running slidein;
+	animation: 3s linear 1s infinite alternate slidein;
 }
 
 @font-face {
 	src : url("asdf");
 }
 
-css_rules {
-//	color : linear-gradient(135deg, orange 60%, cyan);
-//	color : linear-gradient(135deg, orange 60%, cyan, cyan, cyan 50%);
+@media (hover: hover) {
 }

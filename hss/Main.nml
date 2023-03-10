@@ -32,7 +32,7 @@ var pmod : Hss.Utils.print_mode = Hss.Utils.pmod
 var sem : Hss.Utils.sourcemap = Hss.Utils.sem
 var misc : Hss.Utils.misc = Hss.Utils.misc
 var hssparse = Hss.Parser.parse Hss.Parser.program
-var rules_htable = Hss.Rules.find_namespace Hss.Rules.context
+var rules_loaded = Hss.Rules.loaded
 
 function error(msg,p) {
 	throw Error([(msg,p)])
@@ -310,31 +310,38 @@ function rec check_inherit(v) {
 	}
 }
 
+function rules_htable(name) {
+	Map.find Hss.Rules.context.rules name
+}
+
 var rules_globals = Hss.Rules.globals
 var rules_special = Hss.Rules.special
 
-function rules_special_attribute(name) {
-	try Some(Hashtbl.find rules_special name) catch {Not_found -> None}
-}
 function rules_special_exists(attribute, subid) {
-	match rules_special_attribute attribute {
-	| Some(r) ->
+	try {
 		function equals(r) match fst r {
 		| RId s -> subid == s
 		| _ -> false
 		}
+		var r = Hashtbl.find rules_special attribute
 		match fst r {
 		| RList l | RGroup l | ROr l -> List.exists equals l
 		| _ -> equals r
 		}
-	| _ -> false
+	} catch {
+	| Not_found -> false
 	}
 }
 
-function get_rule(ctx, name) {
-	try
+function find_rule(ctx, name, value) {
+	try {
+		match fst value {
+		| VLabel(_, (VIdent id,_))
+		| VIdent id -> if rules_special_exists "default" id then throw Exit
+		| _ ->
+		}
 		Hashtbl.find rules_globals name
-	catch {
+	} catch {
 	| Not_found ->
 		match ctx.curblock {
 		| Some c ->
@@ -342,22 +349,14 @@ function get_rule(ctx, name) {
 			var k = match c.selector { // ::before, :hover, :active
 			| (PuClass s,_) :: _ -> ":" + s
 			| (PuElement s,_) :: _ -> "::" + s
-			| _ -> ""
+			| _ -> "$"
 			}
-			if k != "" then {
-				match rules_htable k {
-				| Some tbl -> try rf := Some(Hashtbl.find tbl name) catch {| Not_found -> }
-				| _ ->
-				}
-			}
+			try rf := Some(Hashtbl.find (rules_htable k) name) catch {| Not_found -> }
 			match *rf {
 			| Some r -> r
 			| None ->
-				var k = match c.node {| Some(n, _) -> n | _ -> "" }
-				match rules_htable k {
-				| Some tbl -> Hashtbl.find tbl name
-				| _ -> throw Not_found
-				}
+				var k = match c.node {| Some(n, _) -> n | _ -> "$" }
+				Hashtbl.find (rules_htable k) name
 			}
 		| _ ->
 			throw Not_found
@@ -704,12 +703,9 @@ function rec find_subclass(c: class) {
 
 function load_rules(find, name, value, pos) {
 	try {
-		match fst value {
-		| VIdent id -> if rules_special_exists "default" id then throw Exit
-		| _ ->
-		}
+		var rule = find name value
 		var stack = &[];
-		var succ = Hss.Rules.check stack value (find name) && *stack == [];
+		var succ = Hss.Rules.check stack value rule && *stack == [];
 		if !succ then {
 			var value = if (*stack) != [] then List.hd (*stack) else value;
 			check_errors_add ("Invalid '"+name+"' value '"+ (s_value value) +"'", snd value)
@@ -725,19 +721,9 @@ function load_rules(find, name, value, pos) {
 	}
 }
 
-var media_hrules = {
-	var h = Hashtbl.create();
-	/* TODO:
-	var smin = "min"+"-";
-	var smax = "max"+"-";
-	List.iter (function((a,b)) {
-		Hashtbl.add h a b;
-		Hashtbl.add h (smin + a) b;
-		Hashtbl.add h (smax + a) b;
-	}) (fst Hss.Rules.media_rules);
-	List.iter (function((a,b)) Hashtbl.add h a b) (snd Hss.Rules.media_rules);
-	*/
-	h
+function find_media_rules(name, value) {
+	var tbl = try { rules_htable "media-queries" } catch { Not_found -> throw Exit }
+	Hashtbl.find tbl name
 }
 
 function rec check_media(ctx, m: media) {
@@ -747,16 +733,16 @@ function rec check_media(ctx, m: media) {
 	| MAnd(m1, m2) ->
 		(MAnd(check_media ctx m1, check_media ctx m2), p);
 	| MType(s, _) ->
-		// TODO:  if !List.mem(String.lowercase s, Hss.Rules.media_types) then err s;
+		if !List.mem(String.lowercase s, ["all";"screen";"print";"speech"]) then err s;
 		m
 	| MFeature(s, None) ->
-		// TODO: if !List.exists(function((k,_)) k == String.lowercase s, fst Hss.Rules.media_rules) then err s;
+		try if !Hashtbl.exists(rules_htable "media-queries", String.lowercase s) then err s catch{ _ -> }
 		m
 	| MFeature(s, Some v) ->
 		var v = eval ctx v;
 		match fst v {
 		| VString _ -> () // skip
-		| _ -> // TODO: load_rules(Hashtbl.find media_hrules, String.lowercase s, v, p)
+		| _ -> if *rules_loaded then load_rules(find_media_rules, String.lowercase s, v, p)
 		}
 		(MFeature(s, Some v), p)
 	| MQuotes _ ->
@@ -791,13 +777,13 @@ function rec check(ctx,e) {
 		var el = List.map (check ctx) el;
 		List.iter (check_class ctx) classes;
 		// check duplicate variables
-		if !(rules_special_exists "duplicate_check" "off") then
+		if (*rules_loaded) && !(rules_special_exists "duplicate-check" "off") then
 			ignore(List.fold (function(acc, e) match fst e {
 			| EAttribute(name, v) ->
 				match fst v {
 				| VLabel ("dup",_) -> acc
 				| _ ->
-					if (Map.exists acc name) && !(rules_special_exists "allow_duplicate_attributes" name) then
+					if (Map.exists acc name) && !(rules_special_exists "allow-duplicate-attributes" name) then
 						warning ("Warning, duplicate attribute '" + name + "'") snd(e);
 					Map.add acc name v
 				}
@@ -820,7 +806,8 @@ function rec check(ctx,e) {
 			}
 			(VLabel "dup" value, p) // allow duplicate
 		| _ ->
-			load_rules(get_rule ctx, name, value, p);
+			if *rules_loaded then
+				load_rules(find_rule ctx, name, value, p);
 			value
 		}
 		expand_hacks(name, value, p)
@@ -945,12 +932,12 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.9 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
+	var head = "HSS v2.0 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
-		("-rule",Args.String Hss.Rules.custom,"<file>  : specify css rule set file");
+		("-rule",Args.String Hss.Rules.custom,"<file>  : specify a css rule set file");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
 		("--append",Args.Void Hss.Rules.append,"     : available only if '-rule <file>' is specified");
 		("--minify",Args.Void pmod.enable_minify,"     : minify output by removing some whitespaces");
@@ -961,7 +948,7 @@ try {
 	List.iter (function(file) {
 		var path,_ = pathtools.add file "";
 		// load rules
-		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules";
+		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules" path.dir;
 		// parse
 		var ch = IO.read_file (path.str) true;
 		var lex = Lexer.create Buffer.create();

@@ -265,24 +265,6 @@ type context {
 	mutable current : (string, rule) Hashtbl.t;
 }
 
-function find_namespace(ctx, x) {
-	// copy from Core.Map.find, changes Not_Found => None
-	var m = ctx.rules;
-	var cmp = m.cmp;
-	function rec loop(m) {
-		match m {
-		| Map.Node (l, k, v, r, _) ->
-			var c = cmp x k;
-			if c < 0 then loop l
-			else if c > 0 then loop r
-			else Some v
-		| Map.Empty ->
-			None
-		}
-	};
-	loop m.map
-}
-
 function flatten_units(r) {
 	function rec loop(acc, x) {
 		match fst x {
@@ -392,11 +374,10 @@ function rec recording(ctx, e) {
 		match ns {
 		| [] ->
 		| name :: _ ->
-			ctx.current := match find_namespace ctx name {
-			| Some r -> r
-			| _ ->
+			ctx.current := try Map.find ctx.rules name catch {
+			| Not_found ->
 				var tbl = Hashtbl.create();
-				List.fold (function(acc, x){ctx.rules := Map.add(ctx.rules, x, acc); acc}) tbl ns;
+				List.fold (function(acc, x){ctx.rules := Map.add(ctx.rules, x, acc); acc}) tbl ns
 			}
 		}
 		var el = List.map (recording ctx) el;
@@ -721,13 +702,21 @@ var context = {
 	eval_rec = 0;
 }
 
-function loadfile(rule) {
+function loadfile(rule, cssdir) {
 	var tool = Hss.Utils.pathtools
-	var file = if Sys.exists rule then rule else (tool.path_dir tool.sys_program_path()) + "/" + rule
-	var file = if Sys.exists file then file else rule // error f
-	var chs = IO.read_file (file) true
+	var file = &rule;
+	if !(Sys.exists rule) then {
+		if cssdir != "" then {
+			file := cssdir + "/" + rule
+		}
+		if !Sys.exists(*file) then {
+			file := tool.path_dir tool.sys_program_path() + "/" + rule
+			if !Sys.exists(*file) then throw (Core.Error rule)
+		}
+	}
+	var chs = IO.read_file (*file) true
 	var lex = Lexer.create Buffer.create();
-	Lexer.input lex file chs 1 0;
+	Lexer.input lex (*file) chs 1 0;
 	var el = Hss.Parser.parse(begin, lex);
 	List.iter (recording context) el;
 }
@@ -735,13 +724,18 @@ function loadfile(rule) {
 var mode_append = &false
 var file_custom = &""
 var loaded = &false
-function load(def) {
+function load(def, cssdir) {
 	var input = *file_custom;
-	if (input == "" || *mode_append == true) then
-		loadfile(def);
-	if (input != "") then
-		loadfile(input);
-	loaded := true
+	try {
+		if (input == "" || *mode_append == true) then
+			loadfile(def, cssdir);
+		if (input != "") then
+			loadfile(input, cssdir);
+		loaded := true
+	} catch {
+	| Core.Error s ->
+		printf "Failed to load : %s\n" s
+	}
 }
 
 function append() {

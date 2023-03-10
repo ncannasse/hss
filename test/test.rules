@@ -1,5 +1,5 @@
 rules-special {
-	duplicate_check : off;
+	duplicate-check : off;
 }
 
 list-1       : (A, B);
@@ -7,6 +7,7 @@ list-2       : ((A B), (C D));
 
 func-1       : call(A, B)~;
 func-2       : matrix(float{2, 4});
+func-3       : drop-shadow(A A A? B?);
 
 group-0      : (A B);
 group-1      : (C X* D);
@@ -20,6 +21,7 @@ call-1       : call(A, B, C);
 call-21      : call([A B C]{2, 0});
 call-22      : call([A B C]+);
 call-23      : call(X?, [A B C]+);
+call-3       : call([A B], [A B]?);
 
 rep2-4       : [A B]{2-4} ;
 opt          : B? ;
@@ -30,6 +32,7 @@ many-1       : [A B C]# ;
 many-2       : [string (id id) id]#;
 many-3       : none [A B C]#;
 many-4       : (X?, [A B C]+);
+many-5       : Many((A? B{2, 3})~);
 or-1         : [A B C]+ ;
 or-2         : [[A B] [C D [E F [G H]]]];
 unorder      :     ([left right]? [top bottom]?)~  ;
@@ -38,18 +41,11 @@ to_unorder-2 : (to ([left right]? [top bottom]?)~{1} end) ;
 unorder-3    : ((A X)? (I X)?)~;
 
 fn_img       : image([A B], ([X Y] [I J]?){2-0});
-
 fn_single    : func(int{2, 0});
 
 matrix       : matrix(float{6});
 matrix3d     : matrix3d(float{16});
 scale        : scale([float Unit("%")], [float Unit("%")]?);
-
-filter       : alpha(Opt(opacity=0-100), Opt(style=0-3), Opt(startx=0-100), Opt(finishx=0-100),
-	Opt(starty=0-100), Opt(finishy=0-100), Opt(finishopacity=0-100)
-	)~;
-
-
 
 group-x : [A B C]+;
 group-y : (A B);

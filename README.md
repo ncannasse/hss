@@ -4,13 +4,17 @@
 
 Downloads and then builds via `make` or `build.bat`
 
+Once you have the hss.exe(or hss), copy it and [css.rules](bin/css.rules) to your application directory.
+
 You can compile your HSS file into the corresponding CSS file by running the hss command :
 
 ```bash
 #hss [options] <file>
 # Options :
 #  -output <dir> : specify output directory
+#  -rule <file>  : specify css rule set file
 #  -D <flag>     : define a conditional compilation flag
+#  --append      : available only if '-rule <file>' is specified
 #  --minify      : minify output by removing some whitespaces
 #  --sourcemap   : outputs a v3 sourcemap file
 #
@@ -18,7 +22,7 @@ hss myfile.hss
 ```
 
 Features:
-
+* [Customizable CSS rules](#Customizable-CSS-rules) version 2.0+
 * Variable
   - [Property Variables](#Property-Variables)
   - [Block Variables](#Block-Variables)
@@ -43,6 +47,39 @@ In that case, you will get an error telling :
 
 `myfile.hss:3: Unexpected '}' maybe missing ;`
 Fix all the errors and HSS will then be able to generate the corresponding CSS file.
+
+### Customizable CSS rules
+
+hss 2.0 provides a new rule parser for loading external text rule file
+
+Usually some game UI or Apps that use CSS will have their own css syntax
+
+With this tool you can customize some CSS rules to detect errors before loading
+
+And the new rules syntax are quite simple than before
+
+```scss
+// myui.rule
+// global
+{
+    var unit   = Unit(dip px) // Unit() is used to define unit suffix
+    var length = $unit float  // width matches $unit or float
+    var color  = #FFF #FFFFFF rgb(0-255, 0-255, 0-255);
+    color  : $color;
+    width  : $length;
+    margin : $length{1, 4};
+    filter : text-shadow($color, $length{2, 4});
+}
+
+// namespace
+box {
+    box-only : special;       // only available for <box>
+}
+
+// namespace list
+box, button, image, :hover {
+}
+```
 
 ### Property Variables
 HSS adds property variables to the CSS syntax.
