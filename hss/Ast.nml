@@ -91,7 +91,7 @@ type value_decl {
 	VGroup : value list;
 	VUrl : string;
 	VVar : string;
-	VCall : (value, value list);
+	VCall : (value, value);
 	VLabel : (string, value);
 	VBind : (string, value);
 	VOp :  (op, value, value);
@@ -263,7 +263,7 @@ function rec s_value(v) {
 	| VVar i -> "$" + i
 	| VList l -> String.concat ", " (List.map s_value l)
 	| VGroup l -> String.concat " " (List.map s_value l)
-	| VCall (n, l) -> (s_value n) + "(" + (s_value (VList l, pos v)) +")"
+	| VCall (n, v) -> (s_value n) + "(" + (s_value v) +")"
 	| VBind(s, v) -> s + "=" + (s_value v)
 	| VOp(op, v1, v2) -> (s_value v1) + " " +(s_op op) + " " + (s_value v2)
 	| VUrl u -> "url(\"" + u + "\")"

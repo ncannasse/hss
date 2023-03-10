@@ -39,9 +39,6 @@ function error(m,p) {
 
 function contiguous(p1, p2) p1.pmax == p2.pmin && p1.pline == p2.pline;
 
-function gap(p1, p2) : pos
-	{psource = p1.psource; pline = p1.pline; pmin = p1.pmax; pmax = p2.pmin}
-
 var rhex = Regexp.build "^[A-Fa-f0-9]+$";
 
 function rec missed_last(lmax, v) {
@@ -273,20 +270,11 @@ function rec value_next(v,s) {
 	match s {
 	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] ->
 		match p {
-		| (VList l,_) -> value_next (VCall v l, punion (pos v) p2) s
-		| _ ->
-			var isfun = match fst v {
-			| VIdent s | VString s -> contiguous(pos v, p1) || s == "CSS"
-			| _ -> false
-			}
-			if isfun then {
-				var p = match fst p {
-				| VGroup (_, p1)::(_,p2)::_ -> error(Message "Expected ','", gap p1 p2)
-				| VGroup [x] -> x
-				| _ -> p
-				}
-				value_next (VCall v [p], punion (pos v) p2) s
-			} else {
+		| (VList _,_) -> value_next (VCall v p, punion (pos v) p2) s
+		| _ -> match fst v {
+			| VIdent id | VString id when contiguous(pos v, p1) || id == "CSS" ->
+				value_next (VCall v p, punion (pos v) p2) s
+			| _ ->
 				value_join v (value_next (VParentheses p,punion p1 p2) s)
 			}
 		}

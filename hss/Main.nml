@@ -95,7 +95,7 @@ function rec print_value(ch,v) {
 	| VVar s ->
 		sem.write ch sprintf("$%s", s)
 	| VCall (v,vl) ->
-		print_value ch v;  sem.write ch "(";  (print_sep "," print_value ch vl);  sem.write ch ")";
+		print_value ch v;  sem.write ch "(";  print_value ch vl;  sem.write ch ")";
 	| VLabel ("dup",v) ->
 		print_value ch v;
 	| VLabel (l,v) ->
@@ -374,8 +374,8 @@ function rgb_value( (v,p) : value ) {
 	match v {
 	| VHex h ->
 		rgbtools.of_hex h p
-	| VCall((VIdent "rgb",_) ,[r; g; b])
-	| VCall((VIdent "rgba",_),[r; g; b; (VFloat _,_)]) ->
+	| VCall((VIdent "rgb",_), (VList[r; g; b], _))
+	| VCall((VIdent "rgba",_),(VList[r; g; b; (VFloat _,_)], _)) ->
 		function mono((v, p)) {
 			var i = match v {
 			| VInt i -> i
@@ -393,44 +393,39 @@ function rgb_value( (v,p) : value ) {
 	}
 }
 
-function custom_calls(id, vl, p, origin) {
-	function exit() { throw Exit }
+function custom_calls(id, vi, v, p) {
 	function mix(ds, dl) {
-		match vl {
-		| [color; (VUnit(i,"%"),_)] ->
+		match v {
+		| (VList[color; (VUnit(i,"%"),_)], p) ->
 			var rgb = rgb_value color;
 			var h, s, l = rgbtools.to_hsl rgb
 			var rgb = rgbtools.of_hsl (h, i*ds + s, i*dl + l);
-			VHex (rgbtools.string rgb)
+			(VHex(rgbtools.string rgb), p)
 		| _ ->
-			exit()
+			v
 		}
 	}
-	(match id {
+	var origin = (VCall vi v, p)
+	match id {
 	| "lighten"    -> mix( 0.  ,  0.01)
 	| "darken"     -> mix( 0.  , -0.01)
 	| "saturate"   -> mix( 0.01,  0.  )
 	| "desaturate" -> mix(-0.01,  0.  )
-	| "invert"     -> match vl {
-		| [color] ->
-			var r, g, b = rgb_value color;
-			VHex (rgbtools.string (255 - r, 255 - g, 255 - b))
-		| _ -> exit()
+	| "invert"     ->
+			var r, g, b = rgb_value v;
+			(VHex(rgbtools.string (255 - r, 255 - g, 255 - b)), snd v)
+	| "alphamix"   -> match v {
+		| (VList[f; (VFloat a, _); b], p) -> (VHex(rgbtools.string rgbtools.alpha_mix(rgb_value f, a, rgb_value b)), p)
+		| _ -> origin
 		}
-	| "alphamix"   -> match vl {
-		| [f; (VFloat a, _); b] -> VHex (rgbtools.string rgbtools.alpha_mix(rgb_value f, a, rgb_value b))
-		| _ -> exit()
-		}
-	| "string" ->
-		VString(s_value (VList vl, p))
-	| "int" ->
-		match vl {
-		| [(VFloat f, _)] -> VInt Math.floor(before_floor f)
-		| [(VUnit (f,u), _)] -> VUnit Math.ffloor(before_floor f) u
-		| _ -> exit()
+	| "string" -> (VString(s_value v), snd v)
+	| "int" -> match v {
+		| (VFloat f, p) -> (VInt Math.floor(before_floor f), p)
+		| (VUnit(f,u), p) -> (VUnit Math.ffloor(before_floor f) u, p)
+		| _ -> origin
 		}
 	| _ -> origin
-	}, p)
+	}
 }
 
 function rec eval(ctx,v) {
@@ -467,10 +462,9 @@ function rec eval(ctx,v) {
 		var id = match (fst i) { | VIdent n -> n | _ -> "" }
 		var prev = ctx.skip_calc;
 		ctx.skip_calc := match id { "int" -> 0 | "calc" -> 2 | _ -> prev };
-		var vl = List.map (eval ctx) vl;
+		var vl = eval ctx vl;
 		ctx.skip_calc := prev;
-		var vcall = VCall i vl;
-		try custom_calls(id, vl, pos v, vcall) catch { Exit -> (vcall, pos v) }
+		custom_calls id i vl (snd v)
 	| VLabel (l,v1) ->
 		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->
@@ -611,14 +605,14 @@ function rec eval_block(ctx,b) {
 function rec expand_val(value) {
 	var p = snd value;
 	match fst value {
-	| VCall((VIdent "rgba",_) as c,[(VHex h,hp);(VFloat f,fp)]) ->
+	| VCall((VIdent "rgba",_) as c, (VList[(VHex h,hp);(VFloat f,fp)], lp)) ->
 		var r, g, b = rgbtools.of_hex h hp;
-		var params = [(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)];
+		var params = (VList[(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)], lp);
 		expand_val (VCall c params, p)
-	| VCall((VIdent "embed",p1), [(VString url, p2)]) ->
-		(VCall (VIdent "url",p1) [(VString base64.encode_image(url, p2), p2)], p)
-	| VCall (v,vl) ->
-		(VCall expand_val(v) (List.map expand_val vl), p)
+	| VCall((VIdent "embed",p1), (VList[(VString url, p2)], lp)) ->
+		(VCall (VIdent "url",p1) (VList[(VString base64.encode_image(url, p2), p2)], lp), p)
+	| VCall (v, vl) ->
+		(VCall expand_val(v) (expand_val vl), p)
 	| VList vl ->
 		(VList (List.map expand_val vl),p)
 	| VGroup vl ->
@@ -818,10 +812,11 @@ function rec check(ctx,e) {
 		var value = eval ctx value;
 		var p = pos e;
 		var value = match value {
-		| (VCall ((VIdent "CSS",_),vl),_) -> var value = match vl { // strip CSS
-			| [(VString s, p)] -> (VIdent s, p) // strip quotes
-			| [value] -> value
-			| _ -> (VList vl,p)
+		| (VCall ((VIdent "CSS",_),vl),_) ->
+			var value = match fst vl { // strip CSS
+			| VList[(VString s, p)] -> (VIdent s, p) // strip quotes
+			| VList[value] -> value
+			| _ -> vl
 			}
 			(VLabel "dup" value, p) // allow duplicate
 		| _ ->

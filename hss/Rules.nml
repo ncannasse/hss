@@ -27,6 +27,9 @@ type rule_expr = (rule_expr_decl, pos)
 function unSupported(s, p)
 	error Message("UnSupported " + "'" + s + "'") p
 
+function gap(p1, p2) : pos
+	{psource = p1.psource; pline = p1.pline; pmin = p1.pmax; pmax = p2.pmin}
+
 function semicolon_opt(s) {
 	match s {
 	| [< (Semicolon,_) >] -> 1
@@ -170,7 +173,7 @@ function rec rule_next(r1, s) {
 		var name = match tk {
 		| Sharp -> "Many"      // #
 		| Question -> "Opt"    // ?
-		| Tild -> "UnOrdered"  // ~
+		| Tild -> "AnyOrder"   // ~
 		| _ -> ""
 		}
 		match (name, fst r1) {
@@ -469,16 +472,6 @@ function barrier_pop(vtl, v) {
 	}
 }
 
-// Transform "RList" to RGroup for matching, otherwise "check_repeat" will fails
-// And disallow RGroup as arguments
-function convert_args(r) {
-	match fst r {
-	| RList rl -> (RGroup rl, pos r)
-	| RGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2)
-	| _ -> r
-	}
-}
-
 /*
  * @param vtl : The stack of values
  */
@@ -561,6 +554,9 @@ function rec check_complex(vtl, v, r, check_callback) {
 			vtl_push vtl v; // no separator. think: r(A (B C) D) v(A B C D)
 			check_callback vtl rl false;
 		}
+	| (RList rl, x) -> // func(A, B?) -- func(A)
+		vtl_push vtl v;
+		check_callback vtl rl false
 	| _ ->
 		//printf "UnMatched rule : %s, value : %s\n" (s_rule r, s_value v);
 		false
@@ -667,17 +663,53 @@ function rec check_calls(vtl, v, r, name) {
 		| VList vl -> List.all (function (v) check vtl v r) vl
 		| _ -> check vtl v r
 		}
-	| "UnOrdered" ->
-		match r { // UnOrdered( func(a, b, c) ) => func( UnOrdered(a b c) )
-		| (RCall(s, a), p) -> check_calls vtl v (RCall(name, convert_args a), p) s
-		| _ -> check_complex vtl v r check_unordered
+	| "AnyOrder" ->
+		match (fst r, fst v) {
+		| (RCall(name, r), VCall(c, v)) ->
+			// AnyOrder( func(a, b, c) ) --> func( AnyOrder(a b c) )
+			var r, v = calls_unify r v;
+			check vtl c (RId name, pos r) && check_complex vtl v r check_unordered
+		| _ ->
+			check_complex vtl v r check_unordered
 		}
 	| _ ->
 		match (fst v) {
-		| VCall(c, l) -> check vtl c (RId name, pos r) && check vtl (VGroup l, pos v) (convert_args r)
-		| _ -> false
+		| VCall(c, v) ->
+			var r, v = calls_unify r v;
+			check vtl c (RId name, pos r) && check vtl v r
+		| _ ->
+			false
 		}
 	}
+}
+
+function rec calls_unify(r, v) {
+	function rec adv_mode(rl) match rl {
+	| [] -> false
+	| r :: rl -> match fst r {
+		| RCall(s, _) when s == "Rep" || s == "Plus" || s == "Star" -> true
+		| _ -> adv_mode rl
+		}
+	}
+	// adv requires that the input must be VList
+	var adv = match fst r {
+	| RList rl -> adv_mode rl;
+	| _ -> adv_mode [r]
+	}
+	// Transform "RList" to RGroup for matching, otherwise "Rep","Plus" will fails
+	var r = if !adv then r else match fst r {
+	| RList rl -> (RGroup rl, pos r)
+	| RGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2)
+	| _ -> r
+	}
+	// Transfrom "VList" to VGroup if adv is true
+	var v = if !adv then v else match fst v {
+	| VGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2);
+	| VList [x] -> x
+	| VList vl -> (VGroup vl, pos v)
+	| _ -> v
+	}
+	(r, v)
 }
 
 var globals = Hashtbl.create()
