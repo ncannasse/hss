@@ -38,42 +38,19 @@ function error(msg,p) {
 	throw Error([(msg,p)])
 }
 
-function warning(msg,p) {
-	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
-}
-
-function classes_pos (l:class list):pos {
-	var pp = &Lexer.null_pos;
-	function merge_pos(p:pos) {
-		var p2 = *pp;
-		if p.pline > p2.pline then {
-			pp := p;
-		} else if p.pline == p2.pline && (p.pmin < p2.pmin || p.pmax > p2.pmin) then {
-			pp := Lexer.punion p (*pp);
-		}
-	}
-	function rec loop(l) match l {
-	| [] ->
-	| c :: tl ->
-		List.iter (function((_,p)){ merge_pos p }) c.selector;
-		List.iter (function((_,p)){ merge_pos p }) c.classes;
-		List.iter (function((_,p)){ merge_pos p }) c.attributes;
-		match c.id   { | Some(_,p) -> merge_pos p | _ -> }
-		match c.node { | Some(_,p) -> merge_pos p | _ -> }
-		match c.sub  { | Some c    -> loop [c]    | _ -> }
-		loop tl
-	}
-	loop l;
-	*pp;
-}
-
-function print_sep(str,f,ch,l) {
+function rec print_sep(str, f, ch, l) {
 	match l {
 	| [] ->
+	| [e] -> f ch e
 	| e::tl ->
 		f ch e;
-		List.iter (function(e){sem.write ch str; f ch e}) tl
+		sem.write ch str;
+		print_sep str f ch tl
 	}
+}
+
+function warning(msg,p) {
+	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
 }
 
 function rec print_value(ch,v) {
@@ -182,7 +159,6 @@ function rec print_css(ch,tabs,e) {
 		sem.pick_begin(snd val);  (print_value ch val);  sem.pick_end();  (sem.write_char ch ';');  (pmod.cur.crlf ch);
 	| EBlock(classes,el) ->
 		var p = snd e;
-		var p = if sem.enabled == false || p.pmax - p.pmin > 1 then p else classes_pos classes; // if flatten by @media
 		sem.write ch tabs;
 		sem.pick_begin p;  (print_sep pmod.cur.comma (print_class true) ch classes);  sem.pick_end();
 		sem.write ch pmod.cur.lbrace;  (pmod.cur.crlf ch);
