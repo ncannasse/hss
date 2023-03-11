@@ -63,7 +63,7 @@ And the new rules syntax are quite simple than before
 // global
 {
     var unit   = Unit(dip px) // Unit() is used to define unit suffix
-    var length = $unit float  // width matches $unit or float
+    var length = $unit float  // matches $unit or float
     var color  = #FFF #FFFFFF rgb(0-255, 0-255, 0-255);
     color  : $color;
     width  : $length;
@@ -94,8 +94,7 @@ body {
     font-family : $myfont;
 }
 
-// less or scss syntax will also works
-@myfont  : Arial;
+// scss syntax will also works
 $mycolor : #ddd;
 ```
 Variables are a very good way to avoid replacing everything in a CSS file every time you want to change a single color value. It also helps designers to remember and easily locate the main colors that are used in a given website.
