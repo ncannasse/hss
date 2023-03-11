@@ -155,8 +155,8 @@ function rec print_css(ch,tabs,e) {
 	match fst e {
 	| EAttribute(name,val) ->
 		sem.write ch tabs;
-		sem.pick_begin(snd e);    (sem.write ch name);   sem.pick_end();  (sem.write ch pmod.cur.colon);
-		sem.pick_begin(snd val);  (print_value ch val);  sem.pick_end();  (sem.write_char ch ';');  (pmod.cur.crlf ch);
+		(sem.write ch name);  (sem.write ch pmod.cur.colon);
+		(print_value ch val); (sem.write_char ch ';');  (pmod.cur.crlf ch);
 	| EBlock(classes,el) ->
 		var p = snd e;
 		sem.write ch tabs;
