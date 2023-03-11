@@ -12,494 +12,736 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  *  Lesser General Public License or the LICENSE file for more details.
  */
+open Lexer;
+open Hss.Ast;
+open Hss.Parser;
 
-// based on http://reference.sitepoint.com/css
+type rule_expr
+type rule_expr_decl {
+	REVar : (string, rule);
+	REAttribute : (string, rule);
+	REBlock : (string list, rule_expr list);
+}
+type rule_expr = (rule_expr_decl, pos)
 
-type rule_option {
-	ONormal;
-	OOpt;
-	OMany;
+function unSupported(s, p)
+	error Message("UnSupported " + "'" + s + "'") p
+
+function gap(p1, p2) : pos
+	{psource = p1.psource; pline = p1.pline; pmin = p1.pmax; pmax = p2.pmin}
+
+function semicolon_opt(s) {
+	match s {
+	| [< (Semicolon,_) >] -> 1
+	| [< >] ->
+		var tk, p = stream_token s 0;
+		match tk {
+		| Keyword Var | BraceClose -> 1
+		| _ -> error (Expected_semicolon tk) p
+		}
+	}
 }
 
-type rule {
-	RId : string;
-	RHex : int;
-	RUnit : string;
-	RCall : (rule,rule);
-	RFloat;
-	RInt;
-	RFloatRange : (float,float);
-	RIntRange : (int, int);
-	RIdent;
-	RString;
-	ROr : rule list;
-	ROp : ((string,rule,rule) list, rule_option); // ONormal for Ratio,
-	RMany : rule;
-	RList : rule list; // comma-separated (calls, etc.)
-	RGroup : rule list; // no comma
-	RBind : (string, rule);
-	RGroupOpt : rule list;
-	RListCustom : (rule, rule_option) list;
-	RGroupCustom : (rule, rule_option) list; // order independent
+function rec begin(s) {
+	match s {
+	| [< (Eof,_) >] -> []
+	| [< r = statement s; p = begin s >] -> r :: p
+	}
 }
 
-function ids(l) { List.map RId l }
-
-function ratio(r1:rule, r2:rule) { ROp [("/",r1,r2)] ONormal }
-
-var pseudo_classes = [
-	"first-child";"link";"visited";"active";"hover";"focus";"first-letter";"first-line";"before";"after"; // CSS 2.1
-	"root";"last-child";"first-of-type";"last-of-type";"only-child";"only-of-type";"empty";"target";"enabled";"disabled";"checked"; // CSS 3.0
-	"fullscreen";"default";"required";"optional";"valid";"invalid";"in-range";"out-of-range";"read-only";"read-write"; // CSS UI 3.0
-]
-
-var pseudo_classes_fn = ["lang";"not";"nth-child";"nth-last-child";"nth-last-of-type";"nth-of-type"]
-
-var pseudo_elements = ["after";"before";"backdrop";"cue";"first-letter";"first-line";"placeholder";"selection"]
-
-var pseudo_cmap = { // don't addding "pseudo_elements" since it has the same item as "pseudo_classes"
-	var h = &Map.empty();
-	List.iter (function(s) h := Map.add(*h, s, 1) ) pseudo_classes;
-	List.iter (function(s) h := Map.add(*h, s, 2) ) pseudo_classes_fn;
-	*h
+function rec statement(s) {
+	match s {
+	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_); r = rule s; _ = semicolon_opt s >] ->
+		(REVar(i, r), punion p1 (pos r))
+	| [< (Const (Ident att),p1); (DoubleDot,_); r = rule s; _ = semicolon_opt s >] ->
+		(REAttribute(att, r), punion p1 (pos r))
+	| [< ns = namespace s; (BraceOpen, p); l = statement_list s >] ->
+		(REBlock(ns, l), p)
+	}
 }
 
-var allow_duplicate_attributes = [
-	"src"; // @font-face
-];
-
-var none = RId "none"
-var calc = RCall (RId "calc") (RList [ROp([("0",none,none)], OMany)]) // dummy
-var pct = RUnit "%"
-var rlength = [RIntRange 0 0; RUnit "px"; RUnit "pt"; RUnit "pc"; RUnit "ex"; RUnit "em"; RUnit "rem"; RUnit "cm"; RUnit "mm"; RUnit "in"; RUnit "vh"; RUnit "vw"; calc]
-var runits = pct::rlength
-var len = ROr rlength
-var units = ROr runits
-var color = {
-	var max255 = RIntRange 0 255
-	var alpha = RFloatRange 0. 1.;
-	List.append [
-		RHex 6;
-		RHex 3;
-		RCall (RId "rgba") (RList [max255;max255;max255; alpha]);
-		RCall (RId "rgb") (RList [max255;max255;max255]);
-		RCall (RId "rgba") (RList [RHex 6; alpha]);
-		RCall (RId "rgba") (RList [RHex 3; alpha]);
-		RCall (RId "rgba") (RList [pct;pct;pct; alpha]);
-		RCall (RId "rgb") (RList [pct;pct;pct]);
-	] (ids ["aqua";"black";"blue";"fuchsia";"gray";"grey";"green";"lime";"maroon";"navy";"olive";"orange";"purple";"red";"silver";"teal";"white";"yellow"])
-}
-var trans_color = RId "transparent" :: color
-
-var url = RCall RId("url") RList([RString])
-
-var lst = ids ["none"; "circle";"disc";"square";"decimal";"lower-alpha";"lower-roman";"upper-alpha";"upper-roman"]
-var lsp = ids ["inside";"outside"]
-
-var horiz = ids ["center";"left";"right"]
-var vert = ids ["center";"top";"bottom"]
-
-var runits_auto = RId "auto" :: runits
-var units_auto = ROr runits_auto
-
-var hunits = ROr (List.append horiz runits)
-var vunits = ROr (List.append vert runits)
-
-// reference by Main.nml
-var font_face_src = RMany (ROr [url;RGroup [url;RCall RId("format") RList([RString])]])
-
-var pseudo_content = [
-	ROr ([none; RId "normal"]);
-	RGroupCustom [(ROr [
-		ROr (ids ["open-quote"; "close-quote"; "no-open-quote"; "no-close-quote"]);
-		url;
-		RString;
-		RCall(RId "attr", RList [RIdent]);
-		RCall(RId "counter" , RListCustom([(RIdent, ONormal); (ROr lst, OOpt)]));
-		RCall(RId "counters", RListCustom([(RIdent, ONormal); (RString, ONormal); (ROr lst, OOpt)]));
-	], OMany)]
-]
-
-var angle = [RUnit "deg";RUnit "rad";RUnit "grad";RUnit "turn"]
-
-var image = {
-	var h = ROr (ids ["left"; "right"])
-	var v = ROr (ids ["top"; "bottom"])
-	var side_or_corner = (RGroup [RId "to"; RGroupCustom [(h,OOpt); (v,OOpt)]]) :: angle
-	var gradient_color = ROr [ROr color; RGroup [ROr color; units]]
-	var linear_gradient = RCall (RId "linear-gradient") RListCustom([(ROr side_or_corner, OOpt); (gradient_color, ONormal); (gradient_color, ONormal); (gradient_color, OMany)]);
-	[
-		url;
-		linear_gradient;
-		RCall (RId "embed") RList([RString]) // a HSS function for embedding local png/jpg/gif as base64
-	]
+function rec namespace(s) {
+	var id = match s {
+	| [< (DoubleDotx2,_); (Const (Ident id), _) >] -> "::" + id
+	| [< (Const (Ident id), _) >] -> id
+	| [< (Selector id, _) >] -> ":" + id
+	| [< >] -> ""
+	}
+	if id == "" then [] else id :: namespace_next s
 }
 
-var layout_overflow = ids ["auto";"hidden";"scroll";"visible";"clip"]
-
-var transform_function = {
-	var num   = RFloat;
-	var trans = units;
-	var angle = ROr angle;
-	var r_num   = RList [num];
-	var r_trans = RList [trans];
-	var r_angle = RList [angle];
-	var r_len   = RList [len];
-	var c = ROr [
-		RCall (RId "matrix") (RList [num;num;num;num;num;num]);
-		RCall (RId "translate") (RList [trans;trans]);
-		RCall (RId "translate") r_trans;
-		RCall (RId "translateX") r_trans;
-		RCall (RId "translateY") r_trans;
-		RCall (RId "scale") (RList [num;num]);
-		RCall (RId "scale") r_num;
-		RCall (RId "scaleX") r_num;
-		RCall (RId "scaleY") r_num;
-		RCall (RId "rotate") r_angle;
-		RCall (RId "skew") r_angle;
-		RCall (RId "skew") (RList [angle;angle]);
-		RCall (RId "skewX") r_angle;
-		RCall (RId "skewY") r_angle;
-		RCall (RId "matrix3d") (RList [num;num;num;num;num;num;num;num;num;num;num;num;num;num;num;num]);
-		RCall (RId "translate3d") (RList [trans;trans;len]);
-		RCall (RId "translateZ") r_len;
-		RCall (RId "scale3d") (RList [num;num;num]);
-		RCall (RId "scaleZ") r_num;
-		RCall (RId "rotate3d") (RList [num;num;num;angle]);
-		RCall (RId "rotateX") r_angle;
-		RCall (RId "rotateY") r_angle;
-		RCall (RId "rotateZ") r_angle;
-		RCall (RId "perspective") r_len;
-	];
-	[RGroupCustom [(c,OMany)]]
+function rec namespace_next(s) {
+	match s {
+	| [< (Comma,_); n = namespace s >] -> n
+	| [< >] -> []
+	}
 }
 
-var filter_function = {
-	var color = ROr trans_color;
-	var bool = ROr [RId "true"; RId "false"];
-	var i100 = RIntRange 0 100;
-	var gt_0 = RIntRange 1 999;  // Integer greater than 0.
-	var dir = RIntRange 0 360;
-	var r_numpct = RList [ROr [RFloat; RUnit "%"]];
-	var wd_filter = ROr [        // Working Draft
-		url; // url to SVG filter
-		RCall (RId "blur") (RList [len]);
-		RCall (RId "brightness") r_numpct;
-		RCall (RId "contrast") r_numpct;
-		RCall (RId "grayscale") r_numpct;
-		RCall (RId "invert") r_numpct;
-		RCall (RId "opacity") r_numpct;
-		RCall (RId "saturate") r_numpct;
-		RCall (RId "sepia") r_numpct;
-		RCall (RId "hue-rotate") (RList [ROr angle]);
-		RCall (RId "drop-shadow") (RList [ROr [RGroup [len;len]; RGroup[len;len;RGroupOpt [len; color]]]]);
-	]
-	function b(s, r) {(RBind(s, r), OOpt)}
-	[
-		none;
-		RGroupCustom [(wd_filter,OMany)];
-		ROr [ // old IE filters
-			RId "xray"; RId "invert"; RId "gray"; RId "fliph"; RId "flipv";
-			RCall (RId "alpha") (RListCustom [
-				b("opacity", i100);
-				b("style", RIntRange 0 3); // 0:uniform, 1:linear, 2:radial, 3:rectangular
-				b("startx", i100);
-				b("finishx", i100);
-				b("starty", i100);
-				b("finishy", i100);
-				b("finishopacity", i100);
-			]);
-			RCall (RId "blur") (RListCustom [b("add",bool); b("direction",dir); b("strength",gt_0)]);  // MotionBlur
-			RCall (RId "wave") (RListCustom [b("add",bool); b("freq",gt_0); b("lightstrength",i100); b("phase",i100); b("strength",gt_0)]);
-		];
-	]
+function rec statement_list(s) {
+	match s {
+	| [< (BraceClose,_) >] -> []
+	| [< re = statement s >] -> re :: (statement_list s)
+	}
 }
 
-var rules = List.concat [[
-	// Units
-	("width",runits_auto);
-	("height",runits_auto);
-	("top",runits_auto);
-	("bottom",runits_auto);
-	("left",runits_auto);
-	("right",runits_auto);
-	("margin-left",runits_auto);
-	("margin-right",runits_auto);
-	("margin-top",runits);
-	("margin-bottom",runits);
-	("margin",[RGroupOpt [units_auto; units_auto; units_auto; units_auto]]);
-	("padding-left",runits);
-	("padding-right",runits);
-	("padding-top",runits);
-	("padding-bottom",runits);
-	("min-width",runits);
-	("min-height",runits);
-	("max-width",none :: runits);
-	("max-height",none :: runits);
-	("line-height",RFloat :: runits);
-	("padding",[RGroupOpt [units; units; units; units]]);
-];[
-	// layout
-	("display",ids ["none"; "block";"inline"; "table";"flex";"grid"; "inline-block";"inline-table";"inline-flex";"inline-grid"; "list-item"; "table-row-group";"table-header-group";"table-footer-group";"table-row";"table-cell";"table-column-group";"table-column";"table-caption"]);
-	("float",ids ["left";"right";"none"]);
-	("clear",ids ["none";"left";"right";"both"]);
-	("overflow", [RGroupOpt [ROr layout_overflow; ROr layout_overflow]]);
-	("overflow-x", layout_overflow);
-	("overflow-y", layout_overflow);
-	("text-overflow", [RId "ellipsis"; RId "clip"]); // only basic
-	("position",ids ["absolute";"fixed";"relative";"static"; "sticky"]);
-	("z-index",[RInt;RId "auto"]);
-	("visibility",ids ["visible";"hidden"; "collapse"]);
-	("box-sizing", ids ["content-box"; "border-box"]);
-	("zoom", [RFloat; pct; RId "normal"]);
-	// clip ?
-]; {// Fonts and texts
-	var font_size = List.append runits (ids ["xx-small";"x-small";"small";"medium";"large";"x-large";"xx-large";"smaller";"larger"])
-	var size_ratio = ROr [ratio(ROr font_size, ROr (RFloat :: runits)); ROr font_size]
-	var font_family = ROr [RIdent;RString;RGroup [RIdent;RIdent]] // can be composed of up to 2 words
-	var font_style = ids ["italic";"normal";"oblique"]
-	var font_weight = List.append (ids ["bold";"normal";"bolder";"lighter"]) [RIntRange 100 100;RIntRange 200 200;RIntRange 300 300;RIntRange 400 400;RIntRange 500 500;RIntRange 600 600;RIntRange 700 700]
-	var font_variant = ids ["normal";"small-caps"]
-	var text_decoration_style = ids ["solid";"double";"dotted";"dashed";"wavy"]
-	var text_decoration_line = ids ["underline";"blink";"line-through";"overline"]
-	var text_decoration = [none; RGroupCustom [(ROr text_decoration_line,OMany); (ROr text_decoration_style,OOpt); (ROr color,OOpt)]];
-	[
-	("font",[
-		RGroupCustom [(size_ratio,ONormal); (ROr font_style,OOpt); (ROr font_variant,OOpt); (ROr font_weight,OOpt); (font_family,ONormal)];
-		ROr (ids ["caption";"icon";"menu";"message-box";"small-caption";"status-bar"]);
-	]);
-	("font-family",[RMany font_family]);
-	("font-size",font_size);
-	("font-variant",font_variant);
-	("font-weight",font_weight);
-	("font-display", ids ["auto"; "block"; "swap"; "fallback"; "optional"]);
-	("text-align",ids ["center";"justify";"left";"right"]);
-	("text-decoration-line", [none; RGroupCustom [(ROr text_decoration_line,OMany)]]);
-	("text-decoration-color", color);
-	("text-decoration-style",text_decoration_style);
-	("text-decoration", text_decoration);
-	("text-rendering", ids ["auto";"optimizeSpeed";"optimizeLegibility";"geometricPrecision"]);
-	("font-style",font_style);
-	("color",color);
-	("text-transform",ids ["capitalize";"lowercase";"none";"uppercase"]);
-	("letter-spacing",RId "normal" :: runits);
-	("word-spacing",RId "normal" :: runits);
-	("text-indent", runits);
-	("vertical-align",List.append runits (ids ["top";"bottom";"middle";"baseline";"sub";"super";"text-bottom";"text-top"]));
-	("white-space", ids ["normal";"pre";"nowrap";"pre-wrap";"pre-line"]);
-	("tab-size", [RInt]);
-	("line-break", ids ["auto";"loose";"normal";"strict"]);
-	("word-break", ids ["normal";"keep-all";"break-all"]);
-	("word-wrap", ids ["normal";"break-word"]);
-	("direction", ids ["ltr";"rtl"]);
-	("writing-mode", ids ["horizontal-tb";"vertical-rl";"vertical-lr"]);
-	("unicode-bidi", ids ["normal";"embed";"bidi-override"]);
-	]
-}; { // background
-	var h = ROr (List.tl horiz) // remove center
-	var v = ROr (List.tl vert)
-	var position = [
-		RGroupCustom [(hunits,OOpt); (vunits,OOpt)];
-		RGroupCustom [(RGroup [v;units],OOpt); (RGroup [h;units],OOpt)];
-		RGroupCustom [(RGroup [v;units],OOpt); (ROr horiz,OOpt)];
-		RGroupCustom [(RGroup [h;units],OOpt); (ROr vert, OOpt)];
-	]
-	var repeat = ROr (ids ["repeat";"no-repeat";"round";"space"])
-	var repeat = ROr [RId "repeat-x"; RId "repeat-y"; RGroupOpt [repeat; repeat]]
-	var size   = ROr [RId "cover"; RId "contain"; RGroupOpt [units_auto; units_auto]]
-	var color  = trans_color
-	var clip   = ids ["text";"border-box";"padding-box";"content-box"]
-	var origin = ROr (List.tl clip) // no "text"
-	var clip   = ROr clip
-	var attachment = ROr (ids ["scroll";"fixed";"local"]);
-	// no support for "/background-size" notation
-	// The <background-color> value may only be included in the last layer specified.
-	var base = [(ROr color,OOpt); (ROr image,OOpt); (attachment,OOpt); (origin,OOpt); (clip,OOpt); (repeat,OOpt)]
-	var background = ROr (none :: List.map(function(r) RGroupCustom ((r,OOpt) :: base), position)); // mix
-	[
-	("background",           [RMany background]);
-	("background-color",color);
-	("background-image",     [RMany (ROr (none :: image))]);
-	("background-position",  [RMany (ROr position)]);
-	("background-repeat",    [RMany repeat]);
-	("background-attachment",[RMany attachment]);
-	("background-clip",      [RMany clip]);
-	("background-origin",    [RMany origin]);
-	("background-size",      [RMany size]);
-	]
-}; { // borders
-	var bstyle = ids ["none";"solid";"hidden";"dotted";"dashed";"double"; "groove"; "ridge"; "inset"; "outset"]
-	var border_width = List.append (ids ["thin";"medium";"thick"]) rlength
-	var r_bstyle = ROr bstyle
-	var r_border_width = ROr border_width
-	var r_trans_color = ROr trans_color
-	var border = [
-		none;
-		RGroupCustom [(r_border_width,OOpt); (r_trans_color,OOpt); (ROr List.tl(bstyle),OOpt)]; // remove "none" from bstyle
-	];
-	[
-	("border",border);
-	("border-style",[RGroupOpt [r_bstyle; r_bstyle; r_bstyle; r_bstyle]]);
-	("border-top",border);
-	("border-left",border);
-	("border-right",border);
-	("border-bottom",border);
-	("border-width",[RGroupOpt [r_border_width; r_border_width; r_border_width; r_border_width]]);
-	("border-top-width",border_width);
-	("border-left-width",border_width);
-	("border-right-width",border_width);
-	("border-bottom-width",border_width);
-	("border-top-color",trans_color);
-	("border-left-color",trans_color);
-	("border-right-color",trans_color);
-	("border-bottom-color",trans_color);
-	("border-left-style",bstyle);
-	("border-right-style",bstyle);
-	("border-top-style",bstyle);
-	("border-bottom-style",bstyle);
-	("border-bottom",border);
-	("border-color",[RGroupOpt [r_trans_color; r_trans_color; r_trans_color; r_trans_color]]);
-	("outline",border);
-	("outline-style",bstyle);
-	("outline-width",border_width);
-	("outline-color",trans_color);
-	("outline-offset",runits);
-	]
-};[
-	// others
-	("cursor", none :: url :: ids ["auto";"default";"none";"move";"pointer";"help";"text";"progress";"wait";"cell";"crosshair";
-		"vertical-text";"alias";"copy";"no-drop";"not-allowed";"grab";"grabbing";"zoom-in";"zoom-out";"context-menu";"all-scroll";
-		"col-resize";"row-resize";"n-resize";"e-resize";"s-resize";"w-resize";"ne-resize";"nw-resize";"se-resize";"sw-resize";"ew-resize";"ns-resize";
-	]);
-	("opacity", [RFloatRange 0. 1.]);
-	("list-style", [none; RGroupCustom [(ROr (List.tl lst),OOpt); (ROr lsp,OOpt); (ROr image,OOpt)]]); // remove "none" from lst
-	("list-style-type", lst);
-	("list-style-position", lsp);
-	("list-style-image", none :: image);
-	("table-layout", ids ["auto";"fixed"]);
-	("empty-cells", ids ["show"; "hide"]);
-	("border-collapse",ids ["collapse";"separate"]);
-	("border-spacing", [RGroupOpt [units;units]]); // IE8+
-	("caption-side", ids ["bottom";"top"]);
-	("user-select", ids ["all";"none";"text"]);
-	("resize", ids ["none";"both";"horizontal";"vertical"]);
-	("counter-reset",     [none; RGroupCustom [(RGroup [RIdent;RInt], OMany); (RIdent, OMany)]]);
-	("counter-increment", [none; RGroupCustom [(RGroup [RIdent;RInt], OMany); (RIdent, OMany)]]);
-	("quotes", [none; RGroupCustom [(RGroup[RString; RString], OMany)]]);
-	("pointer-events", ids ["auto";"none";"all";"fill";"stroke";"painted";"visible";"visiblePainted";"visibleFill";"visibleStroke"]);
-	("appearance", ids ["none";"button";"checkbox";"listbox";"radio";"textfield";]); // partial
-	("filter", filter_function);
-];[
-	// transforms
-	("transform", transform_function);
-	("transform-origin", [RGroupOpt [hunits;vunits;units]; RGroupOpt [vunits;hunits;units]]);
-	("perspective-origin", [RGroupOpt [hunits;vunits]; RGroupOpt [vunits;hunits]]);
-	("transform-style", ids ["flat";"preserve-3d"]);
-	("perspective", [none; units]);
-	("backface-visible", ids ["visible";"hidden"]);
-]; [
-	// effects (partial browser support)
-	("border-radius",[RGroupOpt [units;units;units;units]]);
-	("border-top-right-radius",runits);
-	("border-top-left-radius",runits);
-	("border-bottom-right-radius",runits);
-	("border-bottom-left-radius",runits);
-	("text-shadow",[none; RMany (RGroupCustom [(RGroup [len; RGroupOpt [len; len     ]],ONormal); (ROr color,OOpt)])]);
-	("box-shadow", [none; RMany (RGroupCustom [(RGroup [len; RGroupOpt [len; len; len]],ONormal); (ROr color,OOpt); (RId "inset",OOpt)])]);
-	// hss-specific
-	("hss-width",runits_auto);
-	("hss-height",runits_auto);
-]; {// flex
-	var rflex_direction = [RId "row"; RId "row-reverse"; RId "column"; RId "column-reverse"]
-	var rflex_wrap = [RId "wrap"; RId "nowrap"; RId "wrap-reverse"]
-	var rflex_basis = runits_auto
-
-	var content_position = [RId "center"; RId "start"; RId "end"; RId "flex-start"; RId "flex-end"]
-	var self_position = RId "self-start" :: RId "self-end" :: content_position
-	var baseline = ROr [RGroupOpt [RId "first"; RId "baseline"]; RGroupOpt [RId "last"; RId "baseline"]]
-	var distrib = ROr [RId "stretch"; RId "space-between"; RId "space-around"; RId "space-evenly"]
-
-	function over(po) {ROr [RGroupOpt [RId "safe"; ROr po]; RGroupOpt [RId "unsafe"; ROr po]]}
-	var align_items   = [RId "normal"; RId "stretch"; over(self_position); baseline]
-	var justify_items = RId "left" :: RId "right" :: align_items;
-	[
-	("flex", [ none; RGroupCustom [(RGroupOpt[RFloat; RFloat],OOpt); (ROr rflex_basis,OOpt)]]);
-	("flex-direction",rflex_direction);
-	("flex-wrap", rflex_wrap);
-	("flex-flow", [RGroupCustom [(ROr rflex_direction,OOpt); (ROr rflex_wrap,OOpt)]]);
-	("flex-grow", [RFloat]);
-	("flex-shrink", [RFloat]);
-	("flex-basis", rflex_basis);
-	("align-content", [RId "normal"; over(content_position); distrib; baseline]);
-	("align-items", align_items);
-	("align-self", (RId "auto") :: align_items);
-	("justify-content", [RId "normal"; RId "left"; RId "right"; over(content_position); distrib]);
-	("justify-items", justify_items);
-	("justify-self", RId "auto" :: justify_items);
-	("order", [RInt]);
-	]
-}; {// animations
-	var name  = ROr [RIdent]
-	var dir   = ROr [RId "normal"; RId "reverse"; RId "alternate"; RId "alternate-reverse"]
-	var mode  = ROr [none; RId "forwards"; RId "backwards"; RId "both"]
-	var delay = ROr [RUnit "s"; RUnit "ms";]
-	var count = ROr [RId "infinite"; RInt; RFloat]
-	var state = ROr [RId "running"; RId "paused"]
-	var tween = ROr [
-		RId "ease"; RId "linear";RId "ease-in"; RId "ease-out"; RId "ease-in-out"; RId "step-start"; RId "step-end";
-		RCall (RId "frames") (RList [RInt]);
-		RCall (RId "cubic-bezier") (RList [RFloat; RFloat; RFloat; RFloat]);
-		RCall (RId "steps") (RListCustom [(RInt, ONormal); (ROr [RId "start"; RId "end"], OOpt)]);
-	]
-	var duration = delay;
-	[
-	("animation", [RMany (RGroupCustom [(duration,OOpt); (delay,OOpt); (tween,OOpt); (count,OOpt); (dir,OOpt); (mode,OOpt); (state,OOpt); (name,OOpt)])]);
-	("animation-delay", [RMany delay]);
-	("animation-direction", [RMany dir]);
-	("animation-duration", [RMany duration]);
-	("animation-fill-mode", [RMany mode]);
-	("animation-iteration-count", [RMany count]);
-	("animation-name", [RMany name]);
-	("animation-play-state", [RMany state]);
-	("animation-timing-function", [RMany tween]);
-	// transition
-	("transition", [RMany (RGroupCustom [(duration,OOpt); (delay,OOpt); (tween,OOpt);(name,OOpt)])]);
-	("transition-delay", [RMany delay]);
-	("transition-duration", [RMany duration]);
-	("transition-property", [RMany name]);
-	("transition-timing-function", [RMany tween]);
-	]
+function rec rule(s) {
+	var r = match s {
+	| [< (BracketOpen, p1); r = rule s; (BracketClose, p2) >] ->
+		match fst r {
+		| RList (_,p1) :: (_,p2) :: _ -> error Message("Unexpected " + "'" + ","  +"'") gap(p1, p2)
+		| _ ->
+		}
+		(ROr [r], punion p1 p2)
+	| [< (ParentOpen, p1); r = rule s; (ParentClose, p2) >] ->
+		(match fst r {
+		| ROr l -> RGroup l
+		| RList l -> RList l
+		| _ -> RGroup [r]
+		}, punion p1 p2)
+	| [< (Const (Int i), p) >] ->
+		(RIntRange(i, i), p)
+	| [< (Const (Float f), p) >] ->
+		(RFloatRange(f, f), p)
+	| [< (Const (Ident i), p) >] ->
+		(match i {
+		| "id" -> RIdent
+		| "int" -> RInt
+		| "float" -> RFloat
+		| "string" -> RString
+		| _ -> RId i
+		}, p)
+	| [< (Op Mul, p) >] -> (RAny , p)
+	| [< (Const (String s), p) >] ->
+		(RId s, p)
+	| [< (Sharp, p1); (Const (Ident i), p2) >] ->
+		if (!contiguous(p1, p2)) then
+			error(Unexpected (Const (Ident i)), p2);
+		(RHex(String.length i), punion p1 p2)
+	| [< (Const (Val s), p) >] ->
+		(RVal s, p)
+	};
+	rule_next r s
 }
-];
 
-var media_types = ["all";"screen";"print";"speech"] // deprecated types: ["tty"; "tv"; "projection"; "handheld"; "braille"; "embossed"; "aural"]
-var media_rules = {
-	var rint = [RInt]
-	var aspect_ratio = [ratio(RInt, RInt)]
-	var resolution = [RUnit "dpi"; RUnit "dpcm"; RUnit "dppx"];
-	([  // allow min/max
-		("width",rlength);
-		("height",rlength);
-		("aspect-ratio", aspect_ratio);
-		("resolution", resolution);
-		("color", rint);
-		("color-index", rint);
-		("monochrome", rint);
-	] , [
-		("orientation", [RId "portrait"; RId "landscape"]);
-		("scan", [RId "interlace"; RId "progressive"]);
-		("grid", [RIntRange 0 1]);
-		("update", [none; RId "slow"; RId "fast"]);
-		("overflow-block", [none; RId "scroll"; RId "paged"; RId "optional-paged"]);
-		("overflow-inline", [none; RId "scroll"]);
-		("color-gamut", [RId "srgb"; RId "p3"; RId "rec2020"]);
-		("display-mode", [RId "fullscreen"; RId "standalone"; RId "minimal-ui"; RId "browser"]);
-		("inverted-colors", [none; RId "inverted"]);
-		("pointer", [none; RId "coarse"; RId "fine"]);
-		("any-pointer", [none; RId "coarse"; RId "fine"]);
-		("hover", [none; RId "hover"]);
-		("any-hover", [none; RId "hover"]);
-		("light-level", [RId "dim"; RId "normal"; RId "washed"]);
-		("scripting", [none; RId "initial-only"; RId "enabled"]);
-	])
+function rec rule_next(r1, s) {
+	match s {
+	| [< (Comma, _); r2 = rule s >] ->
+		(match fst r2 {
+		| RList l -> RList (r1 :: l)
+		| _ -> RList [r1; r2]
+		}, punion(pos r1, pos r2))
+	| [< (Eq, p); r2 = rule s >] ->
+		var v1, p1 = r1
+		var v2, p2 = r2
+		var def = match v1 {
+		| RId name ->
+			match fst r2 {
+			| ROr (r2 :: l) -> ROr((RBind(name, r2), punion p1 (pos r2)) :: l)
+			| RList (r2 :: l) -> RList((RBind(name, r2), punion p1 (pos r2)) :: l)
+			| _ -> RBind(name, r2)
+			}
+		| _ -> error (Unexpected Eq) p
+		}
+		(def, punion p1 p2)
+	| [< (Op o, po) >] ->
+		var p1 = pos r1;
+		match (contiguous p1 po, o) {
+		| (true, Add) | (true, Mul) ->
+			var name = match o {
+			| Add -> "Plus"
+			| _ -> "Star"
+			}
+			rule_next (RCall(name, r1), punion p1 po) s
+		| _ ->
+			rule_binop o r1 (rule s)
+		}
+	| [< (BraceOpen, p2); r2 = rule s; (BraceClose, p3) >] ->
+		var r2 = match fst r2 { // convert {i,j} to {i-j}
+		| RList [(RIntRange(i,ii), _) as r1; (RIntRange(j,jj), _) as r2] when i == ii && j == jj ->
+			(RIntRange(i, j), pos r2);
+		| RList _ ->
+			error Message("Syntax Error, Should be {i,j}") (pos r2)
+		| _ ->
+			r2
+		}
+		var rv = (RList [r1; r2], punion p2 p3);
+		rule_next (RCall("Rep", rv), punion (pos r1) p3) s
+	| [< r2 = rule s >] ->
+		rule_join r1 r2
+	| [<  >] ->
+		var tk, p = stream_token s 0
+		var name = match tk {
+		| Sharp -> "Many"      // #
+		| Question -> "Opt"    // ?
+		| Tild -> "AnyOrder"   // ~
+		| _ -> ""
+		}
+		match (name, fst r1) {
+		| ("", _) -> r1
+		| _ ->
+			stream_junk s 1;
+			rule_next (RCall(name, r1), punion(pos r1, p)) s
+		}
+	}
+}
+
+function rec rule_join(r1, r2) {
+	var v1, p1 = r1;
+	var v2, p2 = r2;
+	var p = punion p1 p2;
+	match (contiguous p1 p2, v1) {
+	| (true, RId name) ->
+		function calls_merge(name, p1, r2) {
+			match r2 {
+			| (RCall(ctl, e), p2) ->
+				Some (RCall(ctl, (RCall(name, e), p2) ), punion p1 p2)
+			| _ ->
+				None
+			}
+		}
+		function has_brackets(v) match v {
+		| ROr _ | RList _ | RGroup _ | RCall _ -> true
+		| _ -> false
+		}
+		// '?', '*', '+', '{}', '#' and '~' will move to the front
+		// func(x, y)? b c; ==> func..[Opt(any)      ; b; c] --> [Opt(func(x, y))      ; b; c]
+		match v2 {
+		| ROr (((v21, p21) as r21) :: l)
+		| RList (((v21, p21) as r21) :: l) when (contiguous p1 p21) && (has_brackets v21) ->
+			var r = match calls_merge name p1 r21 {
+			| Some r -> r
+			| _ -> (RCall(name, r21), punion p1 p21)
+			}
+			match v2 {
+			| ROr _ -> (ROr (r :: l), p)
+			| RList _ -> (RList (r :: l), p)
+			| _ -> r2 // dummy
+			}
+		| ROr _
+		| RList _
+		| RGroup _ ->
+			(RCall(name, r2), p)
+		| _ ->
+			match calls_merge name p1 r2 {
+			| Some r -> r
+			| _ -> rule_join_simple r1 r2
+			}
+		}
+	| _ ->
+		rule_join_simple r1 r2
+	}
+}
+
+function rec rule_join_simple(r1, r2) (
+	match fst r2 {
+	| ROr l -> ROr (r1 :: l)
+	| RList (r2::l) -> RList ((rule_join_simple r1 r2) :: l)
+	| _  -> ROr [r1; r2]
+	}, punion(pos r1, pos r2)
+)
+
+// '-' > '/'
+function rec rule_binop(o1, r1, r2) (
+	match fst r2 {
+	| ROr(r2 :: l) -> ROr(rule_binop o1 r1 r2 :: l)
+	| RList(r2 :: l) -> RList(rule_binop o1 r1 r2 :: l)
+	| ROp(o2, r2, r3) when o1 == Sub -> ROp o2 (rule_binop o1 r1 r2) r3
+	| _ -> ROp(o1, r1, r2)
+	}, punion(pos r1, pos r2)
+)
+
+function rec s_rule_expr(re) {
+	match fst re {
+	| REVar(name, r) -> "var " + name + " = " + (s_rule r) + ";\n"
+	| REAttribute(name, r) -> name + " : " + (s_rule r) + ";\n"
+	| REBlock(ns, l) -> (String.concat "," ns) + (if l == [] then "{" else " {\n\t") + String.concat("\t", List.map s_rule_expr l) + "}"
+	}
+}
+
+type context {
+	mutable vars : (string, rule) Map.t;
+	mutable eval_rec : int;
+	mutable rules : (string, (string, rule) Hashtbl.t) Map.t;
+	mutable current : (string, rule) Hashtbl.t;
+}
+
+function flatten_units(r) {
+	function rec loop(acc, x) {
+		match fst x {
+		| RId s ->
+			s :: acc
+		| RUnit l ->
+			List.append l acc
+		| RGroup l | ROr l | RList l ->
+			List.fold loop acc l
+		| _ ->
+			unSupported (s_rule x) (pos x)
+		}
+	}
+	var v, p = r
+	match v {
+	| RGroup l | ROr l | RList l ->
+		(RUnit(List.fold loop [] l), p)
+	| RId i ->
+		(RUnit [i], p)
+	| _ ->
+		unSupported (s_rule r) p
+	}
+}
+
+function rec eval(ctx, r) {
+	var d, p = r
+	match d {
+	| RInt
+	| RAny
+	| RFloat
+	| RIdent
+	| RString
+	| RId _
+	| RHex _
+	| RUnit _
+	| RIntRange _
+	| RFloatRange _ ->
+		r
+	| RVal name ->
+		if ctx.eval_rec > 100 then error (Message "Invalid loop in variable expension") p;
+		var val = (try Map.find ctx.vars name catch { Not_found -> error Message("Variable not declared '" + name + "'") p });
+		ctx.eval_rec := ctx.eval_rec + 1;
+		var r = eval ctx val;
+		ctx.eval_rec := ctx.eval_rec - 1;
+		r
+	| RGroup [r] | ROr [r] | RList [r] -> // if single
+		eval ctx r
+	| RGroup rl ->
+		(RGroup(List.map (eval ctx) rl), p)
+	| ROr rl ->
+		(ROr(List.map (eval ctx) rl), p)
+	| RList rl ->
+		(RList(List.map (eval ctx) rl), p)
+	| RBind (name, r2) ->
+		(RBind(name, eval ctx r2), p)
+	| ROp(o, r1, r2) ->
+		var r1 = eval ctx r1;
+		var r2 = eval ctx r2;
+		function single_number(r) {
+			var v, p = r;
+			match v {
+			| RIntRange(i, j) when i == j -> true
+			| RFloatRange(f, g) when f == g -> true
+			| _ -> false
+			}
+		}
+		match o {
+		| Sub when single_number(r1) && single_number(r2) -> // convert (e - e) to range
+			var pos = punion (pos r1) (pos r2);
+			match (fst r1, fst r2) {
+			| (RIntRange(i, _), RIntRange(j, _)) ->
+				(RIntRange(i, j), pos)
+			| (RIntRange(i, _), RFloatRange(f, _)) ->
+				(RFloatRange(i * 1.0, f), pos)
+			| (RFloatRange(f, _), RFloatRange(g, _)) ->
+				(RFloatRange(f, g), pos)
+			| (RFloatRange(f, _), RIntRange(i, _)) ->
+				(RFloatRange(f, i * 1.0), pos)
+			| _ ->
+				r // dummy
+			}
+		| _ ->
+			(ROp(o, r1, r2), p)
+		}
+	| RCall(name, r) ->
+		var r = eval ctx r;
+		match name {
+		| "Unit" -> flatten_units r
+		| "LOG" -> printf "LOG : %s\n" (s_rule r); r;
+		| _ -> (RCall(name, r), p)
+		}
+	}
+}
+
+function rec recording(ctx, e) {
+	var v, p = e;
+	match v {
+	| REVar(name, rule) ->
+		ctx.vars := Map.add ctx.vars name rule;
+	//	e
+	| REAttribute(attr, rule) ->
+		var rule = eval ctx rule;
+		Hashtbl.add ctx.current attr rule;
+	//	(REAttribute(attr, rule), p)
+	| REBlock (ns, el) ->
+		var old = (ctx.vars, ctx.current);
+		match ns {
+		| [] ->
+		| name :: _ ->
+			ctx.current := try Map.find ctx.rules name catch {
+			| Not_found ->
+				var tbl = Hashtbl.create();
+				List.fold (function(acc, x){ctx.rules := Map.add(ctx.rules, x, acc); acc}) tbl ns
+			}
+		}
+		var el = List.map (recording ctx) el;
+		ctx.vars := fst old;
+		ctx.current := snd old;
+	//	(REBlock(name, el), p)
+	}
+}
+
+function fractional_part(f) {
+	var f = if f >= 0. then (f + 0.0000001) else -(f - 0.0000001); // Math.abs
+	f - (Math.ffloor f) > 0.0000019
+}
+
+function rec is_optional(rl) {
+	match rl {
+	| [] -> true
+	| r :: rl ->
+		var succ = match fst r {
+		| RCall(n,_) when n == "Opt" || n == "Star" -> true
+		| RCall("Rep", (RList [_; (RIntRange(m, _),_)],_)) -> m <= 0
+		| _ -> false
+		}
+		if succ then is_optional rl else false
+	}
+}
+
+function vtl_pop(vtl) {
+	match *vtl {
+	| _ :: vl -> vtl := vl
+	| _ ->
+	}
+}
+
+function vtl_push(vtl, v) vtl := v :: *vtl
+
+function separator(v) (VParentheses v, pos v)
+
+function rec check_print( acc : int, rl : rule list, vl : value list ) {
+	match (rl, vl) {
+	| ([], []) ->
+	| (r :: rl, v :: vl) ->
+		var sv = match fst v {| VParentheses _ -> "---" | _ -> s_value v}
+		printf ">>> i : %d, r : %s - v : %s\n" (acc, s_rule r, sv);
+		check_print(acc + 1, rl, vl);
+	| ([], v :: vl) ->
+		var sv = match fst v {| VParentheses _ -> "---" | _ -> s_value v}
+		printf ">>> i : %d, r : %s - v : %s\n" (acc, "[]", sv);
+		check_print(acc + 1, [], vl);
+	| (r :: rl, []) ->
+		printf ">>> i : %d, r : %s - v : %s\n" (acc, s_rule r, "[]");
+		check_print(acc + 1, rl, []);
+	}
+}
+
+function is_empty_match(vtl, v) {
+	match *vtl {
+	| [] -> false
+	| x :: _ -> x === v
+	}
+}
+
+function barrier_push(vtl, v) {
+	vtl := (separator v) :: *vtl;
+}
+
+function barrier_pop(vtl, v) {
+	var ept = is_empty_match vtl v;
+	vtl_pop vtl;
+	if ept then {
+		vtl_pop vtl;
+		vtl_push vtl v;
+	}
+}
+
+/*
+ * @param vtl : The stack of values
+ */
+function rec check( vtl : value list ref, v : value, r ) : bool {
+	match (fst r, fst v) {
+	| (RAny, _)
+	| (RFloat, VInt _)
+	| (RFloat, VFloat _)
+	| (RInt, VInt _)
+	| (RIdent, VIdent _)
+	| (RString, VString _) ->
+		 true
+	| (RId s, VIdent n) ->
+		s == n
+	| (_, VLabel(s, v)) ->
+		var succ = check vtl v r && *vtl == [];
+		if  s == "error" then throw (if succ then Core.Error "Expect an error : " else Exit) else succ
+	| (RCall(name, r), _) ->
+		check_calls vtl v r name
+	| (ROr rl, _) ->
+		check_bracket vtl v rl
+	| (RHex n, VHex s) ->
+		String.length s == n
+	| (RUnit l, VUnit(_,s))->
+		List.mem s l
+	| (RInt, VFloat f) ->
+		!(fractional_part f)
+	| (RIntRange(min, max), VInt n) ->
+		n >= min && n <= max
+	| (RIntRange(min, max), VFloat f) ->
+		!(fractional_part f) && f >= min * 1.0 && f <= max * 1.0
+	| (RFloatRange(min, max), VInt n) ->
+		n * 1.0 >= min && n * 1.0 <= max
+	| (RFloatRange(min, max), VFloat n) ->
+		n >= min && n <= max
+	| (RBind(s, r), VBind(n, v)) when s == n ->
+		check vtl v r
+	| (ROp (s, r1, r2), VOp(o, v1, v2)) ->
+		(s == Xor || s == o) && check vtl v1 r1 && check vtl v2 r2 // "^" matches arbitrary ops
+	| _ ->
+		check_complex vtl v r check_normal_groups
+	}
+}
+
+function rec check_bracket(vtl, v, rl) {
+	match rl {
+	| [] ->
+		false
+	| r :: rl ->
+		var scs = check vtl v r;
+		var ept = is_empty_match vtl v;
+		if ept then
+			vtl_pop vtl;
+		if scs then scs else check_bracket vtl v rl
+	}
+}
+
+function rec check_complex(vtl, v, r, check_callback) {
+	var restore = *vtl;
+	var succ = match (fst r, fst v) {
+	| (x, VGroup vl) ->
+		vtl := List.append vl (*vtl);
+		match x {
+		| RGroup rl -> check_callback vtl rl false
+		| RList _ -> false
+		| _ -> check_callback vtl [r] false
+		}
+	| (x, VList vl) ->
+		vtl := List.append vl (*vtl);
+		var rl = match x {
+		| RList rl -> rl
+		| _ -> [r]
+		}
+		check_callback vtl rl true;
+	| (RGroup rl, x) ->
+		match x {
+		//| VGroup vl ->    // already matched
+		| VList _ -> false  // fails
+		| _ ->
+			vtl_push vtl v; // no separator. think: r(A (B C) D) v(A B C D)
+			check_callback vtl rl false;
+		}
+	| (RList rl, x) -> // func(A, B?) -- func(A)
+		vtl_push vtl v;
+		check_callback vtl rl false
+	| _ ->
+		//printf "UnMatched rule : %s, value : %s\n" (s_rule r, s_value v);
+		false
+	}
+	if (!succ) then
+		vtl := restore;
+	succ
+}
+function rec check_normal_groups(vtl, rl, sep) {
+	var scs = match (rl, *vtl) {
+	| (_, (VParentheses _,_) :: _) ->
+		is_optional rl
+	| (r :: rl, v :: vl) ->
+		vtl := vl;
+		// printf "(%s) stack : %d, rule : '%s', value : '%s'\n" (if sep then "sep" else "non", List.length (*vtl), s_rule r, s_value v);
+		// Insert a separator as a barrier to prevents "check_repeat" out of bounds
+		if sep then barrier_push vtl v;
+		var scs = (check vtl v r);
+		if sep then barrier_pop vtl v;
+		scs && (check_normal_groups vtl rl sep)
+	| _ ->
+		is_optional rl
+	}
+	scs
+}
+
+function rec check_repeat_inner(acc, vtl, r, min, max) {
+	var succ = acc >= min;
+	match *vtl {
+	| (VParentheses _,_) :: _ ->
+		succ
+	| v :: vl when max == 0 || acc < max ->
+		vtl := vl;
+		var scs = check vtl v r
+		var ept = is_empty_match vtl v;
+		// Nested Opt or Star may match nothing but still return true
+		if scs && !ept then {
+			check_repeat_inner (acc + 1) vtl r min max
+		} else {
+			// ept means nested Opt or Star has already pushed a v to vtl
+			if !ept then
+				vtl_push vtl v;
+			succ
+		}
+	| _ -> // means (acc != 0 && acc == max) or (vtl == []) then do nothing
+		succ
+	}
+}
+function rec check_repeat(vtl, v, r, min, max) {
+	vtl_push vtl v;
+	check_repeat_inner 0 vtl r min max;
+}
+
+// ensure that at least one match is made
+function rec check_unordered(vtl, rl, sep) {
+	var succ = is_optional rl;
+	match *vtl {
+	| [] -> succ
+	| v :: vl ->
+		match (fst v) {
+		| VParentheses _ -> succ
+		| _ ->
+			vtl := vl;
+			if sep then barrier_push vtl v;
+			var rl, succ = check_unordered_inner vtl [] v rl;
+			if sep then barrier_pop  vtl v;
+			if succ then check_unordered vtl rl sep else is_optional rl
+		}
+	}
+}
+function rec check_unordered_inner(vtl, acc, v, rl) {
+	match rl {
+	| [] ->
+		vtl_push vtl v; // if 'v' is not matched then put it back.
+		(acc, false)
+	| r :: rl ->
+		var scs = check vtl v r
+		var ept = is_empty_match vtl v;
+		// Opt(), Star() will put v back to *vtl if matches empty.
+		if scs && !ept then {
+			(List.append acc rl, true)
+		} else {
+			if ept then
+				vtl_pop vtl;
+			check_unordered_inner vtl (r :: acc) v rl
+		}
+	}
+}
+
+function rec check_calls(vtl, v, r, name) {
+	match name {
+	| "Opt" ->
+		check_repeat vtl v r 0 1
+	| "Star" ->
+		check_repeat vtl v r 0 0
+	| "Plus" ->
+		check_repeat vtl v r 1 0
+	| "Rep" -> match fst r {
+		| RList [r; (RIntRange(i, j), _)] -> check_repeat vtl v r i j
+		| _ -> false
+		}
+	| "Many" -> // Similar to Plus, But only for VList(,)
+		match fst v {
+		| VList vl -> List.all (function (v) check vtl v r) vl
+		| _ -> check vtl v r
+		}
+	| "AnyOrder" ->
+		match (fst r, fst v) {
+		| (RCall(name, r), VCall(c, v)) ->
+			// AnyOrder( func(a, b, c) ) --> func( AnyOrder(a b c) )
+			var r, v = calls_unify r v;
+			check vtl c (RId name, pos r) && check_complex vtl v r check_unordered
+		| _ ->
+			check_complex vtl v r check_unordered
+		}
+	| _ ->
+		match (fst v) {
+		| VCall(c, v) ->
+			var r, v = calls_unify r v;
+			check vtl c (RId name, pos r) && check vtl v r
+		| _ ->
+			false
+		}
+	}
+}
+
+function rec calls_unify(r, v) {
+	function rec adv_mode(rl) match rl {
+	| [] -> false
+	| r :: rl -> match fst r {
+		| RCall(s, _) when s == "Rep" || s == "Plus" || s == "Star" -> true
+		| _ -> adv_mode rl
+		}
+	}
+	// adv requires that the input must be VList
+	var adv = match fst r {
+	| RList rl -> adv_mode rl;
+	| _ -> adv_mode [r]
+	}
+	// Transform "RList" to RGroup for matching, otherwise "Rep","Plus" will fails
+	var r = if !adv then r else match fst r {
+	| RList rl -> (RGroup rl, pos r)
+	| RGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2)
+	| _ -> r
+	}
+	// Transfrom "VList" to VGroup if adv is true
+	var v = if !adv then v else match fst v {
+	| VGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2);
+	| VList [x] -> x
+	| VList vl -> (VGroup vl, pos v)
+	| _ -> v
+	}
+	(r, v)
+}
+
+var globals = Hashtbl.create()
+var special = Hashtbl.create()
+var context = {
+	vars = Map.empty();
+	rules = Map.add(Map.add(Map.empty(), "rules-globals", globals), "rules-special", special);
+	current = globals;
+	eval_rec = 0;
+}
+
+function loadfile(rule, cssdir) {
+	var tool = Hss.Utils.pathtools
+	var file = &rule;
+	if !(Sys.exists rule) then {
+		if cssdir != "" then {
+			file := cssdir + "/" + rule
+		}
+		if !Sys.exists(*file) then {
+			file := tool.path_dir tool.sys_program_path() + "/" + rule
+			if !Sys.exists(*file) then throw (Core.Error rule)
+		}
+	}
+	var chs = IO.read_file (*file) true
+	var lex = Lexer.create Buffer.create();
+	Lexer.input lex (*file) chs 1 0;
+	var el = Hss.Parser.parse(begin, lex);
+	List.iter (recording context) el;
+}
+
+var mode_append = &false
+var file_custom = &""
+var loaded = &false
+function load(def, cssdir) {
+	var input = *file_custom;
+	try {
+		if (input == "" || *mode_append == true) then
+			loadfile(def, cssdir);
+		if (input != "") then
+			loadfile(input, cssdir);
+		loaded := true
+	} catch {
+	| Core.Error s ->
+		printf "Failed to load : %s\n" s
+	}
+}
+
+function append() {
+	mode_append := true
+}
+
+function custom(f) {
+	file_custom := f
 }

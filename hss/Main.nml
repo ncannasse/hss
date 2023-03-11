@@ -13,7 +13,6 @@
  *  Lesser General Public License or the LICENSE file for more details.
  */
 open Hss.Ast;
-open Hss.Rules;
 
 exception Error : (string, pos) list;
 
@@ -32,47 +31,26 @@ var base64 : Hss.Utils.base64 = Hss.Utils.base64
 var pmod : Hss.Utils.print_mode = Hss.Utils.pmod
 var sem : Hss.Utils.sourcemap = Hss.Utils.sem
 var misc : Hss.Utils.misc = Hss.Utils.misc
+var hssparse = Hss.Parser.parse Hss.Parser.program
+var rules_loaded = Hss.Rules.loaded
 
 function error(msg,p) {
 	throw Error([(msg,p)])
 }
 
-function warning(msg,p) {
-	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
-}
-
-function classes_pos (l:class list):pos {
-	var pp = &Lexer.null_pos;
-	function merge_pos(p:pos) {
-		var p2 = *pp;
-		if p.pline > p2.pline then {
-			pp := p;
-		} else if p.pline == p2.pline && (p.pmin < p2.pmin || p.pmax > p2.pmin) then {
-			pp := Lexer.punion p (*pp);
-		}
-	}
-	function rec loop(l) match l {
-	| [] ->
-	| c :: tl ->
-		List.iter (function((_,p)){ merge_pos p }) c.selector;
-		List.iter (function((_,p)){ merge_pos p }) c.classes;
-		List.iter (function((_,p)){ merge_pos p }) c.attributes;
-		match c.id   { | Some(_,p) -> merge_pos p | _ -> }
-		match c.node { | Some(_,p) -> merge_pos p | _ -> }
-		match c.sub  { | Some c    -> loop [c]    | _ -> }
-		loop tl
-	}
-	loop l;
-	*pp;
-}
-
-function print_sep(str,f,ch,l) {
+function rec print_sep(str, f, ch, l) {
 	match l {
 	| [] ->
+	| [e] -> f ch e
 	| e::tl ->
 		f ch e;
-		List.iter (function(e){sem.write ch str; f ch e}) tl
+		sem.write ch str;
+		print_sep str f ch tl
 	}
+}
+
+function warning(msg,p) {
+	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
 }
 
 function rec print_value(ch,v) {
@@ -94,7 +72,7 @@ function rec print_value(ch,v) {
 	| VVar s ->
 		sem.write ch sprintf("$%s", s)
 	| VCall (v,vl) ->
-		print_value ch v;  sem.write ch "(";  (print_sep "," print_value ch vl);  sem.write ch ")";
+		print_value ch v;  sem.write ch "(";  print_value ch vl;  sem.write ch ")";
 	| VLabel ("dup",v) ->
 		print_value ch v;
 	| VLabel (l,v) ->
@@ -181,7 +159,6 @@ function rec print_css(ch,tabs,e) {
 		sem.pick_begin(snd val);  (print_value ch val);  sem.pick_end();  (sem.write_char ch ';');  (pmod.cur.crlf ch);
 	| EBlock(classes,el) ->
 		var p = snd e;
-		var p = if sem.enabled == false || p.pmax - p.pmin > 1 then p else classes_pos classes; // if flatten by @media
 		sem.write ch tabs;
 		sem.pick_begin p;  (print_sep pmod.cur.comma (print_class true) ch classes);  sem.pick_end();
 		sem.write ch pmod.cur.lbrace;  (pmod.cur.crlf ch);
@@ -309,175 +286,71 @@ function rec check_inherit(v) {
 	}
 }
 
-function fractional_part(f) {
-	var f = if f >= 0. then (f + 0.000001) else -(f - 0.000001); // Math.abs
-	f - (Math.ffloor f) > 0.0000019
+function rules_htable(name) {
+	Map.find Hss.Rules.context.rules name
 }
 
-function before_floor(f) {
-	if f >= 0. then f + 0.000001 else f - 0.000001
-}
+var rules_globals = Hss.Rules.globals
+var rules_special = Hss.Rules.special
 
-var last_error_value = &(VString "", Lexer.null_pos);
-
-function rec check_rule(r, v) { check_rule_inner(&[], r, v) }
-
-function rec check_rule_inner(rest, r, v) {
-	function rec check_rule(r,v) {check_rule_inner rest r v}
-	var r = match (r, fst v) {
-	| (RId s, VIdent n) -> s == n
-	| (RHex n, VHex s) -> String.length s == n
-	| (RUnit s, VUnit(_,n)) -> s == n
-	| (RCall(r,p), VCall (c,vl)) -> check_rule r c && check_rule p (VList vl,snd v)
-	| (RFloat, VInt _) | (RFloat, VFloat _) -> true
-	| (RInt, VInt _) -> true
-	| (RInt, VFloat f) -> !(fractional_part f)
-	| (RFloatRange(min,max), VInt n) -> n * 1.0 >= min && n * 1.0 <= max
-	| (RFloatRange(min,max), VFloat n) -> n >= min && n <= max
-	| (RIntRange(min,max), VInt n) -> n >= min && n <= max
-	| (RIntRange(min,max), VFloat f) -> !(fractional_part f) && f >= min*1.0 && f <= max*1.0
-	| (ROr rl,_) -> List.exists (function(r) check_rule r v) rl
-	| (RIdent, VIdent _) -> true
-	| (RString, VString _) -> true
-	| (_,VLabel (_,v)) -> check_rule r v
-	| (RMany r, VList vl) -> List.all (check_rule r) vl
-	| (RMany r, _) -> check_rule r v
-	| (RGroup rl, _) ->
-		function rec loop(rl, vl) match (rl, vl) {
-		| ([], _) -> true
-		| (r :: rl, v :: vl) ->
-			rest := vl;
-			if (check_rule r v) then loop rl (*rest) else false
+function rules_special_exists(attribute, subid) {
+	try {
+		function equals(r) match fst r {
+		| RId s -> subid == s
 		| _ -> false
 		}
-		match (fst v) {
-		| VGroup vl -> (loop rl vl) && (*rest == [])
-		| VList _ -> false
-		| _ -> loop rl (v::*rest)
+		var r = Hashtbl.find rules_special attribute
+		match fst r {
+		| RList l | RGroup l | ROr l -> List.exists equals l
+		| _ -> equals r
 		}
-	| (RGroupOpt rl, _) ->
-		function rec loop(rl, vl) match (rl, vl) {
-		| ([], _) | (_ ,[]) -> true
-		| (r :: rl, v :: vl) ->
-			rest := vl;
-			if !(check_rule r v) then rest := v :: vl;
-			loop rl (*rest)
-		| _ -> false
-		}
-		match (fst v) {
-		| VGroup vl -> (loop rl vl) && (*rest == [])
-		| VList _ -> false
-		| _ -> loop(rl, v::*rest) && (*rest == [] || v !== List.hd(*rest)) // Match at least one value
-		}
-	| (RGroupCustom rl, _) ->
-		var used = &[];
-		function rec loop(rl, vl) match vl {
-		| [] -> List.none (function(r) match (snd r) {| ONormal -> true | _ -> false}) rl
-		| v :: vl ->
-			rest := vl
-			var ok = &false
-			var prev = &vl
-			function rec filter(rl, v) match rl {
-			| [] -> rl
-			| r :: rl ->
-				ok := check_rule (fst r) v
-				if (*ok) then {
-					prev := *rest;
-					match (snd r) {
-					| OMany -> (used := r :: *used); r :: rl
-					| _ -> rl
-					}
-				} else {
-					rest := *prev;
-					match (snd r) {
-					| OMany when List.exists(function(x) x === r, *used) -> (filter rl v)
-					| _ -> r :: (filter rl v)
-					}
-				}
-			}
-			var rl = filter rl v;
-			if (*ok) then loop rl (*rest) else {rest := v::*rest; loop rl []} // goto List.none
-		}
-		match (fst v) {
-		| VGroup vl -> (loop rl vl) && (*rest == [])
-		| VList _ -> false
-		| _ -> loop(rl, v::*rest) && (*rest == [] || v !== List.hd(*rest))
-		}
-	| (RList rl, VList vl) ->
-		function rec loop(rl, vl) match(rl, vl) {
-		| ([], []) -> true
-		| (r :: rl, v :: vl) -> (check_rule r v) && (loop rl vl)
-		| _ -> false
-		}
-		loop rl vl
-	| (RListCustom rl, VList vl) ->
-		function rec loop(rl,vl) {
-			match (rl,vl) {
-			| ([], []) -> true
-			| ((r,m) :: rl, v :: vl) ->
-				var ok = check_rule r v;
-				match m {
-				| ONormal -> if ok then loop rl vl else false
-				| OOpt -> if ok then loop rl vl else loop rl (v :: vl)
-				| OMany -> if ok then loop ((r,m) :: rl) vl else loop rl (v :: vl)
-				}
-			| ((_,m) :: rl,[]) ->
-				match m {
-				| ONormal -> false
-				| OOpt | OMany -> loop rl vl
-				}
-			| ([],_) ->
-				false
-			}
-		}
-		loop rl vl
-	| (ROp ((s,r1,r2)::_,m), VOp(o,v1,v2)) ->
-		match m {
-		| ONormal -> // ratio: e.g: font: 16px/1.2 consolas
-			function rec loop(r, v) match (fst v) {
-			| VOp _ -> false
-			| _ -> check_rule r v
-			}
-			Hss.Ast.s_op o == s && loop r1 v1 && loop r2 v2
-		| _  -> true // TODO: for "grid-area", the Parser cannot correctly recognize the value such as "span 2 / span 3"
-		             // TODO: "calc(expr)" is hard to verify
-		}
-	| (RBind (s,r), VBind (n,v)) when s == n ->
-		check_rule r v
-	| _ -> false
+	} catch {
+	| Not_found -> false
 	}
-	if !r then last_error_value := if *rest == [] then v else List.hd (*rest);
-	r
 }
 
-var hrules = {
-	var h = Hashtbl.create();
-	List.iter (function((a,b)) Hashtbl.add h a b) Hss.Rules.rules;
-	h
-}
-
-function get_rule(ctx, name) {
-	try
-		Hashtbl.find hrules name
-	catch {
+function find_rule(ctx, name, value) {
+	try {
+		match fst value {
+		| VLabel(_, (VIdent id,_))
+		| VIdent id -> if rules_special_exists "default" id then throw Exit
+		| _ ->
+		}
+		Hashtbl.find rules_globals name
+	} catch {
 	| Not_found ->
-		function invalid(s) throw Invalid_argument("Unexpected " + "'" +  s + "'" + " here");
-		match (name,ctx.curblock) {
-		| ("src",Some { node = Some (s,_) }) ->
-			if s == "@font-face" then [Hss.Rules.font_face_src] else invalid name
-		| ("content", Some{selector=((PuClass s),_)::_}) | ("content", Some{selector=((PuElement s),_)::_}) ->
-			if s == "before" || s == "after" then Hss.Rules.pseudo_content else invalid name
-		| _ -> throw Not_found
+		match ctx.curblock {
+		| Some c ->
+			var rf = &None;
+			var k = match c.selector { // ::before, :hover, :active
+			| (PuClass s,_) :: _ -> ":" + s
+			| (PuElement s,_) :: _ -> "::" + s
+			| _ -> "$"
+			}
+			try rf := Some(Hashtbl.find (rules_htable k) name) catch {| Not_found -> }
+			match *rf {
+			| Some r -> r
+			| None ->
+				var k = match c.node {| Some(n, _) -> n | _ -> "$" }
+				Hashtbl.find (rules_htable k) name
+			}
+		| _ ->
+			throw Not_found
 		}
 	}
+}
+
+// Prevents something like 2.999999999999
+function before_floor(f) {
+	if f >= 0. then f + 0.0000001 else f - 0.0000001
 }
 
 function rgb_value( (v,p) : value ) {
 	match v {
 	| VHex h ->
 		rgbtools.of_hex h p
-	| VCall((VIdent "rgb",_) ,[r; g; b])
-	| VCall((VIdent "rgba",_),[r; g; b; (VFloat _,_)]) ->
+	| VCall((VIdent "rgb",_), (VList[r; g; b], _))
+	| VCall((VIdent "rgba",_),(VList[r; g; b; (VFloat _,_)], _)) ->
 		function mono((v, p)) {
 			var i = match v {
 			| VInt i -> i
@@ -495,44 +368,39 @@ function rgb_value( (v,p) : value ) {
 	}
 }
 
-function custom_calls(id, vl, p, origin) {
-	function exit() { throw Exit }
+function custom_calls(id, vi, v, p) {
 	function mix(ds, dl) {
-		match vl {
-		| [color; (VUnit(i,"%"),_)] ->
+		match v {
+		| (VList[color; (VUnit(i,"%"),_)], p) ->
 			var rgb = rgb_value color;
 			var h, s, l = rgbtools.to_hsl rgb
 			var rgb = rgbtools.of_hsl (h, i*ds + s, i*dl + l);
-			VHex (rgbtools.string rgb)
+			(VHex(rgbtools.string rgb), p)
 		| _ ->
-			exit()
+			v
 		}
 	}
-	(match id {
+	var origin = (VCall vi v, p)
+	match id {
 	| "lighten"    -> mix( 0.  ,  0.01)
 	| "darken"     -> mix( 0.  , -0.01)
 	| "saturate"   -> mix( 0.01,  0.  )
 	| "desaturate" -> mix(-0.01,  0.  )
-	| "invert"     -> match vl {
-		| [color] ->
-			var r, g, b = rgb_value color;
-			VHex (rgbtools.string (255 - r, 255 - g, 255 - b))
-		| _ -> exit()
+	| "invert"     ->
+			var r, g, b = rgb_value v;
+			(VHex(rgbtools.string (255 - r, 255 - g, 255 - b)), snd v)
+	| "alphamix"   -> match v {
+		| (VList[f; (VFloat a, _); b], p) -> (VHex(rgbtools.string rgbtools.alpha_mix(rgb_value f, a, rgb_value b)), p)
+		| _ -> origin
 		}
-	| "alphamix"   -> match vl {
-		| [f; (VFloat a, _); b] -> VHex (rgbtools.string rgbtools.alpha_mix(rgb_value f, a, rgb_value b))
-		| _ -> exit()
-		}
-	| "string" ->
-		VString(s_value (VList vl, p))
-	| "int" ->
-		match vl {
-		| [(VFloat f, _)] -> VInt Math.floor(before_floor f)
-		| [(VUnit (f,u), _)] -> VUnit Math.ffloor(before_floor f) u
-		| _ -> exit()
+	| "string" -> (VString(s_value v), snd v)
+	| "int" -> match v {
+		| (VFloat f, p) -> (VInt Math.floor(before_floor f), p)
+		| (VUnit(f,u), p) -> (VUnit Math.ffloor(before_floor f) u, p)
+		| _ -> origin
 		}
 	| _ -> origin
-	}, p)
+	}
 }
 
 function rec eval(ctx,v) {
@@ -569,10 +437,9 @@ function rec eval(ctx,v) {
 		var id = match (fst i) { | VIdent n -> n | _ -> "" }
 		var prev = ctx.skip_calc;
 		ctx.skip_calc := match id { "int" -> 0 | "calc" -> 2 | _ -> prev };
-		var vl = List.map (eval ctx) vl;
+		var vl = eval ctx vl;
 		ctx.skip_calc := prev;
-		var vcall = VCall i vl;
-		try custom_calls(id, vl, pos v, vcall) catch { Exit -> (vcall, pos v) }
+		custom_calls id i vl (snd v)
 	| VLabel (l,v1) ->
 		(VLabel l (eval ctx v1), snd v)
 	| VBind(name,v1) ->
@@ -713,14 +580,14 @@ function rec eval_block(ctx,b) {
 function rec expand_val(value) {
 	var p = snd value;
 	match fst value {
-	| VCall((VIdent "rgba",_) as c,[(VHex h,hp);(VFloat f,fp)]) ->
+	| VCall((VIdent "rgba",_) as c, (VList[(VHex h,hp);(VFloat f,fp)], lp)) ->
 		var r, g, b = rgbtools.of_hex h hp;
-		var params = [(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)];
+		var params = (VList[(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)], lp);
 		expand_val (VCall c params, p)
-	| VCall((VIdent "embed",p1), [(VString url, p2)]) ->
-		(VCall (VIdent "url",p1) [(VString base64.encode_image(url, p2), p2)], p)
-	| VCall (v,vl) ->
-		(VCall expand_val(v) (List.map expand_val vl), p)
+	| VCall((VIdent "embed",p1), (VList[(VString url, p2)], lp)) ->
+		(VCall (VIdent "url",p1) (VList[(VString base64.encode_image(url, p2), p2)], lp), p)
+	| VCall (v, vl) ->
+		(VCall expand_val(v) (expand_val vl), p)
 	| VList vl ->
 		(VList (List.map expand_val vl),p)
 	| VGroup vl ->
@@ -792,7 +659,7 @@ function rec check_class(ctx, c) {
 	List.iter (function((sel,p)){
 		match sel {
 		| PuElement s ->
-			if !(List.mem(s, pseudo_elements) || (snd misc.vendor_prefix(s) != "")) then
+			if !(List.mem(s, Hss.Lexer.pseudo_elements) || (snd misc.vendor_prefix(s) != "")) then
 				check_errors_add ("Invalid '" + "::" + s + "'", p);
 		| _ ->
 		}
@@ -810,33 +677,29 @@ function rec find_subclass(c: class) {
 	}
 }
 
-function load_rules(find, name, value, p) {
+function load_rules(find, name, value, pos) {
 	try {
-		var rules = find name
-		if !(List.exists (function(r) check_rule r value) rules) && !(check_inherit value) then {
-			var buf, str = IO.write_string();
-			print_value buf (*last_error_value);
-			check_errors_add ("Invalid '"+name+"' value '"+str()+"'", pos (*last_error_value))
+		var rule = find name value
+		var stack = &[];
+		var succ = Hss.Rules.check stack value rule && *stack == [];
+		if !succ then {
+			var value = if (*stack) != [] then List.hd (*stack) else value;
+			check_errors_add ("Invalid '"+name+"' value '"+ (s_value value) +"'", snd value)
 		}
 	} catch {
+	| Exit ->
 	| Not_found -> if snd(misc.vendor_prefix name) == "" then
-		check_errors_add ("Unknown attribute '"+name+"'", p)
+		check_errors_add ("Unknown attribute '" + name + "'", pos)
 	| Invalid_argument s ->
-		check_errors_add (s, p)
+		check_errors_add (s, pos)
+	| Core.Error s ->
+		check_errors_add (s + name, pos)
 	}
 }
 
-var media_hrules = {
-	var h = Hashtbl.create();
-	var smin = "min"+"-";
-	var smax = "max"+"-";
-	List.iter (function((a,b)) {
-		Hashtbl.add h a b;
-		Hashtbl.add h (smin + a) b;
-		Hashtbl.add h (smax + a) b;
-	}) (fst Hss.Rules.media_rules);
-	List.iter (function((a,b)) Hashtbl.add h a b) (snd Hss.Rules.media_rules);
-	h
+function find_media_rules(name, value) {
+	var tbl = try { rules_htable "media-queries" } catch { Not_found -> throw Exit }
+	Hashtbl.find tbl name
 }
 
 function rec check_media(ctx, m: media) {
@@ -846,16 +709,16 @@ function rec check_media(ctx, m: media) {
 	| MAnd(m1, m2) ->
 		(MAnd(check_media ctx m1, check_media ctx m2), p);
 	| MType(s, _) ->
-		if !List.mem(String.lowercase s, Hss.Rules.media_types) then err s;
+		if !List.mem(String.lowercase s, ["all";"screen";"print";"speech"]) then err s;
 		m
 	| MFeature(s, None) ->
-		if !List.exists(function((k,_)) k == String.lowercase s, fst Hss.Rules.media_rules) then err s;
+		try if !Hashtbl.exists(rules_htable "media-queries", String.lowercase s) then err s catch{ _ -> }
 		m
 	| MFeature(s, Some v) ->
 		var v = eval ctx v;
 		match fst v {
 		| VString _ -> () // skip
-		| _ -> load_rules(Hashtbl.find media_hrules, String.lowercase s, v, p)
+		| _ -> if *rules_loaded then load_rules(find_media_rules, String.lowercase s, v, p)
 		}
 		(MFeature(s, Some v), p)
 	| MQuotes _ ->
@@ -890,25 +753,18 @@ function rec check(ctx,e) {
 		var el = List.map (check ctx) el;
 		List.iter (check_class ctx) classes;
 		// check duplicate variables
-		ignore(List.fold (function(acc,e) {
-			match fst e {
-			| EAttribute(name,v) ->
+		if (*rules_loaded) && !(rules_special_exists "duplicate-check" "off") then
+			ignore(List.fold (function(acc, e) match fst e {
+			| EAttribute(name, v) ->
 				match fst v {
-				| VLabel ("dup",_) ->
-					acc
+				| VLabel ("dup",_) -> acc
 				| _ ->
-					try {
-						var v2 = Map.find acc name;
-						if !(List.mem name Hss.Rules.allow_duplicate_attributes) then warning ("Warning, duplicate attribute '"+name+"'") snd(e);
-					} catch {
-						Not_found -> ()
-					}
+					if (Map.exists acc name) && !(rules_special_exists "allow-duplicate-attributes" name) then
+						warning ("Warning, duplicate attribute '" + name + "'") snd(e);
 					Map.add acc name v
 				}
-			| ESub _ -> acc // don't take into account sub-blocks (rgba)
 			| _ -> acc
-			}
-		}) Map.empty() el);
+			}) Map.empty() el);
 		ctx.vars := fst old;
 		ctx.blocks := snd old;
 		ctx.ns := fst old2;
@@ -918,14 +774,16 @@ function rec check(ctx,e) {
 		var value = eval ctx value;
 		var p = pos e;
 		var value = match value {
-		| (VCall ((VIdent "CSS",_),vl),_) -> var value = match vl { // strip CSS
-			| [(VString s, p)] -> (VIdent s, p) // strip quotes
-			| [value] -> value
-			| _ -> (VList vl,p)
+		| (VCall ((VIdent "CSS",_),vl),_) ->
+			var value = match fst vl { // strip CSS
+			| VList[(VString s, p)] -> (VIdent s, p) // strip quotes
+			| VList[value] -> value
+			| _ -> vl
 			}
 			(VLabel "dup" value, p) // allow duplicate
 		| _ ->
-			load_rules(get_rule ctx, name, value, p);
+			if *rules_loaded then
+				load_rules(find_rule ctx, name, value, p);
 			value
 		}
 		expand_hacks(name, value, p)
@@ -972,7 +830,7 @@ function rec check(ctx,e) {
 			var ch = try (IO.read_file path.full true) catch { _ -> error("file error: " + path.str, p) }
 			var lex = Lexer.create Buffer.create();
 			Lexer.input lex (path.str) ch 1 0;
-			var el = Hss.Parser.parse lex;
+			var el = hssparse lex;
 			IO.close_in ch;
 			var el = List.map (check ctx) el;
 			(ESub el, p)
@@ -1050,23 +908,28 @@ function report(msg,p) {
 }
 
 try {
-	var head = "HSS v1.81 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
+	var head = "HSS v2.0 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
+		("-rule",Args.String Hss.Rules.custom,"<file>  : specify a css rule set file");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
+		("--append",Args.Void Hss.Rules.append,"     : available only if '-rule <file>' is specified");
 		("--minify",Args.Void pmod.enable_minify,"     : minify output by removing some whitespaces");
 		("--sourcemap", Args.Void sem.switch_on,"  : outputs a v3 sourcemap file");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
+
 	List.iter (function(file) {
 		var path,_ = pathtools.add file "";
+		// load rules
+		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules" path.dir;
 		// parse
 		var ch = IO.read_file (path.str) true;
 		var lex = Lexer.create Buffer.create();
 		Lexer.input lex (path.str) ch 1 0;
-		var el = Hss.Parser.parse lex;
+		var el = hssparse lex;
 		IO.close_in ch;
 		// check + replace vars
 		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };

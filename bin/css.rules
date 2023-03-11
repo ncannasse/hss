@@ -1,0 +1,479 @@
+/*
+ * HSS Rule Syntax :
+ * id              : matches any identifiers
+ * int             : any integers
+ * float           : any numbers
+ * string          : any strings
+ *                 : #FFF #FFFFFF #FFFFFFFF
+ * literal numbers : 0 => range(0-0), 1.0 => range(1.0-1.0)
+ *                 literal idents or string will be parsed as RId(s)
+ * A-B             : int/float range(a-b)
+ * UInt(ids)       : suffix unit
+ * ()              : space-separated group
+ * (,)             : comma-separated group
+ * []              : space-separated optional group, matches any one of the rule. [A B] means A or B
+ *                 Top-level rules are "[]" by default, e.g : "color : blue red" is equals to "attr : [blue red]"
+ * '*'             : '*'    match arbitrary rule.
+ * Opt(rule)       : '?'    0 or 1 time,     (equals to Rep(0, 1))
+ * Plus(rule)      : '+'    1 or more times  (equals to Rep(1, 0))
+ * Star(rule)      : '*'    0 or more times  (equals to Rep(0, 0))
+ * Many(rule)      : '#'    1 or more times, but each occurrence separated by a comma (',')
+ * Rep(rule, n)    : {n}    at least n times, at most n times, e.g : (A? B?){1} (must produce at least one value)
+ * Rep(rule, n-m)  : {n-m}  at least n times, at most m times, {n, m} is also fine
+ * AnyOrder(rule)  : '~',   e.g : (A B)~ means match "A B" or "B A"
+ *
+ * LOG(rule)       : print rule
+ *
+ * Limitations:
+ *  - "Plus", "Star" and "Rep" cannot be used in "[]" and "(,)"
+ *    for example : [A* B] or (A+, B) will cause unexpceted results.
+ *
+ *  - If you use "Plus", "Star" or "Rep" in arguments of function,
+ *    Then the function arguments must be separated by comma(',')
+ *    for example : filter : drop-shadow($len $len $len? $color?);
+ *    If arguments separated by spaces then only "Opt", "AnyOrder" are available
+ *
+ * Tips:
+ *  - [id (id id)] will fails, to fixed it just put the single rule to last : [(id id) id]
+ */
+
+// an optional config block
+rules-special {
+	default : none inherit initial unset;
+	duplicate-check : on;
+	allow-duplicate-attributes : src;
+}
+
+var I255          = 0-255
+var F1            = 0-1.0
+var PCT           = Unit("%")
+var CALC          = calc(* ^ *) // '^' matches arbitrary ops
+var LENGTH        = 0 Unit(px pt pc ex em rem cm mm in vh vw ch vmax vmin) $CALC
+var UNITS         = $PCT $LENGTH
+var ID            = id
+var INT           = int
+var NUM           = float
+var STR           = string
+var NUM_PCT       = $NUM $PCT
+var NUM_UNITS     = $NUM $UNITS
+var COLOR         =
+	#FFF #FFFFFF
+	rgb($I255, $I255, $I255)
+	rgb($PCT, $PCT, $PCT)
+	rgba($I255, $I255, $I255, $F1)
+	rgba([#FFF #FFFFFF]     , $F1)
+	rgba($PCT, $PCT, $PCT, $F1)
+	cyan aqua black blue fuchsia gray grey green lime maroon navy olive
+	orange purple red silver teal white yellow crimson
+
+var TSCOLOR       = transparent $COLOR
+var URL           = url($STR)
+var LEFT_RIGHT    = left right
+var TOP_BOTTOM    = top bottom
+var HORIZ         = center left right
+var VERT          = center top bottom
+var UNITS_AUTO    = auto $UNITS
+var ANGLE         = Unit(deg rad grad turn) 0
+var IMAGE         =
+	$URL
+	embed($STR)
+	linear-gradient(
+		[$ANGLE ( to ($LEFT_RIGHT? $TOP_BOTTOM?){1} )],
+		($COLOR $UNITS?){2,0}
+	)
+;
+
+{ // hss-specific
+	hss-width  : $UNITS;
+	hss-height : $UNITS;
+}
+
+// Units, Anonymous {} only affects the scope of the variable
+{
+	width          : $UNITS_AUTO;
+	height         : $UNITS_AUTO;
+	top            : $UNITS_AUTO;
+	bottom         : $UNITS_AUTO;
+	left           : $UNITS_AUTO;
+	right          : $UNITS_AUTO;
+	margin-left    : $UNITS_AUTO;
+	margin-right   : $UNITS_AUTO;
+	margin-top     : $UNITS;
+	margin-bottom  : $UNITS;
+	margin         : $UNITS_AUTO{1,4};
+	padding-left   : $UNITS;
+	padding-right  : $UNITS;
+	padding-top    : $UNITS;
+	padding-bottom : $UNITS;
+	min-width      : $UNITS;
+	min-height     : $UNITS;
+	max-width      : $UNITS;
+	max-height     : $UNITS;
+	line-height    : $NUM_UNITS;
+	padding        : $UNITS{1,4};
+}
+
+// Layout
+{
+	var display =
+		block inline table flex grid inline-block inline-table inline-flex
+		inline-grid list-item table-row-group table-header-group table-footer-group
+		table-row table-cell table-column-group table-column table-caption
+	var overflows = auto hidden scroll visible clip;
+	display        : $display;
+	float          : left right;
+	clear          : left right both;
+	overflow       : ($overflows $overflows?);
+	overflow-x     : $overflows;
+	overflow-y     : $overflows;
+	text-overflow  : ellipsis clip;
+	position       : absolute fixed relative static sticky;
+	z-index        : $INT auto;
+	visibility     : visible hidden collapse;
+	box-sizing     : content-box border-box;
+	zoom           : $NUM_PCT normal;
+	// TODO : clip
+}
+
+// Fonts and texts
+{
+	var size       = $UNITS xx-small x-small small medium large x-large xx-large smaller larger
+	var ratio      = $size ($size / $NUM_UNITS)
+	var family     = ($ID $ID?) $STR
+	var style      = italic normal oblique
+	var weight     = bold normal bolder lighter 100-1000
+	var variant    = normal small-caps
+	var decoration_style = solid double dotted dashed wavy
+	var decoration_line  = underline blink line-through overline
+	var decoration       = AnyOrder( Star($decoration_line) Opt($decoration_style) Opt($COLOR) );
+	var font       = AnyOrder(
+		$ratio
+		$family
+		Opt($style)
+		Opt($variant)
+		Opt($weight)
+	);
+	font            : $font;
+	font-family     : Many($family);
+	font-size       : $size;
+	font-style      : $style;
+	font-variant    : $variant;
+	font-weight     : $weight;
+	font-display    : auto block swap fallback optional;
+
+	text-align      : center justify left right;
+	text-decoration-line  : Plus($decoration_line);
+	text-decoration-color : $COLOR;
+	text-decoration-style : $decoration_style;
+	text-decoration : $decoration;
+	text-rendering  : auto optimizeSpeed optimizeLegibility geometricPrecision;
+	text-transform  : capitalize lowercase uppercase;
+	text-indent     : $UNITS;
+	color           : $COLOR;
+	letter-spacing  : $UNITS normal;
+	word-spacing    : $UNITS normal;
+	vertical-align  : top bottom middle baseline sub super text-bottom text-top $UNITS;
+	white-space     : normal pre nowrap pre-wrap pre-line;
+	tab-size        : $INT;
+	line-break      : auto loose normal strict;
+	word-break      : normal keep-all break-all;
+	word-wrap       : normal break-word;
+	direction       : ltr rtl;
+	writing-mode    : horizontal-tb vertical-rl vertical-lr;
+	unicode-bidi    : normal embed bidi-override;
+}
+// background
+{
+	var position    =
+		([center ($LEFT_RIGHT $UNITS?)] [center ($TOP_BOTTOM $UNITS?)])~
+		([center  $LEFT_RIGHT $UNITS  ] [center  $TOP_BOTTOM $UNITS  ])
+		[center $LEFT_RIGHT $TOP_BOTTOM $UNITS]
+	var repeat__    = repeat no-repeat round space
+	var repeat      = repeat-x repeat-y $repeat__{1, 2}
+	var size        = cover contain $UNITS_AUTO{1, 2}
+	var origin      = border-box padding-box content-box
+	var clip        = text $origin
+	var attachment  = scroll fixed local
+	var background  = AnyOrder(
+		Opt($TSCOLOR)
+		Opt($IMAGE)
+		Opt[$position ($position / $size)]
+		Opt($repeat)
+		Opt($attachment)
+		Opt($origin)
+		Opt($clip)
+	);
+	// TODO: color should only be matched once, but this rule parser couldn't handle it.
+	background          : Many($background);
+	background-color    : $TSCOLOR;
+	background-image    : Many( $IMAGE );
+	background-position : Many( $position );
+	background-repeat   : Many( $repeat );
+	background-clip     : Many( $clip );
+	background-origin   : Many( $origin );
+	background-size     : Many( $size );
+	background-attachment : Many( $attachment );
+}
+
+{ // borders
+	var style     = solid dotted dashed double hidden groove ridge inset outset
+	var width     = thin medium thick $LENGTH;
+	var border    = AnyOrder(Opt($width) Opt($TSCOLOR) Opt($style));
+
+	border              : $border;
+	border-top          : $border;
+	border-left         : $border;
+	border-right        : $border;
+	border-bottom       : $border;
+
+	border-style        : $style{1, 4};
+	border-left-style   : $style;
+	border-right-style  : $style;
+	border-top-style    : $style;
+	border-bottom-style : $style;
+
+	border-width        : $width{1, 4};
+	border-top-width    : $width;
+	border-left-width   : $width;
+	border-right-width  : $width;
+	border-bottom-width : $width;
+
+	border-color        : $TSCOLOR{1, 4};
+	border-top-color    : $TSCOLOR;
+	border-left-color   : $TSCOLOR;
+	border-right-color  : $TSCOLOR;
+	border-bottom-color : $TSCOLOR;
+
+	outline             : $border;
+	outline-style       : $style;
+	outline-width       : $width;
+	outline-color       : $TSCOLOR;
+	outline-offset      : $UNITS;
+}
+
+var LST = circle disc square decimal lower-alpha lower-roman upper-alpha upper-roman
+var LSP = inside outside;
+
+{ // Others
+	cursor  : pointer move text auto help default progress wait cell $URL
+		crosshair vertical-text alias copy no-drop not-allowed grab
+		grabbing zoom-in zoom-out context-menu all-scroll col-resize
+		row-resize n-resize e-resize s-resize w-resize ne-resize
+		nw-resize se-resize sw-resize ew-resize ns-resize;
+
+	opacity             : $F1;
+	list-style          : AnyOrder( Opt($LST) Opt($LSP) Opt($IMAGE) );
+	list-style-type     : $LST;
+	list-style-position : $LSP;
+	list-style-image    : $IMAGE;
+	table-layout        : auto fixed;
+	empty-cells         : show hide;
+	border-collapse     : collapse separate;
+	border-spacing      : $UNITS{1, 2};
+	caption-side        : bottom top;
+	user-select         : all text;
+	resize              : both horizontal vertical;
+	counter-reset       : [($ID $INT?) (reversed($ID) $INT?)]+;
+	counter-increment   : ($ID $INT?)+;
+	quotes              : auto [$STR $STR]+;
+	pointer-events      : auto all fill stroke painted visible visiblePainted visibleFill visibleStroke;
+	appearance          : button checkbox listbox radio textfield;
+	// effects (partial browser support)
+	border-radius              : $UNITS{1, 4};
+	border-top-right-radius    : $UNITS;
+	border-top-left-radius     : $UNITS;
+	border-bottom-right-radius : $UNITS;
+	border-bottom-left-radius  : $UNITS;
+
+	text-shadow : Many( ($COLOR? $LENGTH{2,3})~ );
+	box-shadow  : Many( ($COLOR? $LENGTH{2,4} inset?)~ );
+
+	filter :
+		blur($LENGTH)
+		brightness($NUM_PCT)
+		contrast($NUM_PCT)
+		grayscale($NUM_PCT)
+		invert($NUM_PCT)
+		opacity($NUM_PCT)
+		saturate($NUM_PCT)
+		sepia($NUM_PCT)
+		hue-rotate($ANGLE)
+		drop-shadow($LENGTH $LENGTH $LENGTH? $COLOR?) // space-separated
+		alpha(Opt(opacity=0-100), Opt(style=0-3), Opt(startx=0-100), Opt(finishx=0-100),
+			Opt(starty=0-100), Opt(finishy=0-100), Opt(finishopacity=0-100)
+		)~ // AnyOrder
+	;
+}
+
+{ // transforms
+	var transform =
+		// Matrix transformation
+		matrix($NUM{6})
+		matrix3d($NUM{16})
+		// Perspective
+		perspective($LENGTH)
+		// Rotation
+		rotate($ANGLE)
+		rotate3d($NUM, $NUM, $NUM, $ANGLE)
+		rotateX($ANGLE)
+		rotateY($ANGLE)
+		rotateZ($ANGLE)
+		// Scaling (resizing)
+		scale($NUM_PCT, $NUM_PCT?)
+		scale3d($NUM_PCT, $NUM_PCT, $NUM_PCT)
+		scaleX($NUM_PCT)
+		scaleY($NUM_PCT)
+		scaleZ($NUM_PCT)
+		// Skewing (distortion)
+		skew($ANGLE, $ANGLE?)
+		skewX($ANGLE)
+		skewY($ANGLE)
+		// Translation (moving)
+		translate($UNITS, $UNITS?)
+		translate3d($UNITS, $UNITS, $LENGTH)
+		translateX($UNITS)
+		translateY($UNITS)
+		translateZ($LENGTH)
+
+	var hunits = $HORIZ $UNITS
+	var vunits = $VERT $UNITS
+	var origin =
+		(($HORIZ $VERT)~ $LENGTH?)
+		($hunits $vunits $LENGTH?)
+		[$HORIZ $VERT $UNITS]
+	;
+	transform          : $transform;
+	transform-origin   : $origin;
+	perspective-origin : ($hunits? $vunits?)~;
+	transform-style    : flat preserve-3d;
+	perspective        : $UNITS;
+	backface-visible   : visible hidden;
+}
+
+{ // flex
+	var basic       = $UNITS_AUTO content max-content min-content fit-content
+	var direction   = row column row-reverse column-reverse
+	var wrap        = wrap nowrap wrap-reverse;
+
+	flex            : (($NUM $NUM?) $basic?)~;
+	flex-basis      : $basic;
+	flex-shrink     : $NUM;
+	flex-grow       : $NUM;
+	flex-direction  : $direction;
+	flex-wrap       : $wrap;
+	flex-flow       : ($wrap? $direction?)~;
+
+	var distribution= stretch space-between space-around space-evenly
+	var baseline    = ([first last]? baseline)
+	var content     = center start end flex-start flex-end
+	var self        = flex-start flex-end $content
+	var overflow    = unsafe safe
+	var align-items = normal stretch $baseline ($overflow? $self);
+
+	align-content   : normal $baseline $distribution ($overflow? $content);
+	align-items     : $align-items;
+	align-self      : auto $align-items;
+	justify-content : normal $distribution ($overflow? [$content $LEFT_RIGHT]);
+	justify-items   : normal stretch $baseline ($overflow? [$self $LEFT_RIGHT]) (legacy $HORIZ)~ legacy;
+	justify-self    : auto normal stretch $baseline ($overflow? [$self $LEFT_RIGHT]);
+	order           : $INT;
+}
+
+{ // animations
+	var dir           = normal reverse alternate alternate-reverse
+	var mode          = forwards backwards both
+	var delay         = Unit(s ms)
+	var count         = infinite $NUM
+	var state         = running paused
+	var duration      = $delay;
+	var step-position = start end jump-start jump-end jump-none jump-both
+	var tween         =
+		linear linear($NUM, $UNITS?, $UNITS?, $UNITS?) // linear() is complex
+		ease ease-in ease-out ease-in-out cubic-bezier($NUM, $NUM, $NUM, $NUM)
+		step-start step-end steps($INT, $step-position?)
+	;
+	animation                  : Many( ($duration? $tween? $delay? $count? $dir? $mode? $state? $ID?)~ );
+	animation-delay            : Many( $delay );
+	animation-direction        : Many( $dir );
+	animation-duration         : Many( $duration );
+	animation-fill-mode        : Many( $mode );
+	animation-iteration-count  : Many( $count );
+	animation-name             : Many( $ID );
+	animation-play-state       : Many( $state );
+	animation-timing-function  : Many( $tween );
+	// transition
+	transition                 : Many( ($duration? $delay? $tween? $ID?)~ );
+	transition-delay           : Many( $delay );
+	transition-duration        : Many( $duration );
+	transition-property        : Many( $ID );
+	transition-timing-function : Many( $tween );
+}
+
+/*
+ *namespaces
+ */
+
+@font-face {
+	src : Many($URL format($STR)?);
+}
+
+::before, :before, ::after, :after {
+	content : normal [
+		[open-quote close-quote no-open-quote no-close-quote]
+		$URL
+		$STR
+		attr($ID)
+		counter($ID, $LST?)
+		counters($ID, $STR, $LST?)
+	]+;
+}
+
+//
+media-queries {
+	var ratio        = $INT / $INT
+	var resolution   = dpi dpcm dppx;
+
+	width            : $LENGTH;
+	min-width        : $LENGTH;
+	max-width        : $LENGTH;
+
+	height           : $LENGTH;
+	min-height       : $LENGTH;
+	max-height       : $LENGTH;
+
+	aspect-ratio     : $ratio;
+	min-aspect-ratio : $ratio;
+	max-aspect-ratio : $ratio;
+
+	resolution       : $resolution;
+	min-resolution   : $resolution;
+	max-resolution   : $resolution;
+
+	color            : $INT;
+	min-color        : $INT;
+	max-color        : $INT;
+
+	color-index      : $INT;
+	min-color-index  : $INT;
+	max-color-index  : $INT;
+
+	monochrome       : $INT;
+	min-monochrome   : $INT;
+	max-monochrome   : $INT;
+
+	orientation      : portrait landscape;
+	scan             : interlace progressive;
+	grid             : 0-1;
+	update           : slow fast;
+	overflow-block   : scroll paged optional-paged;
+	overflow-inline  : scroll;
+	color-gamut      : srgb p3 rec2020;
+	display-mode     : fullscreen standalone minimal-ui browser;
+	inverted-colors  : inverted;
+	pointer          : coarse fine;
+	any-pointer      : coarse fine;
+	hover            : hover;
+	any-hover        : hover;
+	light-level      : dim normal washed;
+	scripting        : initial-only enabled;
+}

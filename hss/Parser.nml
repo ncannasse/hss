@@ -37,7 +37,7 @@ function error(m,p) {
 	throw Error(m,p)
 }
 
-function contiguous(p1, p2) p1.pmax == p2.pmin && p1.pline == p2.pline;
+function contiguous(p1, p2) p1.pmax == p2.pmin;
 
 var rhex = Regexp.build "^[A-Fa-f0-9]+$";
 
@@ -270,13 +270,13 @@ function rec value_next(v,s) {
 	match s {
 	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] ->
 		match p {
-		| (VList l,_) -> value_next (VCall v l, punion (pos v) p2) s
-		| _ ->
-			var id = match fst v {| VIdent s | VString s -> s | _ -> "" }
-			if (id != "" && contiguous(pos v, p1)) || id == "CSS" then
-				value_next (VCall v [p], punion (pos v) p2) s
-			else
+		| (VList _,_) -> value_next (VCall v p, punion (pos v) p2) s
+		| _ -> match fst v {
+			| VIdent id | VString id when contiguous(pos v, p1) || id == "CSS" ->
+				value_next (VCall v p, punion (pos v) p2) s
+			| _ ->
 				value_join v (value_next (VParentheses p,punion p1 p2) s)
+			}
 		}
 	| [< (Exclamation,p1); (Const (Ident i),p2) >] ->
 		(VLabel i v,punion p1 p2)
@@ -518,7 +518,7 @@ function rec eval(v) {
 	}
 }
 
-function parse(lexer) {
+function parse(program, lexer) {
 	var mstack = &[]
 	var s = &neko("null")
 	function rec next_token() {
@@ -575,7 +575,7 @@ function parse(lexer) {
 	}
 	s := stream next_token;
 	try {
-		program (*s)
+		program(*s);
 	} catch {
 	| Stream_error ->
 		var tk,p = neko("s[0].cache[$asize(s[0].cache)-1]"); // get the last token from stream.cache

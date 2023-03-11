@@ -1,0 +1,294 @@
+css_rules_test {
+
+	// [A B]{2-4}
+	rep2-4  : A                  !error;
+	rep2-4  : A A;
+	rep2-4  : A B A;
+	rep2-4  : A B A B;
+	rep2-4  : A B A B A          !error;
+
+	// (A, B)
+	list-1  : A, B;
+	list-1  : A                  !error;
+	list-1  : A  B               !error;
+	list-1  : B, A               !error;
+
+	// ((A B), (C D))
+	list-2  : A B, C D;
+	list-2  : C D                !error;
+
+	// call(A, B)~
+	func-1  : call(A, B);
+	func-1  : call(B, A);
+	func-1  : call(A, B);
+	func-1  : call(A  B)          !error;
+	func-1  : call(B)             !error;
+	func-1  : call(A)             !error;
+
+	// matrix(float{2, 4})
+	func-2  : matrix(1)           !error;
+//	func-2  : matrix(1 2);       // thrown
+	func-2  : matrix(1, 2, 3, 4);
+	func-2  : matrix(1, 2, 3, 4,5)!error;
+
+	// drop-shadow(A A A? B?)
+	func-3  : drop-shadow(A A A);
+
+	// (A B)
+	group-0 : A B;
+	group-0 : A, B                !error;
+	group-0 : A                   !error;
+
+	// (C X* D)
+	group-1 : C X X X X D;
+	group-1 : C X D;
+	group-1 : C D;
+	group-1 : C                   !error;
+	group-1 : D                   !error;
+
+	// (A (B C)? D)
+	group-2 : A B C D;
+	group-2 : A D ;
+	group-2 : A B D               !error;
+	group-2 : A C D               !error;
+
+	// (A (B? C?) D)
+	group-3 : A B D;
+	group-3 : A C D;
+	group-3 : A B C D;
+	group-3 : A B C C D           !error;
+	group-3 : A D;
+
+	// (A (B? C?){1} D)
+	group-4 : A B D;
+	group-4 : A C D;
+	group-4 : A B C D;
+	group-4 : A D !error; // {1} At least one match is required
+
+	// (A (B? C?)~ D);  ~ means unordered
+	group-5 :  A B C D;
+	group-5 :  A C B D;
+	group-5 :  A C D;
+	group-5 :  A B D;
+	group-5 :  A D;
+	group-5 :  A D D              !error;
+	group-5 :  A B                !error;
+
+	// (A (B? C?)~{1} D);  {1}
+	group-6 :  A B C D;
+	group-6 :  A C B D;
+	group-6 :  A C D;
+	group-6 :  A B D;
+	group-6 :  A D                !error;
+	group-6 :  A D D              !error;
+	group-6 :  A B                !error;
+
+	// call(A, B, C)
+	call-1  : call(A, B, C);
+	call-1  : call(A, B, C, C)    !error;
+	call-1  : call(A, B)          !error;
+
+	// call( [A B C]{2, 0} );
+	call-21 : call(A, B);
+	call-21 : call(A, B);
+	call-21 : call(A)             !error;
+	call-21 : call(B, C, A);
+	call-21 : call(A, B, C, A, B, C);
+
+	// call([A B C]+)
+	call-22 : call(A);
+	call-22 : call(A, B);
+	call-22 : call(A, B, C);
+
+	// call(X?, [A B C]+)
+	call-23 : call(X, A);
+	call-23 : call(A);
+	call-23 : call(X, A, B, C);
+	call-23 : call(A, B, C);
+	call-23 : call(X)             !error;
+	// call([A B], [A, B]?);
+	call-3  : call(A);
+	//
+	many-1  : A, A, B, C;
+	many-2  : A, "B", C D;
+	// none [A B C]#;
+	many-3  : none;
+	many-3  : A, B, B;
+	many-3  : none, A             !error;
+
+	// Many((A? B{2, 3})~)
+	many-5  : B B;
+	many-5  : B B A;
+	// simple
+	calc    : calc(1 + 2);
+	opt     : B;
+	opt     : B B                 !error;
+	star    : C;
+	star    : C C C;
+	plus    : D D D D;
+	or-1    : A B;
+	or-2    : A;
+	or-2    : D;
+	or-2    : E;
+	or-2    : H;
+
+	// ([left right]? [top bottom]?)~
+	unorder : top left;
+	unorder : left top;
+	unorder : left left           !error;
+	unorder : top top             !error;
+	unorder : left;
+	unorder : top;
+
+	// (to UnOrdered([left right]? [top bottom]?)    end)
+	to_unorder   : to left top end;
+	to_unorder   : to top left end;
+	to_unorder   : to          end;
+	to_unorder   : to top      end;
+	to_unorder   : to top left left !error;
+
+	// (to UnOrdered([left right]? [top bottom]?){1} end)
+	to_unorder-2 : to          end  !error;
+	to_unorder-2 : to left top end;
+	to_unorder-2 : to top left end;
+	to_unorder-2 : to left end;
+	to_unorder-2 : to top end;
+
+	// ((A X)? (I X)?)~
+	unorder-3    : I X A X;
+
+	// image([A B], ([X Y] [I J]?){2-0})
+	fn_img       : image(A, Y J, Y, Y J, X I, X);
+	fn_img       : image(A, Y J, Y, Y J, X I);
+	fn_img       : image(A, Y J, X);
+	fn_img       : image(Y J, X)  !error;
+	fn_img       : image(A, Y J)  !error;
+	fn_img       : image(A, J)    !error;
+
+	// func(int{2-0})
+	fn_single    : func(1, 2, 3, 4, 4, 6);
+	fn_single    : func(1, 2);
+	fn_single    : func(1)        !error;
+
+	// matrix(float{6})
+	matrix       : matrix(1, 2, 3, 4, 5, 6);
+	matrix       : matrix(1, 2, 3, 4, 5, 6, 7) !error;
+	matrix       : matrix(1, 2, 3)!error;
+
+	// matrix3d(float{16})
+	matrix3d     : matrix3d(11, 12, 13, 14, 21, 22, 23, 24, 31, 32, 33, 34, 41, 42, 43, 44);
+	matrix3d     : matrix3d(11, 12, 13, 14, 21, 22, 23, 24, 31, 32, 33, 34, 41, 42, 43, 44, 101) !error;
+	matrix3d     : matrix3d(11, 12, 13, 14, 21, 22, 23, 24, 31, 32, 33, 34) !error;
+
+	// scale([float Unit("%")], [float Unit("%")]?)
+	scale        : scale(1.0, 80%);
+	scale        : scale(80%, 1.0);
+	scale        : scale(1.0);
+	scale        : scale(1, 1, 1) !error;
+
+	// old ie alpha
+	filter       : alpha(opacity=55);
+	filter       : alpha(starty=100, opacity=55);
+	filter       : alpha(opacity=101, starty=100)  !error;
+
+	text-decoration : overline;
+	text-decoration : #FF3028 overline dotted;
+	text-decoration : overline underline #FF3028;
+	text-decoration : overline underline #FF3028;
+	text-decoration : overline #FF3028 underline   !error;
+
+	background-position : bottom 50px right;
+	background-position : right 35% bottom 45%;
+	background-position : 25% 75%;
+	background-position : bottom 10px right 20px;
+	background-position : right 3em bottom 10px;
+	background-position : bottom 10px right;
+	background-position : top right 10px;
+
+	background-repeat : repeat space;
+	background-repeat : repeat repeat;
+	background-repeat : round;
+
+	background : no-repeat center/80% url("image.png");
+	background : #FFF url("test.jpg") repeat-y, url("test.jpg") repeat-y;
+
+	border : 1px solid #FFF;
+	border : 1px;
+	border : #FFF #FFF            !error;
+
+	counter-reset : my-counter my-counter -3;
+	counter-reset : my-counter -3;
+	counter-reset: reversed(counter1) 1 counter2 9 reversed(counter3) 4;
+	quotes : "«" "»" "‹" "›";
+	quotes : auto;
+	quotes : auto "«" "»" "‹" "›" !error;
+
+	filter : drop-shadow(0 -6mm 4mm rgb(160, 0, 210));
+	filter : drop-shadow(30px 10px #FFF);
+	filter : drop-shadow(0 0 0.75rem crimson);
+	div::after {
+		content : "abc";
+	}
+
+	transform-origin : left 5px -3px;
+	transform-origin : bottom right 2cm;
+	transform-origin : 2px 30% 10px;
+	transform-origin : bottom;
+
+	perspective-origin: bottom right;
+	perspective-origin: 500% 200%;
+	perspective-origin: -170%;
+	perspective-origin: center;
+	perspective-origin: top;
+
+	text-shadow : 1px 1px 2px red, 0 0 1em blue, 0 0 0.2em blue;
+	text-shadow : 5px 5px #558ABB;
+	text-shadow : #FC0 1px 0 10px;
+
+	box-shadow : 2px 2px 2px 1px rgba(0, 0, 0, 0.2);
+	box-shadow : 10px 5px 5px black;
+	box-shadow : 3px 3px red, -1em 0 0.4em olive;
+
+	flex : 1 1 100px;
+	flex : 1 30px;
+	flex : 1;
+
+	flex-flow : row nowrap;
+	flex-flow : column wrap;
+	flex-flow : column-reverse wrap-reverse;
+
+	align-content : baseline;
+	align-content : first baseline;
+	align-content : last baseline;
+	align-content : space-around;
+	align-content : start;
+
+	align-items : baseline;
+	align-items : first baseline;
+	align-items : last baseline; /* Overflow alignment (for positional alignment only) */
+	align-items : safe center;
+	align-items : unsafe center;
+
+	justify-items : baseline;
+	justify-items : first baseline;
+	justify-items : last baseline;
+
+	/* Overflow alignment (for positional alignment only) */
+	justify-items : safe center;
+	justify-items : unsafe center;
+
+	/* Legacy alignment */
+	justify-items : legacy right;
+	justify-items : legacy left;
+	justify-items : legacy center;
+
+	animation : 3s ease-in 1s infinite reverse both running slidein;
+	animation: 3s linear 1s infinite alternate slidein;
+}
+
+@font-face {
+	src : url("asdf");
+}
+
+@media (hover: hover) {
+}
