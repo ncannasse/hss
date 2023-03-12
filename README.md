@@ -12,7 +12,7 @@ You can compile your HSS file into the corresponding CSS file by running the hss
 #hss [options] <file>
 # Options :
 #  -output <dir> : specify output directory
-#  -rule <file>  : specify css rule set file
+#  -rule <file>  : specify a css rule set file
 #  -D <flag>     : define a conditional compilation flag
 #  --append      : available only if '-rule <file>' is specified
 #  --minify      : minify output by removing some whitespaces
@@ -305,7 +305,6 @@ var narrow_width = 767px;
 
 CSS rule limit:
 - `font:` only accept single font-family value
-- `background:` no support for `/background-size` notation
 
 HSS does not support all CSS Attributes, such as `grid`series, So you may need `CSS()` to skip detection:
 

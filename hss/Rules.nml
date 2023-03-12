@@ -248,27 +248,17 @@ type context {
 }
 
 function flatten_units(r) {
-	function rec loop(acc, x) {
-		match fst x {
-		| RId s ->
-			s :: acc
-		| RUnit l ->
-			List.append l acc
-		| RGroup l | ROr l | RList l ->
-			List.fold loop acc l
-		| _ ->
-			error Message("UnSupported " + "'" + (s_rule x) + "'") (pos x)
-		}
+	function rec order(l, acc) match l {
+	| [] -> acc
+	| r :: l -> List.append (loop r acc) (order l acc)
 	}
-	var v, p = r
-	match v {
-	| RGroup l | ROr l | RList l ->
-		(RUnit(List.fold loop [] l), p)
-	| RId i ->
-		(RUnit [i], p)
-	| _ ->
-		error Message("UnSupported " + "'" + (s_rule r) + "'") p
+	function rec loop(r, acc) match fst r {
+	| RId s -> s :: acc
+	| RUnit l -> List.append l acc
+	| RGroup l | ROr l | RList l -> order l acc
+	| _ -> error Message("UnSupported " + "'" + (s_rule r) + "'") (pos r)
 	}
+	(RUnit(loop r []), pos r)
 }
 
 function rec eval(ctx, r) {
