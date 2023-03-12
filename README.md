@@ -303,9 +303,6 @@ var narrow_width = 767px;
 @media only screen and (max-width : $narrow_width) {}
 ```
 
-CSS rule limit:
-- `font:` only accept single font-family value
-
 HSS does not support all CSS Attributes, such as `grid`series, So you may need `CSS()` to skip detection:
 
 ```scss

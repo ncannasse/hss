@@ -119,6 +119,11 @@ css_rules_test {
 	// Many((A? B{2, 3})~)
 	many-5  : B B;
 	many-5  : B B A;
+
+	// (A B C?)#
+	many-6  : A B, A B C;
+	many-6  : A B, A B C C        !error;
+
 	// simple
 	calc    : calc(1 + 2);
 	opt     : B;
@@ -287,6 +292,10 @@ css_rules_test {
 
 	font : small-caps bold 24px/1 sans-serif;
 	font : italic small-caps bold 16px/2 cursive;
+	font : italic 1.2em "Fira Sans", serif;
+	font : 24px/1 "Fira Sans", serif, cursive;
+	font : "Fira Sans", serif, cursive;
+	font : "Fira Sans" 1.2em  !error;
 }
 
 @font-face {

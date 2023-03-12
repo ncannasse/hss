@@ -33,6 +33,7 @@ many-2       : [string (id id) id]#;
 many-3       : none [A B C]#;
 many-4       : (X?, [A B C]+);
 many-5       : Many((A? B{2, 3})~);
+many-6       : (A B C?)#;
 or-1         : [A B C]+ ;
 or-2         : [[A B] [C D [E F [G H]]]];
 unorder      :     ([left right]? [top bottom]?)~  ;

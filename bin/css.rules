@@ -18,6 +18,7 @@
  * Plus(rule)      : '+'    1 or more times  (equals to Rep(1, 0))
  * Star(rule)      : '*'    0 or more times  (equals to Rep(0, 0))
  * Many(rule)      : '#'    1 or more times, but each occurrence separated by a comma (',')
+ * Many(A, B)      : uses A to match the first group/value, and the rest to match with B. Currently only "font" uses this.
  * Rep(rule, n)    : {n}    at least n times, at most n times, e.g : (A? B?){1} (must produce at least one value)
  * Rep(rule, n-m)  : {n-m}  at least n times, at most m times, {n, m} is also fine
  * AnyOrder(rule)  : '~',   e.g : (A B)~ means match "A B" or "B A"
@@ -146,7 +147,7 @@ var IMAGE         =
 	var decoration_style = solid double dotted dashed wavy
 	var decoration_line  = underline blink line-through overline
 	var decoration       = AnyOrder( Star($decoration_line) Opt($decoration_style) Opt($COLOR) );
-	font            : (AnyOrder(Opt($style) Opt($variant) Opt($weight) $ratio)? Opt($family));
+	font            : Many((AnyOrder(Opt($style) Opt($variant) Opt($weight) $ratio)? Opt($family)), $family);
 	font-family     : Many($family);
 	font-size       : $size;
 	font-style      : $style;

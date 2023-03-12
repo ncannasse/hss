@@ -612,9 +612,17 @@ function rec check_calls(vtl, v, r, name) {
 		| _ -> false
 		}
 	| "Many" -> // Similar to Plus, But only for VList(,)
-		match fst v {
-		| VList vl -> List.all (function (v) check vtl v r) vl
-		| _ -> check vtl v r
+		match fst r {
+		| RList [r; tr] -> // Many(A, B)
+			match fst v {
+			| VList v :: vl -> check vtl v r && !(is_empty_match vtl v) && List.all (function (v) check vtl v tr) vl
+			| _ -> check vtl v r
+			}
+		| _ ->             // Many(rule)
+			match fst v {
+			| VList vl -> List.all (function (v) check vtl v r) vl
+			| _ -> check vtl v r
+			}
 		}
 	| "AnyOrder" ->
 		match (fst r, fst v) {
