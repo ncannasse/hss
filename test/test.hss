@@ -283,7 +283,10 @@ css_rules_test {
 	justify-items : legacy center;
 
 	animation : 3s ease-in 1s infinite reverse both running slidein;
-	animation: 3s linear 1s infinite alternate slidein;
+	animation : 3s linear 1s infinite alternate slidein;
+
+	font : small-caps bold 24px/1 sans-serif;
+	font : italic small-caps bold 16px/2 cursive;
 }
 
 @font-face {

@@ -146,14 +146,7 @@ var IMAGE         =
 	var decoration_style = solid double dotted dashed wavy
 	var decoration_line  = underline blink line-through overline
 	var decoration       = AnyOrder( Star($decoration_line) Opt($decoration_style) Opt($COLOR) );
-	var font       = AnyOrder(
-		$ratio
-		$family
-		Opt($style)
-		Opt($variant)
-		Opt($weight)
-	);
-	font            : $font;
+	font            : (AnyOrder(Opt($style) Opt($variant) Opt($weight) $ratio)? Opt($family));
 	font-family     : Many($family);
 	font-size       : $size;
 	font-style      : $style;
