@@ -24,24 +24,6 @@ type rule_expr_decl {
 }
 type rule_expr = (rule_expr_decl, pos)
 
-function unSupported(s, p)
-	error Message("UnSupported " + "'" + s + "'") p
-
-function gap(p1, p2) : pos
-	{psource = p1.psource; pline = p1.pline; pmin = p1.pmax; pmax = p2.pmin}
-
-function semicolon_opt(s) {
-	match s {
-	| [< (Semicolon,_) >] -> 1
-	| [< >] ->
-		var tk, p = stream_token s 0;
-		match tk {
-		| Keyword Var | BraceClose -> 1
-		| _ -> error (Expected_semicolon tk) p
-		}
-	}
-}
-
 function rec begin(s) {
 	match s {
 	| [< (Eof,_) >] -> []
@@ -51,9 +33,9 @@ function rec begin(s) {
 
 function rec statement(s) {
 	match s {
-	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_); r = rule s; _ = semicolon_opt s >] ->
+	| [< (Keyword Var,p1); (Const (Ident i),_); (Eq,_); r = rule s; _ = semicolon_or_ended s r >] ->
 		(REVar(i, r), punion p1 (pos r))
-	| [< (Const (Ident att),p1); (DoubleDot,_); r = rule s; _ = semicolon_opt s >] ->
+	| [< (Const (Ident att),p1); (DoubleDot,_); r = rule s; _ = semicolon_or_ended s r >] ->
 		(REAttribute(att, r), punion p1 (pos r))
 	| [< ns = namespace s; (BraceOpen, p); l = statement_list s >] ->
 		(REBlock(ns, l), p)
@@ -204,7 +186,7 @@ function rec rule_join(r1, r2) {
 		| _ -> false
 		}
 		// '?', '*', '+', '{}', '#' and '~' will move to the front
-		// func(x, y)? b c; ==> func..[Opt(any)      ; b; c] --> [Opt(func(x, y))      ; b; c]
+		// func(x, y)? b c; ==> func..[Opt(any); b; c] --> [Opt(func(x, y)); b; c]
 		match v2 {
 		| ROr (((v21, p21) as r21) :: l)
 		| RList (((v21, p21) as r21) :: l) when (contiguous p1 p21) && (has_brackets v21) ->
@@ -275,7 +257,7 @@ function flatten_units(r) {
 		| RGroup l | ROr l | RList l ->
 			List.fold loop acc l
 		| _ ->
-			unSupported (s_rule x) (pos x)
+			error Message("UnSupported " + "'" + (s_rule x) + "'") (pos x)
 		}
 	}
 	var v, p = r
@@ -285,7 +267,7 @@ function flatten_units(r) {
 	| RId i ->
 		(RUnit [i], p)
 	| _ ->
-		unSupported (s_rule r) p
+		error Message("UnSupported " + "'" + (s_rule r) + "'") p
 	}
 }
 
@@ -414,8 +396,7 @@ function vtl_pop(vtl) {
 
 function vtl_push(vtl, v) vtl := v :: *vtl
 
-function separator(v) (VParentheses v, pos v)
-
+/*
 function rec check_print( acc : int, rl : rule list, vl : value list ) {
 	match (rl, vl) {
 	| ([], []) ->
@@ -432,6 +413,7 @@ function rec check_print( acc : int, rl : rule list, vl : value list ) {
 		check_print(acc + 1, rl, []);
 	}
 }
+*/
 
 function is_empty_match(vtl, v) {
 	match *vtl {
@@ -441,7 +423,7 @@ function is_empty_match(vtl, v) {
 }
 
 function barrier_push(vtl, v) {
-	vtl := (separator v) :: *vtl;
+	vtl := (VParentheses v, pos v) :: *vtl;
 }
 
 function barrier_pop(vtl, v) {
@@ -734,10 +716,9 @@ function load(def, cssdir) {
 		loaded := true
 	} catch {
 	| Core.Error s ->
-		printf "Failed to load : %s\n" s
+		printf "Skipped check because %s was not found.\n" s
 	}
 }
-
 function append() {
 	mode_append := true
 }

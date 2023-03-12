@@ -168,7 +168,7 @@ var pathtools = {
 	};
 	path_dir = function(s) {
 		function rec loop(acc, l) match l {
-		| [] -> assert()
+		| [] -> "."
 		| x :: (_ :: _) as l -> loop (acc + "/" + x) l
 		| [_] -> acc
 		}

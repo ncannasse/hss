@@ -37,33 +37,12 @@ function error(m,p) {
 	throw Error(m,p)
 }
 
+function gap(p1, p2) : pos
+	{psource = p1.psource; pline = p1.pline; pmin = p1.pmax; pmax = p2.pmin}
+
 function contiguous(p1, p2) p1.pmax == p2.pmin;
 
 var rhex = Regexp.build "^[A-Fa-f0-9]+$";
-
-function rec missed_last(lmax, v) {
-	match fst v {
-	| VGroup l | VList l ->
-		function rec loop(acc, l) match l {
-		| [] -> acc
-		| x :: l -> if Lexer.line(snd x) < lmax then loop x l else acc
-		}
-		missed_last lmax (loop v l)
-	| VLabel(_, v) -> missed_last lmax v
-	| VOp(_,v1, v2) ->
-		var v1 = missed_last lmax v1;
-		var v2 = missed_last lmax v2;
-		if Lexer.line(snd v2) < lmax then v2 else v1
-	| _ -> v
-	}
-}
-
-function semicolon(s) {
-	match s {
-	| [< (Semicolon,p) >] -> p
-	| [< (tk,p) >] -> error (Expected_semicolon tk) p
-	}
-}
 
 function semicolon_opt(s) {
 	match s {
@@ -77,10 +56,9 @@ function semicolon_or_ended(s, v) {
 	| [< (Semicolon,p) >] -> p
 	| [< >] ->
 		var tk,p = stream_token s 0;
-		if (tk == BraceClose) then p else {
-			var lmax = Hss.Utils.rows.column(snd v).lmax;
-			var v = missed_last lmax v;
-			error Message("Probably missing ; after '"+ s_value v + "'") (snd v)
+		match tk {
+		| Keyword Var | BraceClose -> p
+		| _ -> error(Expected_semicolon tk, gap(pos v, p))
 		}
 	}
 }
@@ -199,7 +177,7 @@ function rec expr_list(s) {
 	match s {
 	| [< (BraceClose,_) >] -> []
 	| [< (Const (Ident att),p); (DoubleDot,_); v = value s; _ = semicolon_or_ended s v >] -> (EAttribute att v,p) :: expr_list s
-	| [< (Const (Val v),p); (ParentOpen,_); l = block_args s; (ParentClose,_); _ = semicolon s >] -> (EUseBlock v l, p) :: expr_list s
+	| [< (Const (Val v),p); (ParentOpen,_); l = block_args s; (ParentClose,_); _ = semicolon_opt s >] -> (EUseBlock v l, p) :: expr_list s
 	| [< (Const (Val v),p); (Semicolon, _) >] -> (EUseBlock v [],p) :: expr_list s
 	| [< e = expr s >] -> e :: expr_list s
 	}
