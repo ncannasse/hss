@@ -67,7 +67,7 @@ function mk_float(l) {
 
 var rows : Hss.Utils.rows_conter = Hss.Utils.rows;
 
-var ident = "[a-zA-Z_][-a-zA-Z0-9_]*";
+var ident = "-*[a-zA-Z_][-a-zA-Z0-9_]*";
 
 var expr = &Lexer.empty();
 var estring = &Lexer.empty();
@@ -175,7 +175,7 @@ expr := Lexer.build (List.concat [[
 	(".[0-9]+", mk_float);
 	("\n", line_inc_with next_token);
 	("var", function(l) mk l Keyword(Var));
-	("-?" + ident, function(l) mk l Const(Ident (Lexer.current l)));
+	(ident, function(l) mk l Const(Ident (Lexer.current l)));
 	("@" + ident, function(l) {
 		var s = Lexer.current l;
 		mk l (try Keyword (Hashtbl.find keywords s) catch {Not_found -> Const(Ident s)})

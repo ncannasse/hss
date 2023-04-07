@@ -296,6 +296,10 @@ css_rules_test {
 	font : 24px/1 "Fira Sans", serif, cursive;
 	font : "Fira Sans", serif, cursive;
 	font : "Fira Sans" 1.2em  !error;
+
+	var --lr = 0;
+	$--tb : 0;
+	margin : $--tb $--lr;
 }
 
 @font-face {
