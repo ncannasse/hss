@@ -302,6 +302,16 @@ css_rules_test {
 	--prefix-with-two-dashs : $--tb $--lr;
 }
 
+:root {
+	--text-color: blue;
+}
+
+div {
+	color : var(text-color)       !error;
+	color : var(--text-color);
+	color : var(--text-color, black);
+}
+
 @font-face {
 	src : url("asdf");
 }

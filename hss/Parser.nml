@@ -205,6 +205,7 @@ function rec value(s) {
 	| [< (Const (Float f),p) >] -> value_unit f (VFloat f, p) s
 	| [< (Const (Val v),p) >] -> value_next (VVar v,p) s
 	| [< (Op Sub, p1); v = value s >] -> neg_first v p1
+	| [< (Keyword Var, p1) >] -> value_next (VIdent "var",p1) s
 	| [< (ParentOpen,p1); p = value s; (ParentClose,p2) >] -> value_next (VParentheses p,punion p1 p2) s
 	}
 }

@@ -402,6 +402,12 @@ function custom_calls(id, vi, v, p) {
 		| (VUnit(f,u), p) -> (VUnit Math.ffloor(before_floor f) u, p)
 		| _ -> origin
 		}
+	| "var" -> match v {
+		| (VIdent s, _)
+		| (VList [(VIdent s, _); _], _) when is_prefix_dashs s ->
+			(VCall (VIdent "CSS", p) origin, p) // use CSS() to bypass checks
+		| _ -> origin
+		}
 	| _ -> origin
 	}
 }
