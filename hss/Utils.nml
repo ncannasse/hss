@@ -16,34 +16,9 @@ type pos = Lexer.pos
 
 exception Error : (string, pos);
 
-/**
-* misc
-*/
-type misc {
-	vendor_prefix : string -> (string, string); // "-webkit-user-select" => ("user-select","-webkit-")
-}
-var misc = {
-	vendor_prefix = function(s) {
-		if String.get(s, 0) == '-' then {
-			var len = String.length s;
-			if      len > 8 && String.sub(s, 0, 8) == "-webkit-" then
-				(String.sub(s, 8, len - 8), "-webkit-")
-			else if len > 5 && String.sub(s, 0, 5) == "-moz-" then
-				(String.sub(s, 5, len - 5), "-moz-")
-			else if len > 4 && String.sub(s, 0, 4) == "-ms-" then
-				(String.sub(s, 4, len - 4), "-ms-")
-			else if len > 3 && String.sub(s, 0, 3) == "-o-" then
-				(String.sub(s, 3, len - 3), "-o-")
-			else
-				(s, "")
-		} else
-			(s, "")
-	};
-}
-
-/**
-* color
-*/
+/*
+ * color
+ */
 type rgb = (int, int, int)
 type hsl = (float, float, float)
 type rgbtools {
@@ -122,9 +97,9 @@ var rgbtools = {
 	};
 }
 
-/**
-* path
-*/
+/*
+ * path
+ */
 type path {
 	dir : string; // without trailing slash
 	name: string;
@@ -239,9 +214,9 @@ pathtools.index := function(p: pos) {
 	loop 0 pathtools.all
 }
 
-/**
-* base64
-*/
+/*
+ * base64
+ */
 type base64 {
 	table: string;
 	encode : string -> string -> string;
@@ -279,9 +254,9 @@ base64.encode_image := function(path, p: pos) {
 	out
 };
 
-/**
-* lines counter which should be hooked in hss/Lexer
-*/
+/*
+ * lines counter which should be hooked in hss/Lexer
+ */
 type pos_column {
 	lmin : int;
 	lmax : int;
@@ -342,9 +317,9 @@ rows.column := function (p: pos):pos_column {
 		{lmin=0; lmax=0; cmin=0; cmax=0; cmax_on=0;}
 }
 
-/**
-* print_mode used for minify
-*/
+/*
+ * print_mode used for minify
+ */
 type sep_chars {
 	tab   : string;
 	comma : string;
@@ -374,9 +349,9 @@ pmod.cur := pmod.normal;
 pmod.is_minify := function() pmod.cur === pmod.minify;
 pmod.enable_minify := function() pmod.cur := pmod.minify;
 
-/**
-* sourcemap
-*/
+/*
+ * sourcemap
+ */
 type sourcemap_value {
 	SMVer : int;
 	SMString : string;

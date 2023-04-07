@@ -299,7 +299,7 @@ css_rules_test {
 
 	var --lr = 0;
 	$--tb : 0;
-	margin : $--tb $--lr;
+	--prefix-with-two-dashs : $--tb $--lr;
 }
 
 @font-face {
