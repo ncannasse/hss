@@ -918,26 +918,29 @@ try {
 	var head = "HSS v2.0 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
+	var is_stdout = &false;
 	var decl = [
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 		("-rule",Args.String Hss.Rules.custom,"<file>  : specify a css rule set file");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
 		("--append",Args.Void Hss.Rules.append,"     : available only if '-rule <file>' is specified");
 		("--minify",Args.Void pmod.enable_minify,"     : minify output by removing some whitespaces");
+		("--stdout",Args.Void (function() is_stdout := true), "     : output to stdout");
 		("--sourcemap", Args.Void sem.switch_on,"  : outputs a v3 sourcemap file");
 	];
 	Args.parse head decl (function(file) files := file :: *files);
 
 	List.iter (function(file) {
+		var is_stdin = file == "stdin"
 		var path,_ = pathtools.add file "";
 		// load rules
 		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules" path.dir;
 		// parse
-		var ch = IO.read_file (path.str) true;
+		var ch = if !is_stdin then IO.read_file (path.str) true else IO.stdin
 		var lex = Lexer.create Buffer.create();
 		Lexer.input lex (path.str) ch 1 0;
 		var el = hssparse lex;
-		IO.close_in ch;
+		if !is_stdin then IO.close_in ch;
 		// check + replace vars
 		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
@@ -951,7 +954,10 @@ try {
 		// write
 		var file2 = Sys.without_extension file + ".css";
 		var file2 = match *output {| None -> file2 | Some dir -> (pathtools.add_slash dir) + (Sys.without_dir file2) }
-		if file != file2 then {
+		if *is_stdout || is_stdin then {
+			List.iter (print_css IO.stdout "") el;
+			IO.flush(IO.stdout);
+		} else if file != file2 then {
 			var fmap = file2 + ".map";
 			var ch = IO.write_file file2 true;
 			List.iter (print_css ch "") el;

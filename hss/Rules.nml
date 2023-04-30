@@ -325,7 +325,7 @@ function rec eval(ctx, r) {
 		var r = eval ctx r;
 		match name {
 		| "Unit" -> flatten_units r
-		| "LOG" -> printf "LOG : %s\n" (s_rule r); r;
+		| "LOG" -> IO.printf IO.stderr "LOG : %s\n" (s_rule r); r;
 		| _ -> (RCall(name, r), p)
 		}
 	}
@@ -714,7 +714,7 @@ function load(def, cssdir) {
 		loaded := true
 	} catch {
 	| Core.Error s ->
-		printf "Skipped check because %s was not found.\n" s
+		IO.printf IO.stderr "Skipped check because %s was not found.\n" s
 	}
 }
 function append() {
