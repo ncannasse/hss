@@ -58,7 +58,7 @@ var STR           = string
 var NUM_PCT       = $NUM $PCT
 var NUM_UNITS     = $NUM $UNITS
 var COLOR         =
-	#FFF #FFFFFF
+	#FFF #FFFFFF #FFFFFFFF
 	rgb($I255, $I255, $I255)
 	rgb($PCT, $PCT, $PCT)
 	rgba($I255, $I255, $I255, $F1)
