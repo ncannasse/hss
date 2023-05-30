@@ -300,6 +300,13 @@ css_rules_test {
 	var --lr = 0;
 	$--tb : 0;
 	--prefix-with-two-dashs : $--tb $--lr;
+
+	-ms-filter : what-ever;
+	-webkit-text-fill-color : 101;
+}
+
+input[type=text]::-ms-clear {
+	display: none;
 }
 
 :root {

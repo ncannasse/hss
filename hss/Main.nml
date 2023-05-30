@@ -52,8 +52,8 @@ function warning(msg,p) {
 	IO.printf IO.stderr "%s:%d: %s\n" (Lexer.source p,Lexer.line p,msg);
 }
 
-function is_prefix_dashs(s) {
-	(String.get s 0) == '-' && (String.get s 1) == '-'
+function is_dash_prefix(s) {
+	(String.get s 0) == '-'
 }
 
 function rec print_value(ch,v) {
@@ -404,7 +404,7 @@ function custom_calls(id, vi, v, p) {
 		}
 	| "var" -> match v {
 		| (VIdent s, _)
-		| (VList [(VIdent s, _); _], _) when is_prefix_dashs s ->
+		| (VList [(VIdent s, _); _], _) when is_dash_prefix s && (String.get s 1) == '-' ->
 			(VCall (VIdent "CSS", p) origin, p) // use CSS() to bypass checks
 		| _ -> origin
 		}
@@ -666,7 +666,7 @@ function rec check_class(ctx, c) {
 	List.iter (function((sel,p)){
 		match sel {
 		| PuElement s ->
-			if !(List.mem(s, Hss.Lexer.pseudo_elements) || is_prefix_dashs s) then
+			if !(List.mem(s, Hss.Lexer.pseudo_elements) || is_dash_prefix s) then
 				check_errors_add ("Invalid '" + "::" + s + "'", p);
 		| _ ->
 		}
@@ -695,7 +695,7 @@ function load_rules(find, name, value, pos) {
 		}
 	} catch {
 	| Exit ->
-	| Not_found -> if !(is_prefix_dashs name) then
+	| Not_found -> if !(is_dash_prefix name) then
 		check_errors_add ("Unknown attribute '" + name + "'", pos)
 	| Invalid_argument s ->
 		check_errors_add (s, pos)
