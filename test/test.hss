@@ -303,6 +303,8 @@ css_rules_test {
 
 	-ms-filter : what-ever;
 	-webkit-text-fill-color : 101;
+	accent-color : hsl(120, 100%, 34%);
+	contain : size layout;
 }
 
 input[type=text]::-ms-clear {

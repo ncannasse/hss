@@ -44,7 +44,6 @@ rules-special {
 	duplicate-check : on;
 	allow-duplicate-attributes : src;
 }
-
 var I255          = 0-255
 var F1            = 0-1.0
 var PCT           = Unit("%")
@@ -57,10 +56,12 @@ var NUM           = float
 var STR           = string
 var NUM_PCT       = $NUM $PCT
 var NUM_UNITS     = $NUM $UNITS
+var ANGLE         = Unit(deg rad grad turn) 0
 var COLOR         =
 	#FFF #FFFFFF #FFFFFFFF
 	rgb($I255, $I255, $I255)
 	rgb($PCT, $PCT, $PCT)
+	hsl([$INT $ANGLE], $PCT, $PCT)
 	rgba($I255, $I255, $I255, $F1)
 	rgba([#FFF #FFFFFF]     , $F1)
 	rgba($PCT, $PCT, $PCT, $F1)
@@ -74,7 +75,6 @@ var TOP_BOTTOM    = top bottom
 var HORIZ         = center left right
 var VERT          = center top bottom
 var UNITS_AUTO    = auto $UNITS
-var ANGLE         = Unit(deg rad grad turn) 0
 var IMAGE         =
 	$URL
 	embed($STR)
@@ -133,6 +133,7 @@ var IMAGE         =
 	visibility     : visible hidden collapse;
 	box-sizing     : content-box border-box;
 	zoom           : $NUM_PCT normal;
+	contain        : strict content (layout? style? paint? [size inline-size]?)~ ;
 	// TODO : clip
 }
 
@@ -238,6 +239,15 @@ var IMAGE         =
 	border-right-color  : $TSCOLOR;
 	border-bottom-color : $TSCOLOR;
 
+	border-collapse     : collapse separate;
+	border-spacing      : $UNITS{1, 2};
+	// effects (partial browser support)
+	border-radius              : $UNITS{1, 4};
+	border-top-right-radius    : $UNITS;
+	border-top-left-radius     : $UNITS;
+	border-bottom-right-radius : $UNITS;
+	border-bottom-left-radius  : $UNITS;
+
 	outline             : $border;
 	outline-style       : $style;
 	outline-width       : $width;
@@ -262,8 +272,6 @@ var LSP = inside outside;
 	list-style-image    : $IMAGE;
 	table-layout        : auto fixed;
 	empty-cells         : show hide;
-	border-collapse     : collapse separate;
-	border-spacing      : $UNITS{1, 2};
 	caption-side        : bottom top;
 	user-select         : all text;
 	resize              : both horizontal vertical;
@@ -272,17 +280,10 @@ var LSP = inside outside;
 	quotes              : auto [$STR $STR]+;
 	pointer-events      : auto all fill stroke painted visible visiblePainted visibleFill visibleStroke;
 	appearance          : button checkbox listbox radio textfield;
-	// effects (partial browser support)
-	border-radius              : $UNITS{1, 4};
-	border-top-right-radius    : $UNITS;
-	border-top-left-radius     : $UNITS;
-	border-bottom-right-radius : $UNITS;
-	border-bottom-left-radius  : $UNITS;
-
-	text-shadow : Many( ($COLOR? $LENGTH{2,3})~ );
-	box-shadow  : Many( ($COLOR? $LENGTH{2,4} inset?)~ );
-
-	filter :
+	text-shadow         : Many( ($COLOR? $LENGTH{2,3})~ );
+	box-shadow          : Many( ($COLOR? $LENGTH{2,4} inset?)~ );
+	accent-color        : auto $COLOR;
+	filter              :
 		blur($LENGTH)
 		brightness($NUM_PCT)
 		contrast($NUM_PCT)
