@@ -593,8 +593,8 @@ function rec expand_val(value) {
 		var r, g, b = rgbtools.of_hex h hp;
 		var params = (VList[(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)], lp);
 		expand_val (VCall c params, p)
-	| VCall((VIdent "embed",p1), (VList[(VString url, p2)], lp)) ->
-		(VCall (VIdent "url",p1) (VList[(VString base64.encode_image(url, p2), p2)], lp), p)
+	| VCall((VIdent "embed",p1), (VString url, p2)) ->
+		(VCall (VIdent "url",p1) (VString base64.encode_image(url, p2), p2), p)
 	| VCall (v, vl) ->
 		(VCall expand_val(v) (expand_val vl), p)
 	| VList vl ->

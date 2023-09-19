@@ -249,8 +249,8 @@ var IMAGE         =
 	border-bottom-right-radius : $UNITS;
 	border-bottom-left-radius  : $UNITS;
 
-	outline             : $border;
-	outline-style       : $style;
+	outline             : $border $NONE;
+	outline-style       : $style $NONE;
 	outline-width       : $width;
 	outline-color       : $TSCOLOR;
 	outline-offset      : $UNITS;
