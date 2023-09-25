@@ -100,27 +100,23 @@ function line_inc_with(next, l: Buffer.t Lexer.t) {
 	next l
 }
 
-var pseudo_elements = ["after";"before";"backdrop";"cue";"first-letter";"first-line";"placeholder";"selection"]
-
-var pseudo_map = { // don't addding "pseudo_elements" since it has the same item as "pseudo_classes"
-	var pseudo_classes = [
+// This may be overridden by css.rules
+var pseudo_classes = {
+	var l = [
 		"first-child";"link";"visited";"active";"hover";"focus";"first-letter";"first-line";"before";"after"; // CSS 2.1
 		"root";"last-child";"first-of-type";"last-of-type";"only-child";"only-of-type";"empty";"target";"enabled";"disabled";"checked"; // CSS 3.0
 		"fullscreen";"default";"required";"optional";"valid";"invalid";"in-range";"out-of-range";"read-only";"read-write"; // CSS UI 3.0
 	]
-	var pseudo_classes_fn = ["lang";"not";"nth-child";"nth-last-child";"nth-last-of-type";"nth-of-type"]
-	var h = &Map.empty();
-	List.iter (function(s) h := Map.add(*h, s, 1) ) pseudo_classes;
-	List.iter (function(s) h := Map.add(*h, s, 2) ) pseudo_classes_fn;
-	*h
+	var h = &Set.empty();
+	List.iter (function(s) h := Set.add(*h, s)) l;
+	h
 }
-
 function pseudo_or_doubledot(l: Buffer.t Lexer.t) {
 	var s = Lexer.current l;
 	var len = (String.length s) - 1;
 	var s = String.sub s 1 len;
 	try
-		if (Map.find pseudo_map s) == 1 then
+		if Set.exists (*pseudo_classes) s then
 			mk l (Selector s)
 		else if (peek_char l) != '(' then
 			throw Not_found

@@ -43,6 +43,9 @@ rules-special {
 	default : inherit initial unset;
 	duplicate-check : on;
 	allow-duplicate-attributes : src;
+	pseudo-fn : lang not nth-child nth-last-child nth-last-of-type nth-of-type;
+	pseudo-elements : after before backdrop cue first-letter first-line placeholder selection;
+	//// pseudo-classes : hover active focus ...; // This will override the default definition of hss/Lexer::pseudo_classes
 }
 var NONE          = none
 var I255          = 0-255

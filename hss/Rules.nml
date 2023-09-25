@@ -682,6 +682,25 @@ var context = {
 	eval_rec = 0;
 }
 
+// validators
+var pseudo_elements = &Set.empty() // rules-special.pseudo_elements of css.rules
+var pseudo_fn = &Set.empty() // rules-special.pseudo_fn of css.rules
+function set_importof(out, module, attribute, cleanup) {
+	try {
+		var htbl = Map.find context.rules module;
+		var rule = Hashtbl.find htbl attribute
+		function rec loop(ref, r) match fst r {
+		| RList l | RGroup l | ROr l -> List.iter (loop ref) l
+		| RId s -> ref := Set.add(*ref, s)
+		| _ ->
+		}
+		if cleanup then out := Set.empty();
+		loop out rule;
+	} catch {
+	| Not_found ->
+	}
+}
+
 function loadfile(rule, cssdir) {
 	var tool = Hss.Utils.pathtools
 	var file = &rule;
@@ -711,7 +730,11 @@ function load(def, cssdir) {
 			loadfile(def, cssdir);
 		if (input != "") then
 			loadfile(input, cssdir);
-		loaded := true
+		loaded := true;
+		// import validators
+		set_importof(Hss.Lexer.pseudo_classes, "rules-special", "pseudo-classes", true);
+		set_importof(pseudo_elements, "rules-special", "pseudo-elements", false);
+		set_importof(pseudo_fn, "rules-special", "pseudo-fn", false);
 	} catch {
 	| Core.Error s ->
 		IO.printf IO.stderr "Skipped check because %s was not found.\n" s
