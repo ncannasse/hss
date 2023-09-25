@@ -324,18 +324,22 @@ function find_rule(ctx, name, value) {
 	| Not_found ->
 		match ctx.curblock {
 		| Some c ->
-			var rf = &None;
-			var k = match c.selector { // ::before, :hover, :active
-			| (PuClass s,_) :: _ -> ":" + s
-			| (PuElement s,_) :: _ -> "::" + s
-			| _ -> "$"
+			// detects ::before :hover :active ... first
+			var pname = match c.selector {
+			| (PuClass s,_) :: _ -> Some(":" + s)
+			| (PuElement s,_) :: _ -> Some("::" + s)
+			| _ -> None
 			}
-			try rf := Some(Hashtbl.find (rules_htable k) name) catch {| Not_found -> }
-			match *rf {
+			var pesudo = match pname {
+			| Some s -> try Some(Hashtbl.find (rules_htable s) name) catch{| Not_found -> None }
+			| _ -> None
+			}
+			match pesudo {
 			| Some r -> r
-			| None ->
-				var k = match c.node {| Some(n, _) -> n | _ -> "$" }
-				Hashtbl.find (rules_htable k) name
+			| _ -> match c.node {
+				| Some(n, _) -> Hashtbl.find (rules_htable n) name
+				| _ -> throw Not_found
+				}
 			}
 		| _ ->
 			throw Not_found
