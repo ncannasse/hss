@@ -667,16 +667,12 @@ function rec expand_ns(ns,c) {
 }
 
 function rec check_class(ctx, c) {
-	var pseudo_elements = *Hss.Rules.pseudo_elements
-	var pseudo_fn = *Hss.Rules.pseudo_fn;
+	var pseudo_elements = *Hss.Rules.pseudo_elements;
 	List.iter (function((sel,p)){
 		match sel {
 		| PuElement s ->
 			if !(is_dash_prefix s || Set.is_empty pseudo_elements || Set.exists pseudo_elements s) then
 				check_errors_add ("Invalid '" + "::" + s + "'", p)
-		| PuClassFn(s, _) ->
-			if !(is_dash_prefix s || Set.is_empty pseudo_fn || Set.exists pseudo_fn s) then
-				check_errors_add ("Invalid '" + ":" + s + "(...)'", p)
 		| _ ->
 		}
 	}) c.selector

@@ -45,14 +45,6 @@ var keywords = {
 	h
 }
 
-// similar to Lexer.char but there is no "inc_line" here
-function peek_char(l: Buffer.t Lexer.t) : char {
-	var c = Lexer.read l;
-	l.bpos := l.bpos - 1;
-	l.bin := l.bin + 1;
-	c
-}
-
 function mk(l,t) {
 	(t,Lexer.curpos l)
 }
@@ -100,7 +92,8 @@ function line_inc_with(next, l: Buffer.t Lexer.t) {
 	next l
 }
 
-// This may be overridden by css.rules
+// "pseudo_fn" and "pseudo_classes" may be overridden by "rules-special{...}" of "css.rules"
+var pseudo_fn = &Set.empty()
 var pseudo_classes = {
 	var l = [
 		"first-child";"link";"visited";"active";"hover";"focus";"first-letter";"first-line";"before";"after"; // CSS 2.1
@@ -115,29 +108,30 @@ function pseudo_or_doubledot(l: Buffer.t Lexer.t) {
 	var s = Lexer.current l;
 	var len = (String.length s) - 1;
 	var s = String.sub s 1 len;
-	try
-		if Set.exists (*pseudo_classes) s then
-			mk l (Selector s)
-		else if (peek_char l) != '(' then
-			throw Not_found
-		else {
+	if Set.exists (*pseudo_classes) s then
+		mk l (Selector s)
+	else match Lexer.char l {
+		| None ->
+			mk l Eof
+		| Some '(' when Set.exists (*pseudo_fn) s ->
 			var p1 = Lexer.curpos l;
 			ignore (next_token l); // ignore "("
 			var buf = Lexer.data l;
 			Buffer.reset buf;
-			try puargs l catch { Exit -> throw Error(Unclosed_parentheses, Lexer.curpos l) };
+			puargs l;
 			(SelectorFn(s, Buffer.string buf), Lexer.punion(p1, Lexer.curpos l))
+		| Some c ->
+			// backtracing hack for (":" + ident)
+			l.carriage := false;
+			if c == '\n' then l.line := l.line - 1;
+			l.pos  := l.pos - len;
+			l.bpos := l.bpos - len;
+			l.cpos := l.bpos;
+			l.bin  := l.bin + len;
+			l.cin  := l.bin;
+			l.current := ":";
+			mk l DoubleDot
 		}
-	catch {
-	| Not_found -> // backtracing hack for (":"+ident)
-		l.pos  := l.pos - len;
-		l.bpos := l.bpos - len;
-		l.cpos := l.bpos;
-		l.bin  := l.bin + len;
-		l.cin  := l.bin;
-		l.current := ":";
-		mk l DoubleDot
-	}
 }
 
 expr := Lexer.build (List.concat [[
@@ -249,7 +243,7 @@ ecomment := Lexer.build [
 epuargs := Lexer.build [
 	(")", exit);
 	("[^)}{\n\r]+", buffer_add_with puargs); // line breaks are not allowed
-] throw_exit;
+] (function(l){ throw Error(Unclosed_parentheses, Lexer.curpos l) })
 
 function inc_with_escape(next, l:Buffer.t Lexer.t) {
 	rows.add_line l.source l.pos;

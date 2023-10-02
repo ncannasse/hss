@@ -186,7 +186,7 @@ function rec rule_join(r1, r2) {
 		| _ -> false
 		}
 		// '?', '*', '+', '{}', '#' and '~' will move to the front
-		// func(x, y)? b c; ==> func..[Opt(any); b; c] --> [Opt(func(x, y)); b; c]
+		// e.g: "func(x, y)?" --> func(Opt(x, y)) ==> Opt(func(x, y))
 		match v2 {
 		| ROr (((v21, p21) as r21) :: l)
 		| RList (((v21, p21) as r21) :: l) when (contiguous p1 p21) && (has_brackets v21) ->
@@ -682,9 +682,7 @@ var context = {
 	eval_rec = 0;
 }
 
-// validators
 var pseudo_elements = &Set.empty() // rules-special.pseudo_elements of css.rules
-var pseudo_fn = &Set.empty() // rules-special.pseudo_fn of css.rules
 function set_importof(out, module, attribute, cleanup) {
 	try {
 		var htbl = Map.find context.rules module;
@@ -733,8 +731,8 @@ function load(def, cssdir) {
 		loaded := true;
 		// import validators
 		set_importof(Hss.Lexer.pseudo_classes, "rules-special", "pseudo-classes", true);
+		set_importof(Hss.Lexer.pseudo_fn, "rules-special", "pseudo-fn", false);
 		set_importof(pseudo_elements, "rules-special", "pseudo-elements", false);
-		set_importof(pseudo_fn, "rules-special", "pseudo-fn", false);
 	} catch {
 	| Core.Error s ->
 		IO.printf IO.stderr "Skipped check because %s was not found.\n" s

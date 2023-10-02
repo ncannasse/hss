@@ -395,6 +395,9 @@ function rec class(s,first) {
 			| Sharp when c.id == None ->
 				last := Some Sharp;
 				loop (i+1)
+			| DoubleDot ->
+				var t = stream_token s (i + 1);
+				error Message("Invalid \":" + s_token(fst t) + "\"") (punion p2 snd(t))
 			| DoubleDotx2 ->
 				last := Some DoubleDotx2;
 				loop (i+1)
