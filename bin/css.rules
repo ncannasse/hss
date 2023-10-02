@@ -215,21 +215,21 @@ var IMAGE         =
 }
 
 { // borders
-	var style     = solid dotted dashed double hidden groove ridge inset outset
+	var style     = solid dotted dashed double $NONE hidden groove ridge inset outset
 	var width     = thin medium thick $LENGTH;
 	var border    = AnyOrder(Opt($width) Opt($TSCOLOR) Opt($style));
 
-	border              : $border $NONE;
+	border              : $border;
 	border-top          : $border;
 	border-left         : $border;
 	border-right        : $border;
 	border-bottom       : $border;
 
-	border-style        : $style{1, 4} $NONE;
-	border-left-style   : $style $NONE;
-	border-right-style  : $style $NONE;
-	border-top-style    : $style $NONE;
-	border-bottom-style : $style $NONE;
+	border-style        : $style{1, 4};
+	border-left-style   : $style;
+	border-right-style  : $style;
+	border-top-style    : $style;
+	border-bottom-style : $style;
 
 	border-width        : $width{1, 4};
 	border-top-width    : $width;
@@ -252,8 +252,8 @@ var IMAGE         =
 	border-bottom-right-radius : $UNITS;
 	border-bottom-left-radius  : $UNITS;
 
-	outline             : $border $NONE;
-	outline-style       : $style $NONE;
+	outline             : $border;
+	outline-style       : $style;
 	outline-width       : $width;
 	outline-color       : $TSCOLOR;
 	outline-offset      : $UNITS;
