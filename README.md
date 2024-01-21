@@ -2,9 +2,9 @@
 
 ## Usage
 
-Downloads and then builds via `make` or `build.bat`
+1. Download and then build via `make` or `build.bat`
 
-Once you have the hss.exe(or hss), copy it and [css.rules](bin/css.rules) to your application directory.
+2. Copy both hss.exe(or hss) and [css.rules](bin/css.rules) to your application directory.
 
 You can compile your HSS file into the corresponding CSS file by running the hss command :
 
@@ -16,6 +16,7 @@ You can compile your HSS file into the corresponding CSS file by running the hss
 #  -D <flag>     : define a conditional compilation flag
 #  --append      : available only if '-rule <file>' is specified
 #  --minify      : minify output by removing some whitespaces
+#  --stdout      : output to stdout
 #  --sourcemap   : outputs a v3 sourcemap file
 #
 hss myfile.hss
@@ -27,7 +28,7 @@ Features:
   - [Property Variables](#Property-Variables)
   - [Block Variables](#Block-Variables)
 * [Nested Blocks](#Nested-Blocks)
-* [Macro Condition](#Macro-Condition) *Only accept parameters passed by '-D flag'*
+* [Macro Condition](#Macro-Condition) *Only accept parameters passed via '-D flag'*
 * [CSS Validation](#CSS-Validation)
 * [Operations](#Operations)
 * [More...](#Hacks-Support)
@@ -50,13 +51,13 @@ Fix all the errors and HSS will then be able to generate the corresponding CSS f
 
 ### Customizable CSS rules
 
-hss 2.0 provides a new rule parser for loading external text rule file
+HSS 2.0 provides a new rule parser for loading external text rule files.
 
-Usually some game UI or Apps that use CSS will have their own css syntax
+Usually, some game UI or Apps that use CSS have their own CSS syntax.
 
-With this tool you can customize some CSS rules to detect errors before loading
+With this tool, you can customize some CSS rules to detect errors before loading.
 
-And the new rules syntax are quite simple than before
+And the new rules syntax is simpler than before.
 
 ```scss
 // myui.rule
@@ -350,7 +351,9 @@ Operations between two different units (for instance 50px + 3em) are not allowed
 
 ### Hacks Support
 
-* The same `media queries` will be merged/combined automatically if there is no `-D no-merge-media` or `--sourcemap`
+* `-D merge-media` : The `media queries` will be merged.
+
+* The input name could be `stdin`.
 
 * `CSS(values)`: will simply output the values without rule checking which is sometimes useful for non-standard CSS properties:
 
@@ -362,7 +365,7 @@ Operations between two different units (for instance 50px + 3em) are not allowed
   }
   ```
 
-* `@import("rel_path/to/myhss")` can be used to import another hss file, or use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate files will be ignored.
+* `@import("rel_path/to/myhss")` can be used to import another hss file, or you can use `@import("rel_path/to/somelib.css")` to inject a CSS file directly. Duplicate files will be ignored.
 
   ```scss
   @import("path/to/_vars")
