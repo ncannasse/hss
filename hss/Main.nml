@@ -787,9 +787,8 @@ function rec check(ctx,e) {
 		var p = pos e;
 		var value = match value {
 		| (VCall ((VIdent "CSS",_),vl),_) ->
-			var value = match fst vl { // strip CSS
-			| VList[(VString s, p)] -> (VIdent s, p) // strip quotes
-			| VList[value] -> value
+			var value = match vl { // strip CSS
+			| (VString(s), p) -> (VIdent s, p) // strip quotes
 			| _ -> vl
 			}
 			(VLabel "dup" value, p) // allow duplicate
