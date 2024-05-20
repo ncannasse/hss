@@ -1,10 +1,10 @@
 /*
  * HSS Rule Syntax :
  * id              : matches any identifiers
- * int             : any integers
- * float           : any numbers
- * string          : any strings
- *                 : #FFF #FFFFFF #FFFFFFFF
+ * int             : integers
+ * float           : numbers
+ * string          : strings
+ * #FFF #FFFFFF #FFFFFFFF  : hex color
  * literal numbers : 0 => range(0-0), 1.0 => range(1.0-1.0)
  *                   literal idents or string will be parsed as RId(s)
  * A-B             : int/float range(a-b)
@@ -17,8 +17,10 @@
  * Opt(rule)       : '?'    0 or 1 time,     (equals to Rep(0, 1))
  * Plus(rule)      : '+'    1 or more times  (equals to Rep(1, 0))
  * Star(rule)      : '*'    0 or more times  (equals to Rep(0, 0))
- * Many(rule)      : '#'    1 or more times, but each occurrence separated by a comma (',')
- * Many(A, B)      : uses A to match the first group/value, and B for the rest. Currently only "font" uses it.
+ * Many(rule)      : '#'    1 or more times for comma(',') separated values (only available in top-level)
+ * CommaMode(...)  : CommaMode(Plus(rule)) == Many(rule)                    (only available in top-level)
+ *                   CommaMode(Plus(head), tail) == (Many(head), tail)
+ *                   CommaMode(head, Plus(tail)) == (head, Many(tail))
  * Rep(rule, n)    : {n}    at least n times, at most n times, e.g : (A? B?){1} (must produce at least one value)
  * Rep(rule, n-m)  : {n-m}  at least n times, at most m times, {n, m} is also fine
  * AnyOrder(rule)  : '~',   e.g : (A B)~ means match "A B" or "B A"
@@ -26,16 +28,16 @@
  * LOG(rule)       : print rule
  *
  * Limitations:
- *  - "Plus", "Star" and "Rep" cannot be used in "[]" and "(,)"
- *    for example : [A* B] or (A+, B) will cause unexpceted results.
+ *  - The "Plus", "Star" and "Rep" cannot be used in "[]" and "(,)"
+ *    e.g - [A* B] or (A+, B) will cause unexpceted results.
  *
- *  - If you use "Plus", "Star" or "Rep" in arguments of function,
- *    Then the function arguments must be separated by comma(',')
- *    for example : filter : drop-shadow($len $len $len? $color?);
- *    If arguments separated by spaces then only "Opt", "AnyOrder" are available
+ *  - The "Plus", "Star" and "Rep" in function arguments will only match comma(',') separated arguments
+ *    e.g - "bar(float{1, 3})" === "bar(float, ?float, ?float)"
+ *    TODO : it looks silly and may be deprecated.
  *
- * Tips:
- *  - [id (id id)] will fails, to fixed it just put the single rule to last : [(id id) id]
+ * Misc:
+ *  - Rule "[a (a b)]" will fail to match "a b", to fix it should put the single rule at the end -> "[(a b) a]"
+ *
  */
 
 // an optional config block
@@ -152,7 +154,7 @@ var IMAGE         =
 	var decoration_style = solid double dotted dashed wavy
 	var decoration_line  = underline blink line-through overline
 	var decoration       = $NONE AnyOrder( Star($decoration_line) Opt($decoration_style) Opt($COLOR) );
-	font            : Many((AnyOrder(Opt($style) Opt($variant) Opt($weight) $ratio)? Opt($family)), $family);
+	font            : CommaMode((AnyOrder(Opt($style) Opt($variant) Opt($weight) $ratio)? Opt($family)), Star($family));
 	font-family     : Many($family);
 	font-size       : $size;
 	font-style      : $style;
@@ -263,12 +265,13 @@ var LST = circle disc square decimal lower-alpha lower-roman upper-alpha upper-r
 var LSP = inside outside;
 
 { // Others
-	cursor  : pointer move text auto help default progress wait cell $URL
+	var CURSOR_KWD = pointer move text auto help default progress wait cell
 		crosshair vertical-text alias copy no-drop not-allowed grab
 		grabbing zoom-in zoom-out context-menu all-scroll col-resize
 		row-resize n-resize e-resize s-resize w-resize ne-resize
-		nw-resize se-resize sw-resize ew-resize ns-resize $NONE;
-
+		nw-resize se-resize sw-resize ew-resize ns-resize
+	var CURSOR_URL = ($URL Opt($INT $INT));
+	cursor              : $NONE $CURSOR_KWD CommaMode(Plus($CURSOR_URL), Opt($CURSOR_KWD));
 	opacity             : $F1;
 	list-style          : $NONE AnyOrder( Opt($LST) Opt($LSP) Opt($IMAGE) );
 	list-style-type     : $NONE $LST;

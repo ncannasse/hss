@@ -305,6 +305,11 @@ css_rules_test {
 	-webkit-text-fill-color : 101;
 	accent-color : hsl(120, 100%, 34%);
 	contain : size layout;
+
+	cursor : auto;
+	cursor : url("a"), auto;
+	cursor : url("a"), url("b") 10 10, auto;
+	cursor : url("a"), url("b") 10 10, auto, pointer !error;
 }
 
 input[type=text]::-ms-clear {

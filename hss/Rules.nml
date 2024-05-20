@@ -469,6 +469,7 @@ function rec check( vtl : value list ref, v : value, r ) : bool {
 	}
 }
 
+// BUGBUG : "[a (a b)]" will fail to match "a b"
 function rec check_bracket(vtl, v, rl) {
 	match rl {
 	| [] ->
@@ -612,23 +613,18 @@ function rec check_calls(vtl, v, r, name) {
 		| _ -> false
 		}
 	| "Many" -> // Similar to Plus, But only for VList(,)
-		match fst r {
-		| RList [r; tr] -> // Many(A, B)
-			match fst v {
-			| VList v :: vl -> check vtl v r && !(is_empty_match vtl v) && List.all (function (v) check vtl v tr) vl
-			| _ -> check vtl v r
-			}
-		| _ ->             // Many(rule)
-			match fst v {
-			| VList vl -> List.all (function (v) check vtl v r) vl
-			| _ -> check vtl v r
-			}
+		match fst v {
+		| VList vl -> List.all (function (v) check vtl v r) vl
+		| _ -> check vtl v r
 		}
+	| "CommaMode" ->
+		var r, v = cmode_unify r v;
+		check vtl v r
 	| "AnyOrder" ->
 		match (fst r, fst v) {
 		| (RCall(name, r), VCall(c, v)) ->
 			// AnyOrder( func(a, b, c) ) --> func( AnyOrder(a b c) )
-			var r, v = calls_unify r v;
+			var r, v = cmode_unify r v;
 			check vtl c (RId name, pos r) && check_complex vtl v r check_unordered
 		| _ ->
 			check_complex vtl v r check_unordered
@@ -636,7 +632,7 @@ function rec check_calls(vtl, v, r, name) {
 	| _ ->
 		match (fst v) {
 		| VCall(c, v) ->
-			var r, v = calls_unify r v;
+			var r, v = cmode_unify r v;
 			check vtl c (RId name, pos r) && check vtl v r
 		| _ ->
 			false
@@ -644,7 +640,7 @@ function rec check_calls(vtl, v, r, name) {
 	}
 }
 
-function rec calls_unify(r, v) {
+function rec cmode_unify(r, v) {
 	function rec adv_mode(rl) match rl {
 	| [] -> false
 	| r :: rl -> match fst r {
@@ -665,9 +661,9 @@ function rec calls_unify(r, v) {
 	}
 	// Transfrom "VList" to VGroup if adv is true
 	var v = if !adv then v else match fst v {
-	| VGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2);
 	| VList [x] -> x
 	| VList vl -> (VGroup vl, pos v)
+	| VGroup _ -> (VGroup [v], pos v)
 	| _ -> v
 	}
 	(r, v)
