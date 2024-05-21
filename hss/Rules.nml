@@ -505,7 +505,7 @@ function rec check_complex(vtl, v, r, check_callback) {
 		//| VGroup vl ->    // already matched
 		| VList _ -> false  // fails
 		| _ ->
-			vtl_push vtl v; // no separator. think: r(A (B C) D) v(A B C D)
+			vtl_push vtl v; // no separator. e.g: r(A (B C) D) v(A B C D)
 			check_callback vtl rl false;
 		}
 	| (RList rl, x) -> // func(A, B?) -- func(A)
@@ -613,13 +613,7 @@ function rec check_calls(vtl, v, r, name) {
 		| _ -> false
 		}
 	| "Many" -> // Similar to Plus, But only for VList(,)
-		match fst v {
-		| VList vl -> List.all (function (v) check vtl v r) vl
-		| _ -> check vtl v r
-		}
-	| "CommaMode" ->
-		var r, v = cmode_unify r v;
-		check vtl v r
+		check_many vtl r v
 	| "AnyOrder" ->
 		match (fst r, fst v) {
 		| (RCall(name, r), VCall(c, v)) ->
@@ -636,6 +630,37 @@ function rec check_calls(vtl, v, r, name) {
 			check vtl c (RId name, pos r) && check vtl v r
 		| _ ->
 			false
+		}
+	}
+}
+
+function rec check_many(vtl, r, v) {
+	function rep_tail(head, tail, v) {
+		match fst v {
+		| VList v :: vl -> (check vtl v head) && List.all (function (v) check vtl v tail) vl
+		| _ -> check vtl v head && is_optional [tail]
+		}
+	}
+	function rep_head(head, tail, v) {
+		match fst v {
+		| VList vl -> function rec loop(vl) match vl {
+			| [] -> false
+			| v :: [tv] -> (check vtl v head) && (check vtl tv tail)
+			| v :: vl -> (check vtl v head) && (loop vl)
+			}
+			loop vl
+		| _ -> check vtl v tail && is_optional [head]
+		}
+	}
+	match fst r {
+	| RList [h; t] -> match (fst h, fst t) {
+		| (RCall("Rep", h), _) -> rep_head h t v
+		| (_, RCall("Rep", t)) -> rep_tail h t v
+		| _ -> rep_tail h t v
+		}
+	| _ -> match fst v {
+		| VList vl -> List.all (function (v) check vtl v r) vl
+		| _ -> check vtl v r
 		}
 	}
 }
@@ -661,9 +686,9 @@ function rec cmode_unify(r, v) {
 	}
 	// Transfrom "VList" to VGroup if adv is true
 	var v = if !adv then v else match fst v {
+	| VGroup (_,p1) :: (_,p2) :: _ -> error(Message "Expected ','", gap p1 p2)
 	| VList [x] -> x
 	| VList vl -> (VGroup vl, pos v)
-	| VGroup _ -> (VGroup [v], pos v)
 	| _ -> v
 	}
 	(r, v)
