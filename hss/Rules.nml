@@ -469,17 +469,11 @@ function rec check( vtl : value list ref, v : value, r ) : bool {
 	}
 }
 
-// BUGBUG : "[a (a b)]" will fail to match "a b"
+// BUGBUG : "[a (a b)]" will fail to match "a b", to fix it you should swap the rule to "[(a b) a]"
 function rec check_bracket(vtl, v, rl) {
 	match rl {
-	| [] ->
-		false
-	| r :: rl ->
-		var scs = check vtl v r;
-		var ept = is_empty_match vtl v;
-		if ept then
-			vtl_pop vtl;
-		if scs then scs else check_bracket vtl v rl
+	| [] -> false
+	| r :: rl -> check vtl v r || check_bracket vtl v rl
 	}
 }
 
@@ -488,11 +482,12 @@ function rec check_complex(vtl, v, r, check_callback) {
 	var succ = match (fst r, fst v) {
 	| (x, VGroup vl) ->
 		vtl := List.append vl (*vtl);
-		match x {
-		| RGroup rl -> check_callback vtl rl false
-		| RList _ -> false
-		| _ -> check_callback vtl [r] false
+		var rl = match x {
+		| RGroup rl -> rl
+		| RList r::rl -> if is_optional rl then [r] else []
+		| _ -> [r]
 		}
+		check_callback vtl rl false
 	| (x, VList vl) ->
 		vtl := List.append vl (*vtl);
 		var rl = match x {
