@@ -28,9 +28,9 @@
  * LOG(rule)       : print rule
  *
  * Limitations:
- *  - The "Opt", "Plus", "Star" and "Rep" are not allowed in "[]"
- *    The        "Plus", "Star" and "Rep" are not allowed in "(,)"
- *    e.g - [A? B], [A* B] or (A+, B) will cause unexpceted results.
+ *  - The "Opt" is not allowed in "[]"
+ *    The "Plus", "Star" and "Rep" are not allowed in "(,)"
+ *    e.g - [A? B] or (A+, B) will cause unexpceted results.
  *
  *  - The "Plus", "Star" and "Rep" in function arguments will only match comma(',') separated arguments
  *    e.g - "bar(float{1, 3})" === "bar(float, ?float, ?float)"

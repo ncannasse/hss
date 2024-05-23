@@ -69,7 +69,7 @@ And the new rules syntax is simpler than before.
     color  : $color;
     width  : $length;
     margin : $length{1, 4};
-    filter : text-shadow($color, $length{2, 4});
+    filter : text-shadow($color, $length, $length, $length?, $length?);
 }
 
 // namespace
