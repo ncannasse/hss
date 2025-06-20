@@ -903,7 +903,7 @@ function merge_media(el) {
 	}
 }
 
-function display(msg,p) {
+function report(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
@@ -913,39 +913,63 @@ function display(msg,p) {
 	}
 }
 
-function report(msg,p) {
-	display msg p;
-	Sys.exit(-1);
+type monitor {
+	mutable enable : bool;
+	filters : bool array;
+	entries : string array array;
+	watch   : string array array -> bool array -> bool;
 }
 
-try {
-	var head = "HSS v2.0 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
+function monitor_filter( m : monitor, l : string list ) {
+	function rec loop(acc, l) match l {
+	| [] -> []
+	| x :: tl ->
+		if m.filters.[acc] then
+			(acc, x) :: loop (acc + 1) tl
+		else
+			loop (acc + 1) tl
+	}
+	loop 0 l
+}
+
+function main() {
+	var head = "HSS v2.1 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
-	var is_stdout = &false;
+	var stdout = &false;
+	var monitor = {
+		enable = false;
+		entries = neko "$array($amake(64),null,64)";
+		filters = Array.make(64, true);
+		watch = try neko "$loader.loadprim('monitor@watch', 2)" catch { _ -> neko "null" }
+	}
 	var decl = [
+		("--monitor",Args.Void (function(o) monitor.enable := true), "    : monitor <file> changes");
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 		("-rule",Args.String Hss.Rules.custom,"<file>  : specify a css rule set file");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
 		("--append",Args.Void Hss.Rules.append,"     : available only if '-rule <file>' is specified");
 		("--minify",Args.Void pmod.enable_minify,"     : minify output by removing some whitespaces");
-		("--stdout",Args.Void (function() is_stdout := true), "     : output to stdout");
+		("--stdout",Args.Void (function() stdout := true), "     : output to stdout");
 		("--sourcemap", Args.Void sem.switch_on,"  : outputs a v3 sourcemap file");
 	];
-	Args.parse head decl (function(file) files := file :: *files);
 
-	List.iter (function(file) {
-		var is_stdin = file == "stdin"
+	Args.parse head (if monitor.watch === neko("null") then List.tl decl else decl) (function(file) files := file :: *files);
+
+	function generate((index, file)) {
+		pathtools.reset()
 		var path,_ = pathtools.add file "";
-		// load rules
-		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules" path.dir;
+		// load rules only once, with priority : (1) -rule file (2) dir(file)/css.rules (3) dir(hss.exe)/css.rules
+		Hss.Rules.load "css.rules" path.dir;
 		// parse
-		var ch = if !is_stdin then IO.read_file (path.str) true else IO.stdin
+		var stdin = file == "stdin"
+		var ch = if !stdin then IO.read_file (path.str) true else IO.stdin
 		var lex = Lexer.create Buffer.create();
 		Lexer.input lex (path.str) ch 1 0;
 		var el = hssparse lex;
-		if !is_stdin then IO.close_in ch;
+		if !stdin then IO.close_in ch;
 		// check + replace vars
+		check_errors := []
 		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
 		if *check_errors != [] then throw Error(*check_errors);
@@ -956,9 +980,10 @@ try {
 		// combine/merge media queries if `-D merge_media`
 		var el = if Hss.Parser.defines_has "merge_media" then merge_media el else el;
 		// write
+		sem.reset()
 		var file2 = Sys.without_extension file + ".css";
 		var file2 = match *output {| None -> file2 | Some dir -> (pathtools.add_slash dir) + (Sys.without_dir file2) }
-		if *is_stdout || is_stdin then {
+		if *stdout || stdin then {
 			List.iter (print_css IO.stdout "") el;
 			IO.flush(IO.stdout);
 		} else if file != file2 then {
@@ -973,18 +998,25 @@ try {
 				IO.close_out ch;
 			}
 		}
-		sem.reset();
-		pathtools.reset()
-	}) (*files);
-} catch {
-	// todo : fix a small bug in nekoml to have ctx.current not to lowercase
-	// in order to get correct constructor hashing
-	| Hss.Lexer.Error(msg,pos) -> report Hss.Lexer.error_msg(msg) pos
-	| Hss.Parser.Error(msg,pos) -> report Hss.Parser.error_msg(msg) pos
-	| Hss.Utils.Error(msg,pos) -> report msg pos
-	| Error l -> List.iter (function((msg,p)) display msg p) List.rev(l); Sys.exit (-1);
-	| e ->
-		Stack.dump IO.stderr Stack.exc();
-		IO.printf IO.stderr "Exception : %s\n" string(e);
-		Sys.exit (-1);
+		monitor.entries.[index] := pathtools.dump();
+	}
+	while true {
+		try {
+			List.iter generate monitor_filter(monitor, *files);
+		} catch {
+			// todo : fix a small bug in nekoml to have ctx.current not to lowercase
+			// in order to get correct constructor hashing
+			| Hss.Lexer.Error(msg,pos) -> report Hss.Lexer.error_msg(msg) pos
+			| Hss.Parser.Error(msg,pos) -> report Hss.Parser.error_msg(msg) pos
+			| Hss.Utils.Error(msg,pos) -> report msg pos
+			| Error l -> List.iter (function((msg,p)) report msg p) List.rev(l)
+			| e ->
+				Stack.dump IO.stderr Stack.exc();
+				IO.printf IO.stderr "Exception : %s\n" string(e);
+				Sys.exit (-1);
+		}
+		if (!monitor.enable || !monitor.watch(monitor.entries, monitor.filters))
+			then Sys.exit 0;
+	}
 }
+main()

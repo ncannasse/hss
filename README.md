@@ -4,13 +4,14 @@
 
 1. Download and then build via `make` or `build.bat`
 
-2. Copy both hss.exe(or hss) and [css.rules](bin/css.rules) to your application directory.
+2. Copy these files to your application directory : `hss.exe` (or `hss`), [css.rules](bin/css.rules), and `monitor.ndll`(Windows only, optional).
 
 You can compile your HSS file into the corresponding CSS file by running the hss command :
 
 ```bash
 #hss [options] <file>
 # Options :
+#  --monitor     : monitor <file> changes (Windows only, requires monitor.ndll to load first)
 #  -output <dir> : specify output directory
 #  -rule <file>  : specify a css rule set file
 #  -D <flag>     : define a conditional compilation flag

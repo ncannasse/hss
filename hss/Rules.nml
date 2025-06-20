@@ -740,6 +740,7 @@ var loaded = &false
 function load(def, cssdir) {
 	var input = *file_custom;
 	try {
+		if *loaded then throw Exit
 		if (input == "" || *mode_append == true) then
 			loadfile(def, cssdir);
 		if (input != "") then
@@ -750,8 +751,9 @@ function load(def, cssdir) {
 		set_importof(Hss.Lexer.pseudo_fn, "rules-special", "pseudo-fn", false);
 		set_importof(pseudo_elements, "rules-special", "pseudo-elements", false);
 	} catch {
+	| Exit ->
 	| Core.Error s ->
-		IO.printf IO.stderr "Skipped check because %s was not found.\n" s
+		IO.printf IO.stderr "Check skipped: %s not found.\n" s
 	}
 }
 function append() {
