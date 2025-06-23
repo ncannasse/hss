@@ -112,13 +112,13 @@ type pathtools {
 	mutable add : string -> string -> (path, bool);
 	find  : pos -> path;
 	index : pos -> int;
+	array : void -> string array;
 	// The following are static methods
 	add_slash : string -> string;
 	is_abs    : string -> bool;
 	path_dir  : string -> string; // without slash
 	file_full_path   : string -> string;
 	sys_program_path : void -> string;
-	dump : void -> string array;
 }
 var lpath : path list ref = &[]
 var pathtools = {
@@ -172,15 +172,15 @@ var pathtools = {
 		}
 		loop 0 (*lpath)
 	};
-	dump = function () {
+	array = function () { // for --watch
 		var all = *lpath
 		var size = List.length all
 		var ret = neko "$array($amake(size),null,0)"
-		function rec loop(a, l) match(l) {
+		function rec revpush(a, l) match(l) {
 		| [] ->
-		| x :: l -> (loop a l); Array.add a x.str
+		| x :: l -> (revpush a l); Array.add a x.str
 		}
-		loop ret all;
+		revpush ret all;
 		ret
 	};
 	add = neko "null"

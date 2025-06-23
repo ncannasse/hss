@@ -27,7 +27,6 @@ type context {
 
 var pathtools : Hss.Utils.pathtools = Hss.Utils.pathtools
 var rgbtools : Hss.Utils.rgbtools = Hss.Utils.rgbtools
-var base64 : Hss.Utils.base64 = Hss.Utils.base64
 var pmod : Hss.Utils.print_mode = Hss.Utils.pmod
 var sem : Hss.Utils.sourcemap = Hss.Utils.sem
 var hssparse = Hss.Parser.parse Hss.Parser.program
@@ -598,7 +597,7 @@ function rec expand_val(value) {
 		var params = (VList[(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)], lp);
 		expand_val (VCall c params, p)
 	| VCall((VIdent "embed",p1), (VString url, p2)) ->
-		(VCall (VIdent "url",p1) (VString base64.encode_image(url, p2), p2), p)
+		(VCall (VIdent "url",p1) (VString Hss.Utils.base64.encode_image(url, p2), p2), p)
 	| VCall (v, vl) ->
 		(VCall expand_val(v) (expand_val vl), p)
 	| VList vl ->
@@ -920,6 +919,13 @@ type monitor {
 	watch   : string array array -> bool array -> bool;
 }
 
+var monitor = {
+	enable = false;
+	entries = neko "$array($amake(64),null,64)";
+	filters = Array.make(64, true);
+	watch = try neko "$loader.loadprim('monitor@watch', 2)" catch { _ -> neko "null" }
+}
+
 function monitor_filter( m : monitor, l : string list ) {
 	function rec loop(acc, l) match l {
 	| [] -> []
@@ -932,17 +938,35 @@ function monitor_filter( m : monitor, l : string list ) {
 	loop 0 l
 }
 
+function reset(index, file) {
+	pathtools.reset();
+	var path, _ = pathtools.add file "";
+
+	// load rules only once, with priority : (1) -rule file (2) dir(file)/css.rules (3) dir(hss.exe)/css.rules
+	// BUGBUG : for (2) if there are multiple files in the command line input, then only the last relevant one will be loaded
+	Hss.Rules.load "css.rules" path.dir;
+
+	// reset line counter
+	Hss.Utils.rows.current := "";
+	Hss.Utils.rows.all := [];
+
+	// preadd entry file to avoid lexer/parser errors
+	monitor.entries.[index] := Array.make(1, path.str);
+
+	// cleanup rule check errors
+	check_errors := [];
+
+	// sourcemap
+	sem.reset();
+
+	path
+}
+
 function main() {
 	var head = "HSS v2.1 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
 	var stdout = &false;
-	var monitor = {
-		enable = false;
-		entries = neko "$array($amake(64),null,64)";
-		filters = Array.make(64, true);
-		watch = try neko "$loader.loadprim('monitor@watch', 2)" catch { _ -> neko "null" }
-	}
 	var decl = [
 		("--watch",Args.Void (function(o) monitor.enable := true), "      : monitor <file> changes");
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
@@ -957,10 +981,7 @@ function main() {
 	Args.parse head (if monitor.watch === neko("null") then List.tl decl else decl) (function(file) files := file :: *files);
 
 	function generate((index, file)) {
-		pathtools.reset()
-		var path,_ = pathtools.add file "";
-		// load rules only once, with priority : (1) -rule file (2) dir(file)/css.rules (3) dir(hss.exe)/css.rules
-		Hss.Rules.load "css.rules" path.dir;
+		var path = reset(index, file)
 		// parse
 		var stdin = file == "stdin"
 		var ch = if !stdin then IO.read_file (path.str) true else IO.stdin
@@ -969,9 +990,10 @@ function main() {
 		var el = hssparse lex;
 		if !stdin then IO.close_in ch;
 		// check + replace vars
-		check_errors := []
 		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
+		// @import() is valid after check
+		monitor.entries.[index] := pathtools.array()
 		if *check_errors != [] then throw Error(*check_errors);
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
@@ -980,7 +1002,6 @@ function main() {
 		// combine/merge media queries if `-D merge_media`
 		var el = if Hss.Parser.defines_has "merge_media" then merge_media el else el;
 		// write
-		sem.reset()
 		var file2 = Sys.without_extension file + ".css";
 		var file2 = match *output {| None -> file2 | Some dir -> (pathtools.add_slash dir) + (Sys.without_dir file2) }
 		if *stdout || stdin then {
@@ -998,11 +1019,10 @@ function main() {
 				IO.close_out ch;
 			}
 		}
-		monitor.entries.[index] := pathtools.dump();
 	}
 	while true {
 		try {
-			List.iter generate monitor_filter(monitor, *files);
+			List.iter generate monitor_filter(monitor, *files)
 		} catch {
 			// todo : fix a small bug in nekoml to have ctx.current not to lowercase
 			// in order to get correct constructor hashing
