@@ -944,7 +944,7 @@ function main() {
 		watch = try neko "$loader.loadprim('monitor@watch', 2)" catch { _ -> neko "null" }
 	}
 	var decl = [
-		("--monitor",Args.Void (function(o) monitor.enable := true), "    : monitor <file> changes");
+		("--watch",Args.Void (function(o) monitor.enable := true), "      : monitor <file> changes");
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 		("-rule",Args.String Hss.Rules.custom,"<file>  : specify a css rule set file");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
