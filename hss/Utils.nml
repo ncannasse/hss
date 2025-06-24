@@ -108,11 +108,11 @@ type path {
 	str : string; // relative to root
 }
 type pathtools {
-	mutable all   : path list;
-	mutable reset : void   -> void;
-	mutable add   : string -> string -> (path, bool);
-	mutable find  : pos -> path;
-	mutable index : pos -> int;
+	reset : void -> void;
+	mutable add : string -> string -> (path, bool);
+	find  : pos -> path;
+	index : pos -> int;
+	array : void -> string array;
 	// The following are static methods
 	add_slash : string -> string;
 	is_abs    : string -> bool;
@@ -120,8 +120,8 @@ type pathtools {
 	file_full_path   : string -> string;
 	sys_program_path : void -> string;
 }
+var lpath : path list ref = &[]
 var pathtools = {
-	all = [];
 	file_full_path = neko("$loader.loadprim('std@file_full_path',1)");
 	add_slash = function(dir) {
 		var c = String.get dir ((String.length dir) - 1);
@@ -153,13 +153,39 @@ var pathtools = {
 		| _ -> "."
 		}
 	};
-	reset = neko "null";
-	add   = neko "null";
-	find  = neko "null";
-	index = neko "null";
+	reset = function() {
+		lpath := []
+	};
+	find = function( p : pos ) {
+		var source = p.psource;
+		function rec loop(l) match l {
+		| [] -> throw Not_found
+		| path::tl -> if path.str === source then path else loop tl
+		}
+		loop (*lpath)
+	};
+	index = function( p : pos ) { // used for sourcemap
+		var source = p.psource;
+		function rec loop(acc, l) match l {
+		| [] -> throw Not_found
+		| path::tl -> if path.str === source then acc else loop (acc+1) tl
+		}
+		loop 0 (*lpath)
+	};
+	array = function () { // for --watch
+		var all = *lpath
+		var size = List.length all
+		var ret = neko "$array($amake(size),null,0)"
+		function rec revpush(a, l) match(l) {
+		| [] ->
+		| x :: l -> (revpush a l); Array.add a x.str
+		}
+		revpush ret all;
+		ret
+	};
+	add = neko "null"
 }
-pathtools.reset := function() pathtools.all := [];
-pathtools.add := function(s: string, def_ext: string) {
+pathtools.add := function( s : string, def_ext : string ) {
 	function last_char(s, c) {
 		function rec loop(i) {
 			if i == -1 || String.get(s, i) == c then i else loop (i - 1)
@@ -171,8 +197,8 @@ pathtools.add := function(s: string, def_ext: string) {
 		| [] -> false
 		| path::tl -> if file == Sys.without_extension(path.full) then true else loop tl file
 		}
-		var exists = loop pathtools.all Sys.without_extension(path.full);
-		if (!exists) then pathtools.all := path :: pathtools.all;
+		var exists = loop (*lpath) Sys.without_extension(path.full);
+		if (!exists) then lpath := path :: (*lpath);
 		!exists
 	}
 	var last = (String.length s) - 1
@@ -196,23 +222,7 @@ pathtools.add := function(s: string, def_ext: string) {
 		str  = (if dir == "" then name else dir + "/" + name) + (if ext == "" then "" else "." + ext);
 	}
 	(ret, path_add ret)
-}
-pathtools.find := function(p: pos) {
-	var source = p.psource;
-	function rec loop(l) match l {
-	| [] -> throw Not_found
-	| path::tl -> if path.str === source then path else loop tl
-	}
-	loop pathtools.all
-}
-pathtools.index := function(p: pos) {
-	var source = p.psource;
-	function rec loop(acc, l) match l {
-	| [] -> throw Not_found
-	| path::tl -> if path.str === source then acc else loop (acc+1) tl
-	}
-	loop 0 pathtools.all
-}
+};
 
 /*
  * base64
@@ -278,7 +288,7 @@ rows.add_line := function (source, pos:int) {
 		function rec loop(l) match l {
 		| [] ->
 			rows.current:= source;
-			rows.cached := neko "var _a = $amake(512); _a[0] = 0; $array(_a,string, 1)"; // copy from Array.make
+			rows.cached := neko "var _a = $amake(512); _a[0] = 0; $array(_a,null,1)"; // copy from Array.make
 			rows.all    := (rows.current, rows.cached) :: rows.all
 		| (s, a) :: _ when s == source ->
 			rows.current:= s;
@@ -521,7 +531,7 @@ var sem = {
 			("version", SMVer 3);
 			("file", SMString Sys.without_dir(outfile));
 			("sourceRoot", SMString root);
-			("sources", SMList List.map(function(path) path.str, pathtools.all));
+			("sources", SMList List.map(function(path) path.str, *lpath));
 			("mappings", SMBuffer(m.buf, m.bpos));
 			("names", SMList []);
 		];

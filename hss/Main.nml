@@ -27,7 +27,6 @@ type context {
 
 var pathtools : Hss.Utils.pathtools = Hss.Utils.pathtools
 var rgbtools : Hss.Utils.rgbtools = Hss.Utils.rgbtools
-var base64 : Hss.Utils.base64 = Hss.Utils.base64
 var pmod : Hss.Utils.print_mode = Hss.Utils.pmod
 var sem : Hss.Utils.sourcemap = Hss.Utils.sem
 var hssparse = Hss.Parser.parse Hss.Parser.program
@@ -598,7 +597,7 @@ function rec expand_val(value) {
 		var params = (VList[(VInt r,hp);(VInt g,hp);(VInt b,hp);(VFloat f,fp)], lp);
 		expand_val (VCall c params, p)
 	| VCall((VIdent "embed",p1), (VString url, p2)) ->
-		(VCall (VIdent "url",p1) (VString base64.encode_image(url, p2), p2), p)
+		(VCall (VIdent "url",p1) (VString Hss.Utils.base64.encode_image(url, p2), p2), p)
 	| VCall (v, vl) ->
 		(VCall expand_val(v) (expand_val vl), p)
 	| VList vl ->
@@ -903,7 +902,7 @@ function merge_media(el) {
 	}
 }
 
-function display(msg,p) {
+function report(msg,p) {
 	if p == Lexer.null_pos then	{
 		Stack.dump IO.stderr Stack.exc();
 		IO.printf IO.stderr "Exception : %s\n" msg
@@ -913,41 +912,88 @@ function display(msg,p) {
 	}
 }
 
-function report(msg,p) {
-	display msg p;
-	Sys.exit(-1);
+type monitor {
+	mutable enable : bool;
+	filters : bool array;
+	entries : string array array;
+	watch   : string array array -> bool array -> bool;
 }
 
-try {
-	var head = "HSS v2.0 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
+var monitor = {
+	enable = false;
+	entries = neko "$array($amake(64),null,64)";
+	filters = Array.make(64, true);
+	watch = try neko "$loader.loadprim('monitor@watch', 2)" catch { _ -> neko "null" }
+}
+
+function monitor_filter( m : monitor, l : string list ) {
+	function rec loop(acc, l) match l {
+	| [] -> []
+	| x :: tl ->
+		if m.filters.[acc] then
+			(acc, x) :: loop (acc + 1) tl
+		else
+			loop (acc + 1) tl
+	}
+	loop 0 l
+}
+
+function reset(index, file) {
+	pathtools.reset();
+	var path, _ = pathtools.add file "";
+
+	// load rules only once, with priority : (1) -rule file (2) dir(file)/css.rules (3) dir(hss.exe)/css.rules
+	// BUGBUG : for (2) if there are multiple files in the command line input, then only the last relevant one will be loaded
+	Hss.Rules.load "css.rules" path.dir;
+
+	// reset line counter
+	Hss.Utils.rows.current := "";
+	Hss.Utils.rows.all := [];
+
+	// preadd entry file to avoid lexer/parser errors
+	monitor.entries.[index] := Array.make(1, path.str);
+
+	// cleanup rule check errors
+	check_errors := [];
+
+	// sourcemap
+	sem.reset();
+
+	path
+}
+
+function main() {
+	var head = "HSS v2.1 - (c)2008-2023 Nicolas Cannasse\nUsage : hss [options] <file>";
 	var files = &[];
 	var output = &None;
-	var is_stdout = &false;
+	var stdout = &false;
 	var decl = [
+		("--watch",Args.Void (function(o) monitor.enable := true), "      : monitor <file> changes");
 		("-output",Args.String (function(o) output := Some o),"<dir> : specify output directory");
 		("-rule",Args.String Hss.Rules.custom,"<file>  : specify a css rule set file");
 		("-D",Args.String Hss.Parser.add_defines,"<flag>     : define a conditional compilation flag");
 		("--append",Args.Void Hss.Rules.append,"     : available only if '-rule <file>' is specified");
 		("--minify",Args.Void pmod.enable_minify,"     : minify output by removing some whitespaces");
-		("--stdout",Args.Void (function() is_stdout := true), "     : output to stdout");
+		("--stdout",Args.Void (function() stdout := true), "     : output to stdout");
 		("--sourcemap", Args.Void sem.switch_on,"  : outputs a v3 sourcemap file");
 	];
-	Args.parse head decl (function(file) files := file :: *files);
 
-	List.iter (function(file) {
-		var is_stdin = file == "stdin"
-		var path,_ = pathtools.add file "";
-		// load rules
-		if !(*Hss.Rules.loaded) then Hss.Rules.load "css.rules" path.dir;
+	Args.parse head (if monitor.watch === neko("null") then List.tl decl else decl) (function(file) files := file :: *files);
+
+	function generate((index, file)) {
+		var path = reset(index, file)
 		// parse
-		var ch = if !is_stdin then IO.read_file (path.str) true else IO.stdin
+		var stdin = file == "stdin"
+		var ch = if !stdin then IO.read_file (path.str) true else IO.stdin
 		var lex = Lexer.create Buffer.create();
 		Lexer.input lex (path.str) ch 1 0;
 		var el = hssparse lex;
-		if !is_stdin then IO.close_in ch;
+		if !stdin then IO.close_in ch;
 		// check + replace vars
 		var ctx = { vars = Map.empty(); blocks = Map.empty(); eval_rec = 0; skip_calc = 1; ns = None; curblock = None; };
 		var el = List.map (check ctx) el;
+		// @import() is valid after check
+		monitor.entries.[index] := pathtools.array()
 		if *check_errors != [] then throw Error(*check_errors);
 		// flatten
 		var el = List.concat (List.map flatten([]) el);
@@ -958,7 +1004,7 @@ try {
 		// write
 		var file2 = Sys.without_extension file + ".css";
 		var file2 = match *output {| None -> file2 | Some dir -> (pathtools.add_slash dir) + (Sys.without_dir file2) }
-		if *is_stdout || is_stdin then {
+		if *stdout || stdin then {
 			List.iter (print_css IO.stdout "") el;
 			IO.flush(IO.stdout);
 		} else if file != file2 then {
@@ -973,18 +1019,24 @@ try {
 				IO.close_out ch;
 			}
 		}
-		sem.reset();
-		pathtools.reset()
-	}) (*files);
-} catch {
-	// todo : fix a small bug in nekoml to have ctx.current not to lowercase
-	// in order to get correct constructor hashing
-	| Hss.Lexer.Error(msg,pos) -> report Hss.Lexer.error_msg(msg) pos
-	| Hss.Parser.Error(msg,pos) -> report Hss.Parser.error_msg(msg) pos
-	| Hss.Utils.Error(msg,pos) -> report msg pos
-	| Error l -> List.iter (function((msg,p)) display msg p) List.rev(l); Sys.exit (-1);
-	| e ->
-		Stack.dump IO.stderr Stack.exc();
-		IO.printf IO.stderr "Exception : %s\n" string(e);
-		Sys.exit (-1);
+	}
+	while true {
+		try {
+			List.iter generate monitor_filter(monitor, *files)
+		} catch {
+			// todo : fix a small bug in nekoml to have ctx.current not to lowercase
+			// in order to get correct constructor hashing
+			| Hss.Lexer.Error(msg,pos) -> report Hss.Lexer.error_msg(msg) pos
+			| Hss.Parser.Error(msg,pos) -> report Hss.Parser.error_msg(msg) pos
+			| Hss.Utils.Error(msg,pos) -> report msg pos
+			| Error l -> List.iter (function((msg,p)) report msg p) List.rev(l)
+			| e ->
+				Stack.dump IO.stderr Stack.exc();
+				IO.printf IO.stderr "Exception : %s\n" string(e);
+				Sys.exit (-1);
+		}
+		if (!monitor.enable || !monitor.watch(monitor.entries, monitor.filters))
+			then Sys.exit 0;
+	}
 }
+main()

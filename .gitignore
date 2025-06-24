@@ -2,4 +2,9 @@ bin/**
 !bin/css.rules
 dump
 *.n
+*.neko
 *.css
+.vs
+*.user
+Debug
+Release
