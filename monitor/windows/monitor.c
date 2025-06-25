@@ -34,7 +34,10 @@ static struct monitor {
 	ENTRY_DIR(d)[DIR_MAXPATH - 1] = 0; \
 } while(0)
 
-#define ENTRY_SWEEP(i)       FindCloseChangeNotification(ENTRY_HANDLE(i))
+#define ENTRY_SWEEP(i)       do { \
+	FindCloseChangeNotification(ENTRY_HANDLE(i)); \
+	trace("monitor - remove dir : '%s'\n", ENTRY_DIR(i)); \
+} while(0)
 
 
 static void inline monitor_marks_cleanup()
@@ -79,7 +82,7 @@ static void monitor_marks_sweep()
 	monitor.count = acc;
 }
 
-static void monitor_init()
+static void inline monitor_init()
 {
 	monitor.count = 0;
 }
@@ -99,12 +102,15 @@ static inline int isslash(int c)
 static void monitor_add_inner(unsigned char *dir)
 {
 	ENTRY_FOREACH(i) {
-		if (strcmp(ENTRY_DIR(i), dir) == 0) { // already exists
+		if (strcmp(ENTRY_DIR(i), dir) == 0) { // marks
 			ENTRY_MARK_SET(i);
 			return;
 		}
 	}
-	trace("monitor_add_inner : '%s'\n", dir);
+	if (monitor.count >= ENTRIES) {
+		fprintf(stderr, "monitor - Out of bounds entries.");
+		return;
+	}
 	HANDLE handle = FindFirstChangeNotificationA(dir, FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
 	if (handle == INVALID_HANDLE_VALUE) {
 		/*
@@ -118,11 +124,7 @@ static void monitor_add_inner(unsigned char *dir)
 		fprintf(stderr, "monitor - HANDLE creation failed : 0x%x, for '%s'\n", GetLastError(), dir);
 		return;
 	}
-	if (monitor.count >= ENTRIES) {
-		FindCloseChangeNotification(handle);
-		fprintf(stderr, "monitor - Out of bounds entries.");
-		return;
-	}
+	trace("monitor - add dir : '%s'\n", dir);
 	int slot = monitor.count++;
 	ENTRY_MARK_SET(slot);
 	ENTRY_HANDLE(slot) = handle;
@@ -155,6 +157,13 @@ static void monitor_add(char *path, int len)
 	monitor_add_inner(dir);
 }
 
+static BOOL compare_filetime_msec(FILETIME *t1, FILETIME *t2, DWORD msec)
+{
+	ULONGLONG u1 = *(ULONGLONG*)t1;  // little endian
+	ULONGLONG u2 = *(ULONGLONG*)t2;
+	return u1 > (u2 + msec * 10000); // 1ms = (100ns * 10,000)
+}
+
 /*
  * neko nml array : [inner, tostring, size]
  * inner : [
@@ -164,7 +173,7 @@ static void monitor_add(char *path, int len)
  * ]
  *
  * @param entries : neko nml array : Array<Array<String>>
- * @param entries : neko nml array : Array<Bool>
+ * @param filters : neko nml array : Array<Bool>
  * @return : bool
  */
 #define VAL_ARRAY_SIZE(v)  val_int(       val_array_ptr(v)[2] )
@@ -183,11 +192,14 @@ static value watch(value entries, value filters)
 		if (val_is_null(entry))
 			break;
 
+		VAL_ARRAY_PTR(filters)[i] = val_false;
+
 		for (int j = 0; j < VAL_ARRAY_SIZE(entry); j++) {
 			value nstr = VAL_ARRAY_PTR(entry)[j];
 			int len = val_strlen(nstr);
 			if (len == 0)
 				continue;
+			// trace("monitor - input file : %s\n", val_string(nstr));
 			monitor_add(val_string(nstr), len);
 		}
 	}
@@ -196,12 +208,15 @@ static value watch(value entries, value filters)
 
 	if (!monitor.count)
 		return val_false;
-
+	// if not NULL then checks for additional signals within 100ms, It's very rare, unless you "touch" multiple files at once
+	char *found = NULL;
 	DWORD status, slot;
-waitfor:
-	status = WaitForMultipleObjects(monitor.count, monitor.handles, FALSE, INFINITE);
+wait_for_signal:
+	status = WaitForMultipleObjects(monitor.count, monitor.handles, FALSE, (found ? 100 : INFINITE));
 	slot = status - WAIT_OBJECT_0;
 	if (slot >= (DWORD)monitor.count) {
+		if (found)
+			return val_true;
 		fprintf(stderr, "monitor - WaitForMultipleObjects ERROR : 0x%x\n", status);
 		monitor_release();
 		return val_false;
@@ -209,15 +224,14 @@ waitfor:
 	FindNextChangeNotification(ENTRY_HANDLE(slot));
 	// compares
 	WIN32_FILE_ATTRIBUTE_DATA fattr;
-	int found = 0;
 	for (int i = 0; i < VAL_ARRAY_SIZE(entries); i++) {
 
 		value entry = VAL_ARRAY_PTR(entries)[i];
+		value *filter = &VAL_ARRAY_PTR(filters)[i];
 
-		if (val_is_null(entry))
-			break;
+		if (val_is_null(entry)) break;
 
-		VAL_ARRAY_PTR(filters)[i] = val_false;
+		if (*filter == val_true) continue;
 
 		for (int j = 0; j < VAL_ARRAY_SIZE(entry); j++) {
 			value nstr = VAL_ARRAY_PTR(entry)[j];
@@ -226,21 +240,19 @@ waitfor:
 				continue;
 			if (!GetFileAttributesExA(val_string(nstr), GetFileExInfoStandard, &fattr))
 				continue;
-			if (CompareFileTime(&fattr.ftLastWriteTime, &ctime) > 0) {
-				found = 1;
-				VAL_ARRAY_PTR(filters)[i] = val_true;
-				if (j == 0) {
-					printf("monitor - Changed : '%s'\n", val_string(nstr));
-				} else {
-					unsigned char *s = val_string(VAL_ARRAY_PTR(entry)[0]);
-					printf("monitor - Changed : '%s' update '%s'\n", val_string(nstr), s);
+			if (compare_filetime_msec(&fattr.ftLastWriteTime, &ctime, 500)) {
+
+				*filter = val_true;
+
+				if (!found || strcmp(found, val_string(nstr))) {
+					found = val_string(nstr);
+					printf("monitor - changed : '%s'\n", found);
 				}
 				break;
 			}
 		}
 	}
-	if (!found)
-		goto waitfor;
+	goto wait_for_signal; // reduce code indentation
 	return val_true;
 }
 
