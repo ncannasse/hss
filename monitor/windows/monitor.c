@@ -36,7 +36,7 @@ static struct monitor {
 
 #define ENTRY_SWEEP(i)       do { \
 	FindCloseChangeNotification(ENTRY_HANDLE(i)); \
-	trace("monitor - remove dir : '%s'\n", ENTRY_DIR(i)); \
+	trace("monitor - detach dir : '%s'\n", ENTRY_DIR(i)); \
 } while(0)
 
 
@@ -108,7 +108,7 @@ static void monitor_add_inner(unsigned char *dir)
 		}
 	}
 	if (monitor.count >= ENTRIES) {
-		fprintf(stderr, "monitor - Out of bounds entries.");
+		fprintf(stderr, "monitor - out of bounds entries for %s\n", dir);
 		return;
 	}
 	HANDLE handle = FindFirstChangeNotificationA(dir, FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
@@ -124,7 +124,7 @@ static void monitor_add_inner(unsigned char *dir)
 		fprintf(stderr, "monitor - HANDLE creation failed : 0x%x, for '%s'\n", GetLastError(), dir);
 		return;
 	}
-	trace("monitor - add dir : '%s'\n", dir);
+	trace("monitor - attach dir : '%s'\n", dir);
 	int slot = monitor.count++;
 	ENTRY_MARK_SET(slot);
 	ENTRY_HANDLE(slot) = handle;
@@ -240,19 +240,17 @@ wait_for_signal:
 				continue;
 			if (!GetFileAttributesExA(val_string(nstr), GetFileExInfoStandard, &fattr))
 				continue;
-			if (compare_filetime_msec(&fattr.ftLastWriteTime, &ctime, 500)) {
-
-				*filter = val_true;
-
-				if (!found || strcmp(found, val_string(nstr))) {
-					found = val_string(nstr);
-					printf("monitor - changed : '%s'\n", found);
-				}
-				break;
+			if (!compare_filetime_msec(&fattr.ftLastWriteTime, &ctime, 500))
+				continue;
+			*filter = val_true;
+			if (!found || strcmp(found, val_string(nstr))) {
+				found = val_string(nstr);
+				printf("monitor - changed : '%s'\n", found);
 			}
+			break;
 		}
 	}
-	goto wait_for_signal; // reduce code indentation
+	goto wait_for_signal; // reduce tab indentation
 	return val_true;
 }
 
