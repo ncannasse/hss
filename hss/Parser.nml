@@ -471,11 +471,11 @@ function rec class(s,first) {
 	| [< >] -> OpDefault
 	}
 	var n = loop 0;
-	if n == 0 && c.attributes == [] then {
+	if n == 0 && c.attributes == [] || *last != None then {
 		var tk,p = stream_token s 0;
 		match tk {
 		| Const(Val _) -> error (Expected_semicolon tk) p
-		| _ -> error (if first then Unexpected tk else Class_expected) p
+		| _ -> error (if first || *last != None then Unexpected tk else Class_expected) p
 		}
 	}
 	stream_junk s n;
