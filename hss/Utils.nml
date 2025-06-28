@@ -393,7 +393,7 @@ var sem = {
 	var table = base64.table;
 	var m = {
 		enabled=false; source=""; index=0; last_src_line=1; last_src_col=1; out_comma=false; current=0; last=0; bpos=0;
-		buf = String.create(40960);
+		buf = String.create(4096);
 		write_extern = IO.write;
 		write_char   = IO.write_char;
 		write        = IO.write;
@@ -525,15 +525,19 @@ var sem = {
 				loop ch l
 			}
 		}
-		var root = Sys.get_cwd();
-		var root = "file://" + (if String.get(root, 0) == '/' then "" else "/") + String.concat("/", String.split(root,"\\"));
+		var dir = List.hd(*lpath).dir
+		var root = if pathtools.is_abs dir then {
+			if String.get(dir, 0) == '/' then "" else "file:///"
+		} else {
+			var cwd = Sys.get_cwd();
+			if String.get(cwd, 0) == '/' then "" else "file:///" + String.concat("/", String.split cwd "\\")
+		}
 		var data = [
 			("version", SMVer 3);
 			("file", SMString Sys.without_dir(outfile));
 			("sourceRoot", SMString root);
-			("sources", SMList List.map(function(path) path.str, *lpath));
+			("sources", SMList List.map(function(path) String.concat("/", String.split path.str "\\"), *lpath));
 			("mappings", SMBuffer(m.buf, m.bpos));
-			("names", SMList []);
 		];
 		IO.write_char ch '{';
 		loop ch data;
