@@ -14,9 +14,12 @@
 	#define trace(...)
 #endif
 
-#define DIR_MAXPATH    128
+#define DIR_MAXPATH    160
 #define ENTRIES         32
 
+/*
+ * An entry is associated with a monitored directory.
+ */
 static struct monitor {
 	int count;
 	unsigned int bimap[ENTRIES / 32];
@@ -29,18 +32,19 @@ static struct monitor {
 #define ENTRY_HANDLE(i)      (monitor.handles[i])
 #define ENTRY_MARK_VALUE(i)  (monitor.bimap[i / 32]  & (1 << i % 32))
 #define ENTRY_MARK_SET(i)    (monitor.bimap[i / 32] |= (1 << i % 32))
-#define ENTRY_DIR_COPY(d, s) do { \
-	strncpy(ENTRY_DIR(d), ENTRY_DIR(s), DIR_MAXPATH - 1); \
-	ENTRY_DIR(d)[DIR_MAXPATH - 1] = 0; \
+#define ENTRY_DIR_COPY(d, s) snprintf(ENTRY_DIR(d), DIR_MAXPATH, "%s", s)
+
+
+#define ENTRY_DETACH(i)       do { \
+	if (ENTRY_HANDLE(i)) { \
+		FindCloseChangeNotification(ENTRY_HANDLE(i)); \
+		ENTRY_HANDLE(i) = NULL; \
+		trace("monitor - detach dir : '%s'\n", ENTRY_DIR(i)); \
+	} \
 } while(0)
 
-#define ENTRY_SWEEP(i)       do { \
-	FindCloseChangeNotification(ENTRY_HANDLE(i)); \
-	trace("monitor - detach dir : '%s'\n", ENTRY_DIR(i)); \
-} while(0)
 
-
-static void inline monitor_marks_cleanup()
+static void inline monitor_marks_clear()
 {
 	for (int i = 0; i < (sizeof(monitor.bimap) / sizeof(int)); i++) {
 		monitor.bimap[i] = 0;
@@ -50,36 +54,26 @@ static void inline monitor_marks_cleanup()
 /*
  * Clear the elements in the array that are no longer valid
  *
- * e.g : [1, 0, 0, 2, 0, 0, 0, 3] => [1, 2, 3]
+ * e.g : [1, 0, 0, 2, 0, 0, 0, 3, 0] => [1, 3, 2, ...]
  */
 static void monitor_marks_sweep()
 {
 	int i = 0;
-	int acc = 0;
 	int count = monitor.count;
 	while (i < count) {
-		int cur = i++;
-		if (ENTRY_MARK_VALUE(cur)) {
-			acc++;
+		if (ENTRY_MARK_VALUE(i)) {
+			i++;
 			continue;
 		}
-
-		ENTRY_SWEEP(cur);
-
-		while (i < count) {
-			int next = i++;
-			if (ENTRY_MARK_VALUE(next) == 0) {
-				ENTRY_SWEEP(next);
-				continue;
-			}
-			int slot = acc++;
-			ENTRY_MARK_SET(slot);
-			ENTRY_HANDLE(slot) = ENTRY_HANDLE(next);
-			ENTRY_DIR_COPY(slot, next);
-			break;
+		ENTRY_DETACH(i);
+		int next = --count;
+		if (ENTRY_MARK_VALUE(next)) { // else do ENTRY_DETACH(next) in the next loop
+			ENTRY_MARK_SET(i);
+			ENTRY_DIR_COPY(i, ENTRY_DIR(next));
 		}
+		ENTRY_HANDLE(i) = ENTRY_HANDLE(next);
 	}
-	monitor.count = acc;
+	monitor.count = count;
 }
 
 static void inline monitor_init()
@@ -90,7 +84,7 @@ static void inline monitor_init()
 static void monitor_release()
 {
 	ENTRY_FOREACH(i) {
-		ENTRY_SWEEP(i);
+		ENTRY_DETACH(i);
 	}
 	monitor.count = 0;
 }
@@ -99,7 +93,7 @@ static inline int isslash(int c)
 {
 	return c == '/' || c == '\\';
 }
-static void monitor_add_inner(unsigned char *dir)
+static void monitor_upsert_inner(unsigned char *dir)
 {
 	ENTRY_FOREACH(i) {
 		if (strcmp(ENTRY_DIR(i), dir) == 0) { // marks
@@ -128,24 +122,26 @@ static void monitor_add_inner(unsigned char *dir)
 	int slot = monitor.count++;
 	ENTRY_MARK_SET(slot);
 	ENTRY_HANDLE(slot) = handle;
-	strncpy(ENTRY_DIR(slot), dir, DIR_MAXPATH - 1);
-	ENTRY_DIR(slot)[DIR_MAXPATH - 1] = 0;
+	ENTRY_DIR_COPY(slot, dir);
 }
-static void monitor_add(char *path, int len)
+static void monitor_upsert(char *path, int len)
 {
 	unsigned char dir[DIR_MAXPATH];
 	dir[0] = 0;
 
 	char *last = path + len - 1;
-	if (path[0] == '.' && isslash(path[1])) // remove "./" at beginning
+	if (path[0] == '.' && isslash(path[1])) // remove leading  "./" to normalize
 		path += 2;
 
 	while (last >= path) {
 		int c = *last;
 		if (isslash(c)) {
-			int cnt = (int)(last - path) % DIR_MAXPATH;
-			strncpy(dir, path, cnt);
-			dir[cnt] = 0;
+			int cnt = (int)(last - path) + 1; // without slash, but including '\0'
+			if (cnt > DIR_MAXPATH) {
+				fprintf(stderr, "The directory of the file(\"%s\") has length %d, which exceeds %d\n", path, cnt, DIR_MAXPATH);
+				return;
+			}
+			snprintf(dir, cnt, "%s", path);
 			break;
 		}
 		last--;
@@ -154,7 +150,7 @@ static void monitor_add(char *path, int len)
 		dir[0] = '.';
 		dir[1] = 0;
 	}
-	monitor_add_inner(dir);
+	monitor_upsert_inner(dir);
 }
 
 static BOOL compare_filetime_msec(FILETIME *t1, FILETIME *t2, DWORD msec)
@@ -184,7 +180,7 @@ static value watch(value entries, value filters)
 	FILETIME ctime;
 	GetSystemTimeAsFileTime(&ctime);
 
-	monitor_marks_cleanup();
+	monitor_marks_clear();
 
 	for (int i = 0; i < VAL_ARRAY_SIZE(entries); i++) {
 		value entry = VAL_ARRAY_PTR(entries)[i];
@@ -199,8 +195,7 @@ static value watch(value entries, value filters)
 			int len = val_strlen(nstr);
 			if (len == 0)
 				continue;
-			// trace("monitor - input file : %s\n", val_string(nstr));
-			monitor_add(val_string(nstr), len);
+			monitor_upsert(val_string(nstr), len);
 		}
 	}
 
@@ -280,7 +275,7 @@ BOOL APIENTRY DllMain(HMODULE hmodule, DWORD reason, LPVOID lpreserved)
 int main(int argc, char *argv[])
 {
 	monitor_init();
-	value entries = alloc_array(3); // array<array<string>>, it's horrible
+	value entries = alloc_array(3); // array<array<string>>
 	{
 		value inner = alloc_array(3);
 		val_array_ptr(entries)[0] = inner;
